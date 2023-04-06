@@ -1,0 +1,3 @@
+recursive-include batogram *.png
+recursive-include batogram *.csv
+recursive-include batogram *.wav
