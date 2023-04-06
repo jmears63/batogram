@@ -1,0 +1,7 @@
+private
+venv
+.idea
+*~
+*.pyc
+dist
+batogram.egg-info
