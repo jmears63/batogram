@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "batogram"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
     {name = "John Mears", email = "john+batogram@themears.co.uk"},
 ]
