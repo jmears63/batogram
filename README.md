@@ -15,7 +15,11 @@ Some capabilities and features:
 
 Installation
 ------------
-Batogram is currently installed from the command line using pip, as follows. 
+
+### Linux
+
+On Linux, Batogram is currently installed from the command line using pip, as below.
+You need to have Python 3.10 as a minimum.  
 
     # Create a virtual environment at a convenient location in your home directory:
     mkdir ~/batogram
@@ -23,11 +27,42 @@ Batogram is currently installed from the command line using pip, as follows.
     python3 -m venv venv
     source venv/bin/activate
 
-    # Install batogram and its dependencies. This may take a few moments:
+    # It's good practice to have pip up to date:
+    pip install pip --upgrade
+
+    # Install batogram and its dependencies. This may take a few moments.
+    # Obviously, substitute the lastest and greatest version number:
     pip install batogram-x.y.z.tar.gz
     
-    # Run batogram:
+    # Batogram is now in PATH. You can run it with this simple command:
     batogram
+
+### Windows
+For now, Batogram is installed onto windows using the following slightly convoluted
+steps. At some point in the future, I will provide a simpler install.
+
+This sequence assumes Windows 11.
+
+* Launch the Microsoft Store. You can do this from the Start menu - search for Microsoft Store,
+and launch it.
+* In the store, search for Python using the upper right menu. Select a version which is
+at least 3.10 - probably, the most recent version. I used version 3.11.
+* Go ahead and install it.
+* Open a windows command prompt - for example, by searching for cmd from the start menu. 
+
+In the command prompt, enter this command to install Batogram and its dependencies, which
+may take a few moments:
+
+    pip install batogram
+
+The install command will finish by displaying a path to batogram.exe. You may wish to copy
+that file to your desktop for convenient launching. Otherwise, you can launch
+Batogram from the command prompt:
+
+    python -m batogram
+
+Subsequently you can launch Batogram using that command in the command prompt, or by double
+clicking on batogram.exe on your desktop, if you copied it there in the previous step.
 
 Usage
 -----
