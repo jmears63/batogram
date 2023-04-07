@@ -271,7 +271,8 @@ class AxisLayout(Layout):
         (ticks, decimal_places) = self.calculate_ticks(self._axis_range, multiplier, extent,
                                                        target_spacing_pixels=target_spacing_pixels)
 
-        axis_font = (self._font_name, self._font_height)
+        # Negative font height is in pixels:
+        axis_font = (self._font_name, -self._font_height)
 
         if self._orientation == self.ORIENT_VERTICAL:
             Layout._create_rectangle(canvas, x, y, self._size - 1, y + extent, AXIS_BG_COLOUR)

@@ -24,6 +24,6 @@ DATA_CHANGE_REF_EVENT = "<<OnDataChangeRef>>"  # Underlying data has change: for
 MAIN_SPECTROGAM_COMPLETER_EVENT = "<<MainSpectrogramCompleter>>"
 MAIN_AMPLITUDE_COMPLETER_EVENT = "<<MainAmplitudeCompleter>>"
 MAIN_PROFILE_COMPLETER_EVENT = "<<MainProfileCompleter>>"
-FONT_SIZE = 8
+FONT_SIZE = 12
 ZOOM_ORDER = 2  # This will move into settings. 0-2 is a useful range.
 ASSETS_PATH = "."
