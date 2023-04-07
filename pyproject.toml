@@ -12,7 +12,7 @@ authors = [
 ]
 description = "Batogram is a GUI program for rendering spectrograms from full spectrum recordings of bat calls."
 readme = "README.md"
-requires-python = ">=3"
+requires-python = ">=3.10"
 keywords = ["bat", "spectrogram", "chiropterology", "fourier", "ultrasonic", "ultrasound", "echo", "GUANO"]
 license = {file = "LICENSE"}
 classifiers = [
