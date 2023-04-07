@@ -484,8 +484,11 @@ class HistogramCanvas(tk.Canvas):
 
         # Mouse wheel BnC needs a little more polish: straighten out the code,
         # only refresh spectrogram graph.
+        # For Linux:
         self.bind('<Button-4>', self._on_wheel_up)
         self.bind('<Button-5>', self._on_wheel_down)
+        # For Windows:
+        self.bind("<MouseWheel>", self._on_wheel)
 
         self._reset_histogram()
 
@@ -571,6 +574,13 @@ class HistogramCanvas(tk.Canvas):
     def _on_wheel_down(self, event):
         if self._is_interactive_mode:
             self._bnc_line.on_wheel_move(-self._WHEEL_DELTA)
+
+    def _on_wheel(self, event):
+        if self._is_interactive_mode:
+            if event.delta > 0:
+                self._bnc_line.on_wheel_move(self._WHEEL_DELTA)
+            else:
+                self._bnc_line.on_wheel_move(-self._WHEEL_DELTA)
 
     def _values_to_pixels(self, vrange: tuple[float, float]) -> Tuple[int, int]:
         prange: Tuple[int, int] | None = None
