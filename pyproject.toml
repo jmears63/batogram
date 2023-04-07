@@ -6,13 +6,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "batogram"
-version = "1.0.3"
+version = "1.0.4"
 authors = [
     {name = "John Mears", email = "john+batogram@themears.co.uk"},
 ]
 description = "Batogram is a GUI program for rendering spectrograms from full spectrum recordings of bat calls."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3"
 keywords = ["bat", "spectrogram", "chiropterology", "fourier", "ultrasonic", "ultrasound", "echo", "GUANO"]
 license = {file = "LICENSE"}
 classifiers = [
@@ -38,7 +38,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 # For some reason these file types also need to be listed in MANIFEST.in
-"*" = ["*.png", "*.csv", "*.wav"]
+# "*" = ["*.png", "*.csv", "*.wav"]
+"*" = ["*.png", "*.csv"]
 
 [project.scripts]
 # Automatically create a command to run the program. There is an alternative to run a GUI script,
