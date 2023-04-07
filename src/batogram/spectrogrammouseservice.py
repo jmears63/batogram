@@ -145,8 +145,22 @@ class SpectrogramMouseService:
     def _on_button3_move(self, event):
         pass
 
+    def _on_wheel(self, event):
+        print("wheel {}".format(event))
+        if event.delta > 0:
+            self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=False)
+        else:
+            self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, frequency_clamped=False)
+
+    def _on_shift_wheel(self, event):
+        print("shift wheel {}".format(event))
+        if event.delta > 0:
+            self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=True)
+        else:
+            self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, frequency_clamped=True)
+
     def _on_wheel_up(self, event):
-        # print("up")
+        # print("up {}".format(event))
         self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=False)
 
     def _on_shift_wheel_up(self, event):
@@ -154,7 +168,7 @@ class SpectrogramMouseService:
         self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=True)
 
     def _on_wheel_down(self, event):
-        # print("down")
+        # print("down {}".format(event))
         self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, frequency_clamped=False)
 
     def _on_shift_wheel_down(self, event):
@@ -176,10 +190,14 @@ class SpectrogramMouseService:
         self._canvas.unbind('<Button-5>')
 
     def _bind_wheel(self):
+        # For linux:
         self._canvas.bind('<Button-4>', self._on_wheel_up)
         self._canvas.bind('<Shift-Button-4>', self._on_shift_wheel_up)
         self._canvas.bind('<Button-5>', self._on_wheel_down)
         self._canvas.bind('<Shift-Button-5>', self._on_shift_wheel_down)
+        # For Windows:
+        self._canvas.bind("<MouseWheel>", self._on_wheel)
+        self._canvas.bind("<Shift-MouseWheel>", self._on_shift_wheel)
 
     def _on_zoom_drag_complete(self, start: Tuple[int, int], end: Tuple[int, int], frequency_clamped: bool):
         """
