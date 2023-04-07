@@ -52,6 +52,16 @@ My hope this that this will grow into a useful collection of reference calls for
 For the moment, while the structure of the code is fairly rapid flux, so I am not accepting
 pull requests other than for small fixes. This may change in the future.
 
+Credits
+-------
+
+In no particular order:
+* [Pictogrammers Team](https://www.iconarchive.com/show/material-icons-by-pictogrammers/bat-icon.html)
+* [Tucker Beck](https://code.activestate.com/recipes/576688-tooltip-for-tkinter/)
+* [Remix Icon](https://remixicon.com/)
+* [Kenneth Moreland](https://www.kennethmoreland.com/color-advice/)
+* [David A. Riggs](https://github.com/riggsd/guano-py/blob/master/guano.py)
+
 About the Author
 ----------------
 

@@ -24,16 +24,6 @@ from . import get_asset_path, __version__
 
 
 class AboutWindow(tk.Toplevel):
-
-    _credit_list = [
-        "Pictogrammers Team",       # The main bat icon: https://www.iconarchive.com/show/material-icons-by-pictogrammers/bat-icon.html:
-        "Tucker Beck",              # Tooltips code: https://code.activestate.com/recipes/576688-tooltip-for-tkinter/
-        "Remix Icon",               # Bucket icons: https://remixicon.com/
-        "Kenneth Moreland",         # Colour map: https://www.kennethmoreland.com/color-advice/
-        "David A. Riggs",           # Guano code: https://github.com/riggsd/guano-py/blob/master/guano.py
-        "Arnold Andreasson"         # Testing on Apple devices and general advice.
-    ]
-
     def __init__(self, parent):
         super().__init__(parent)
         self.title("About Batogram")
@@ -41,7 +31,7 @@ class AboutWindow(tk.Toplevel):
         self.attributes('-topmost', 'true')  # Keep in front of its parent.
 
         ref = parent
-        width, height = 300, 400
+        width, height = 300, 300
         self.geometry("{}x{}+{}+{}".format(
             width, height,
             ref.winfo_rootx() + (ref.winfo_width() - width) // 2,
@@ -55,19 +45,13 @@ class AboutWindow(tk.Toplevel):
         label = tk.Label(self, image=self._img)
         label.grid(row=0, column=0, padx=pad, pady=pad)
 
-        label = tk.Label(self, text="Version {}".format(__version__))
+        label = tk.Label(self, text="Version: {}".format(__version__))
         label.grid(row=1, column=0, padx=pad, pady=pad)
 
         label = tk.Label(self, text="Author: John Mears")
         label.grid(row=2, column=0, padx=pad, pady=pad)
 
-        label = tk.Label(self, text="Credits (alphabetical):")
-        label.grid(row=3, column=0, padx=pad, pady=pad)
-
-        label = tk.Label(self, text="\n".join(sorted(AboutWindow._credit_list)))
-        label.grid(row=4, column=0, padx=pad, pady=pad)
-
         btn = tk.Button(self, text="Close", command=self.destroy)
-        btn.grid(row=5, column=0, padx=pad, pady=pad)
+        btn.grid(row=3, column=0, padx=pad, pady=pad)
 
         self.columnconfigure(0, weight=1)   # Expand to use the width.
