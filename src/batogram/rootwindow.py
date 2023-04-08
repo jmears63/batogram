@@ -374,7 +374,7 @@ class DataContext:
 class RootWindow(tk.Tk):
     """The top level application window."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, initialfile=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._paned_window: tk.PanedWindow
@@ -425,6 +425,9 @@ class RootWindow(tk.Tk):
 
         self._main_pane.draw()
         self._ref_pane.draw()
+
+        if initialfile is not None:
+            self.after_idle(lambda: self._do_open_main_file(initialfile))
 
     def _start_pipelines(self):
         # Kick off the spectrogram rendering pipelines. This has to done at this level because
