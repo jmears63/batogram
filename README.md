@@ -31,7 +31,6 @@ You need to have Python 3.10 as a minimum.
     pip install pip --upgrade
 
     # Install batogram and its dependencies. This may take a few moments.
-    # Obviously, substitute the lastest and greatest version number:
     pip install batogram
     
     # Batogram is now in PATH. You can run it with this simple command:
