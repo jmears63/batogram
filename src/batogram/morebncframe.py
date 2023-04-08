@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import math
 import tkinter as tk
 import numpy as np
 
@@ -443,6 +443,8 @@ class BnCLine:
         min_x, _ = self._min_dragger.get_pos()
         max_x, _ = self._max_dragger.get_pos()
 
+        # print("dragger positions: {} {}".format(min_x, max_x))
+
         min_x += delta
         min_x = clip_to_range(min_x, 0, self._width - 1)
 
@@ -482,8 +484,6 @@ class HistogramCanvas(tk.Canvas):
         # Bind so we can react to becoming visible and draw ourselves:
         self.bind("<Configure>", self._on_resize)
 
-        # Mouse wheel BnC needs a little more polish: straighten out the code,
-        # only refresh spectrogram graph.
         # For Linux:
         self.bind('<Button-4>', self._on_wheel_up)
         self.bind('<Button-5>', self._on_wheel_down)
@@ -494,8 +494,9 @@ class HistogramCanvas(tk.Canvas):
 
     def on_bnc_interactive_change(self, prange: tuple[int, int]):
         # Scale the pixels to values:
-        vrange = self._pixels_to_values(prange)
-        self._parent.on_bnc_interactive_change(vrange)
+        vrange: Tuple[float, float] | None = self._pixels_to_values(prange)
+        if vrange is not None:
+            self._parent.on_bnc_interactive_change(vrange)
 
     def show_histogram(self, data: np.ndarray):
         """Called from the rendering pipeline to display the histogram,
@@ -556,10 +557,11 @@ class HistogramCanvas(tk.Canvas):
         # Convert the value range provided to a pixel range. Pixels
         # correspond to bin edges:
         vrange = self._settings.bnc_manual_min, self._settings.bnc_manual_max
-        prange: tuple[int, int] = self._values_to_pixels(vrange)
+        prange: tuple[int, int] | None = self._values_to_pixels(vrange)
         interactive_mode: bool = self._settings.bnc_adjust_type == BNC_INTERACTIVE_MODE
         self._is_interactive_mode = interactive_mode
-        self._bnc_line.show(prange, interactive_mode)
+        if prange is not None:
+            self._bnc_line.show(prange, interactive_mode)
 
     def hide_bnc_line(self):
         self._is_interactive_mode = False
@@ -568,10 +570,12 @@ class HistogramCanvas(tk.Canvas):
     _WHEEL_DELTA = 2
 
     def _on_wheel_up(self, event):
+        # print("_on_wheel_up")
         if self._is_interactive_mode:
             self._bnc_line.on_wheel_move(self._WHEEL_DELTA)
 
     def _on_wheel_down(self, event):
+        # print("_on_wheel_down")
         if self._is_interactive_mode:
             self._bnc_line.on_wheel_move(-self._WHEEL_DELTA)
 
@@ -582,41 +586,44 @@ class HistogramCanvas(tk.Canvas):
             else:
                 self._bnc_line.on_wheel_move(-self._WHEEL_DELTA)
 
-    def _values_to_pixels(self, vrange: tuple[float, float]) -> Tuple[int, int]:
+    def _values_to_pixels(self, vrange: tuple[float, float]) -> Tuple[int, int] | None:
         prange: Tuple[int, int] | None = None
         if self._bin_edges is not None:
             vmin, vmax = vrange
-
-            # Scale vmin and vmax to bin numbers (which correspond to the x coordinate):
-            bin_lowest, bin_highest = self._bin_edges[0], self._bin_edges[-1]
-            bin_range = bin_highest - bin_lowest
-            if bin_range > 0:
-                bin_count = len(self._bin_edges) - 1
-                bin_min = int((vmin - bin_lowest) * bin_count / bin_range + 0.5)
-                bin_max = int((vmax - bin_lowest) * bin_count / bin_range + 0.5)
-                bin_min = clip_to_range(bin_min, 1, bin_count - 1)
-                bin_max = clip_to_range(bin_max, 1, bin_count - 1)
-                prange = bin_min, bin_max
+            # Scale vmin and vmax to bin numbers (which correspond to the x coordinate).
+            # We choose the bin whose centre is closest to the value - that means,
+            # add half a bin width and then floor.
+            bin_count = len(self._bin_edges) - 1  # n bins have n+1 boundaries.
+            if bin_count > 0:
+                bin_lowest, bin_highest = self._bin_edges[0], self._bin_edges[-1]
+                bin_range = bin_highest - bin_lowest
+                if bin_range > 0:
+                    bin_min = math.floor((vmin - bin_lowest) * bin_count / bin_range + 0.5)
+                    bin_max = math.floor((vmax - bin_lowest) * bin_count / bin_range + 0.5)
+                    bin_min = clip_to_range(bin_min, 0, bin_count - 1)
+                    bin_max = clip_to_range(bin_max, 1, bin_count)
+                    prange = bin_min, bin_max
 
         return prange
 
-    def _pixels_to_values(self, prange: Tuple[int, int]):
+    def _pixels_to_values(self, prange: Tuple[int, int]) -> Tuple[float, float] | None:
         vrange: Tuple[float, float] | None = None
         if self._bin_edges is not None:
             pmin, pmax = prange
 
-            # Scale bin numbers (which correspond to the x coordinate) to vmin and vmax:
-            bin_lowest, bin_highest = self._bin_edges[0], self._bin_edges[-1]
             bin_count = len(self._bin_edges - 1)
-            # Clip the values provided for sanity:
-            pmin = clip_to_range(pmin, 0, bin_count - 1)
-            pmax = clip_to_range(pmax, 1, bin_count - 1)
+            if bin_count > 0:
+                # Scale bin numbers (which correspond to the x coordinate) to vmin and vmax:
+                bin_lowest, bin_highest = self._bin_edges[0], self._bin_edges[-1]
+                bin_range = bin_highest - bin_lowest
+                bin_width_half = bin_range / (2.0 * bin_count)
 
-            bin_range = bin_highest - bin_lowest
-            if bin_range > 0:
-                vmin = (bin_highest - bin_lowest) * pmin / bin_count + bin_lowest
-                vmax = (bin_highest - bin_lowest) * pmax / bin_count + bin_lowest
-                vrange = vmin, vmax
+                bin_range = bin_highest - bin_lowest
+                if bin_range > 0:
+                    # Round
+                    vmin = (bin_highest - bin_lowest + bin_width_half) * pmin / bin_count + bin_lowest
+                    vmax = (bin_highest - bin_lowest + bin_width_half) * pmax / bin_count + bin_lowest
+                    vrange = vmin, vmax
 
         return vrange
 

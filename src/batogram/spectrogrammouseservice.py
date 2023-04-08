@@ -182,7 +182,8 @@ class SpectrogramMouseService:
         t = timer()
         if t - self._last_wheel_time > self._WHEEL_TIMEOUT:
             position = (event.x, event.y)
-        self._graph_frame.on_zoom_about_centre(position, factor, frequency_clamped)
+        if not self._graph_frame.on_zoom_about_centre(position, factor, frequency_clamped):
+            self._bind_wheel()  # Rebind, as zoom was not applied.
         self._last_wheel_time = timer()
 
     def _unbind_wheel(self):

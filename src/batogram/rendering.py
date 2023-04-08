@@ -250,12 +250,18 @@ class BnCHelper:
     @staticmethod
     def get_scalar_vmax(data):
         # Use max, not a percentile, to avoid it ever being less than vmin:
-        vmax = data.max()
+        try:
+            vmax = data.max()
+        except ValueError as e:
+            vmax = 0.0
         return vmax
 
     @staticmethod
     def get_scalar_vmin(data, percent: float):
-        vmin = np.percentile(data, percent)
+        try:
+            vmin = np.percentile(data, percent)
+        except IndexError as e:
+            vmin = 0.0
         return vmin
 
 
@@ -877,7 +883,10 @@ class SpectrogramBNCStep(PipelineStep, BnCHelper):
         # print("inputdata (vmin, vmax) is ({} to {})".format(inputdata.min(), inputdata.max()))
 
         # Apply the resultant brightness/contrast scaling:
-        bnc_data = (inputdata - vmin) / (vmax - vmin)
+        if vmax > vmin:
+            bnc_data = (inputdata - vmin) / (vmax - vmin)
+        else:
+            bnc_data = inputdata
 
         # Clip the range to 0-1:
         bnc_data = np.where(bnc_data < 0.0, 0.0, bnc_data)
@@ -1204,8 +1213,11 @@ class ProfileLineSegmentStep(PipelineStep):
 
         # The input is the spectrogram data. Aggregate each row to get the profile.
         # Use a percentile to focus on the signal, while trimming some noise:
-        # profile_data = np.percentile(input_data, 98, axis=1)     # Not sure where this doesn't work.
-        profile_data = np.mean(input_data, axis=1)  # Not sure where this doesn't work.
+        try:
+            profile_data = np.percentile(input_data, 98, axis=1)
+        except IndexError as e:
+            profile_data = np.mean(input_data, axis=1)      # If there is no data in the percentile.
+
         rows, = profile_data.shape
 
         # Create a series of x,y points for the profile:
@@ -1213,12 +1225,12 @@ class ProfileLineSegmentStep(PipelineStep):
 
         vmax, vmin = profile_data.max(), profile_data.min()
         vrange = vmax - vmin
-
-        for y in range(0, rows):
-            v = profile_data[y]
-            # Avoid overflows when vlow and vhigh are close to the range of their data type:
-            scaled_x = (v - vmin) / vrange * (width - 1)
-            scaled_y = np.rint(y * height / rows + 0.5).astype(int)
-            profile_points[y] = np.rint(scaled_x).astype(int), scaled_y
+        if vrange > 0:
+            for y in range(0, rows):
+                v = profile_data[y]
+                # Avoid overflows when vlow and vhigh are close to the range of their data type:
+                scaled_x = (v - vmin) / vrange * (width - 1)
+                scaled_y = np.rint(y * height / rows + 0.5).astype(int)
+                profile_points[y] = np.rint(scaled_x).astype(int), scaled_y
 
         return profile_points, vmin, vmax
