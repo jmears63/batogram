@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "batogram"
-version = "1.0.4"
+version = "1.0.5"
 authors = [
     {name = "John Mears", email = "john+batogram@themears.co.uk"},
 ]
@@ -28,6 +28,7 @@ dependencies = [
     "numpy",
     "scipy",
     "Pillow",
+    "argparse"
 ]
 
 [tool.setuptools]
