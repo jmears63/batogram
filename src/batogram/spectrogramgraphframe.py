@@ -20,7 +20,7 @@
 
 import tkinter as tk
 
-from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, FONT_SIZE
+from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, FONT_SIZE, MIN_F_RANGE, MIN_T_RANGE
 from . import layouts
 from .audiofileservice import RawDataReader, AudioFileService
 from .common import AxisRange
@@ -209,8 +209,7 @@ class SpectrogramGraphFrame(GraphFrame):
 
         # Don't allow them to zoom in excessively:
         f_delta, t_delta = t - b, r - l
-        min_zoom_f, min_zoom_t = 500, 0.001
-        if f_delta < min_zoom_f or t_delta < min_zoom_t:
+        if f_delta < MIN_F_RANGE or t_delta < MIN_T_RANGE:
             print("Ignoring insane zoom.")
             return  # Insane zoom requested, ignore it.
 
@@ -236,8 +235,11 @@ class SpectrogramGraphFrame(GraphFrame):
 
         self._on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
 
-    def on_zoom_about_centre(self, position, factor, frequency_clamped: bool):
-        """Optionally pan so that pixel position is centered, then apply the zoom factor."""
+    def on_zoom_about_centre(self, position, factor, frequency_clamped: bool) -> bool:
+        """
+        Optionally pan so that pixel position is centered, then apply the zoom factor.
+        Return True if the new range was sane and we applied it, otherwise false.
+        """
 
         # If a position is provided, we apply an offset so that that position
         # becomes the centre of the axis ranges:
@@ -253,7 +255,15 @@ class SpectrogramGraphFrame(GraphFrame):
 
         # We need to zoom the axis ranges in or out relative to the centres of their ranges:
         time_range, frequency_range = axis_ranges
+
         (l, r), (b, t) = time_range.get_tuple(), frequency_range.get_tuple()
+
+        if t - b < MIN_F_RANGE or r - l < MIN_T_RANGE:
+            # Allow them to zoom back out again, to avoid getting stuck.
+            if factor < 1.0:
+                print("Ignoring insane zoom in.")
+                return False    # Insane zoom requested, ignore it.
+
         # Offset to the centre of the axis ranges:
         centre_t_v, centre_f_v = (l + r) / 2, (t + b) / 2
         l, t, r, b = l - centre_t_v, t - centre_f_v, r - centre_t_v, b - centre_f_v
@@ -267,6 +277,8 @@ class SpectrogramGraphFrame(GraphFrame):
             self._on_rescale_handler(AxisRange(l, r), frequency_range)
         else:
             self._on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
+
+        return True
 
     def on_mouse_move(self, p_canvas):
         # print("on mouse move")

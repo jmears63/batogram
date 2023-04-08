@@ -27,3 +27,7 @@ MAIN_PROFILE_COMPLETER_EVENT = "<<MainProfileCompleter>>"
 FONT_SIZE = 12
 ZOOM_ORDER = 2  # This will move into settings. 0-2 is a useful range.
 ASSETS_PATH = "."
+
+# Limit how far they can zoom in:
+MIN_F_RANGE: float = 500
+MIN_T_RANGE: float = 0.001
