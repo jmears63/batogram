@@ -95,6 +95,7 @@ In no particular order:
 * [Remix Icon](https://remixicon.com/)
 * [Kenneth Moreland](https://www.kennethmoreland.com/color-advice/)
 * [David A. Riggs](https://github.com/riggsd/guano-py/blob/master/guano.py)
+* [Arnold Andreasson](https://github.com/arnoldandreasson) for testing and advice.
 
 About the Author
 ----------------
