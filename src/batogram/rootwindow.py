@@ -581,7 +581,8 @@ class RootWindow(tk.Tk):
         initialdir = None
         if self._first_file_open:
             self._first_file_open = False
-            initialdir = Path.home()
+            initialdir = self._app_settings.data_directory
+
         filepath = tk.filedialog.askopenfilename(title=title, filetypes=self.filetypes,
                                                  initialdir=initialdir)
         return filepath

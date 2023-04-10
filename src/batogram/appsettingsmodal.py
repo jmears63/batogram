@@ -18,17 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import tkinter as tk
+from copy import deepcopy
 from dataclasses import dataclass
 
+from batogram.appsettings import AppSettings
 from batogram.modalwindow import ModalWindow
-from dataclasses_json import Undefined, dataclass_json
-
-
-@dataclass_json(undefined=Undefined.EXCLUDE)
-@dataclass()
-class AppSettings:
-    colour_scale: str = "kindlmann-table-byte-1024.csv"
-    data_path: str = "."
 
 
 class AppSettingsWindow(ModalWindow):
@@ -38,20 +32,25 @@ class AppSettingsWindow(ModalWindow):
 
         self.title("Settings")
 
+        self._data_directory_var: tk.StringVar = tk.StringVar()
+        self._colour_scale_var: tk.StringVar = tk.StringVar()
+
+        self._settings_to_vars()
+
         pad = 5
         margin = 30
 
         settings_frame = tk.Frame(self)
 
-        label = tk.Label(settings_frame, text="Initial data directory:")
-        label.grid(row=0, column=0, padx=pad, pady=pad)
-        label = tk.Entry(settings_frame, width=30)
-        label.grid(row=0, column=1, padx=pad, pady=pad)
+        label = tk.Label(settings_frame, text="Initial data directory:", anchor=tk.E)
+        label.grid(row=0, column=0, padx=pad, pady=pad, sticky=tk.E)
+        label = tk.Entry(settings_frame, textvariable=self._data_directory_var, width=30)
+        label.grid(row=0, column=1, padx=pad, pady=pad, sticky=tk.E)
 
-        label = tk.Label(settings_frame, text="Colour scale:")
-        label.grid(row=1, column=0, padx=pad, pady=pad)
-        label = tk.Entry(settings_frame, width=30)
-        label.grid(row=1, column=1, padx=pad, pady=pad)
+        label = tk.Label(settings_frame, text="Colour scale:", anchor=tk.E)
+        label.grid(row=1, column=0, padx=pad, pady=pad, sticky=tk.E)
+        label = tk.Entry(settings_frame, textvariable=self._colour_scale_var, width=30)
+        label.grid(row=1, column=1, padx=pad, pady=pad, sticky=tk.E)
 
         settings_frame.grid(row=0, columnspan=1)
 
@@ -68,3 +67,16 @@ class AppSettingsWindow(ModalWindow):
         self.rowconfigure(0, weight=0, pad=margin)
         self.columnconfigure(0, weight=1, pad=margin)
 
+        self.data_directory_var = tk.StringVar()
+
+    def on_ok(self):
+        self._vars_to_settings()
+        super().on_ok()
+
+    def _settings_to_vars(self):
+        self._data_directory_var.set(self._app_settings.data_directory)
+        self._colour_scale_var.set(self._app_settings.colour_scale)
+
+    def _vars_to_settings(self):
+        self._app_settings.data_directory = self._data_directory_var.get()
+        self._app_settings.colour_scale = self._colour_scale_var.get()
