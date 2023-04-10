@@ -9,23 +9,26 @@ somewhere in your PYTHONPATH, and you need to run it like this:
 
     python3 -m batogram
 
-There are several ways to achieve this. The most obvious is to install the Batogram package using pip, possibly
-into a virtual environment. The PYTHONPATH then automatically includes the location where it is installed.
-This is not convenient for development though, when you want a copy of the source in your working directory,
-and need to make changes and try them out immediately.
+There are several ways to achieve this. The most obvious is to install the Batogram package using pip, 
+into a virtual environment. The PYTHONPATH in the environment then automatically includes the location of the 
+batogram code. This is not convenient for development though, when you want a copy of the source in your working
+directory, and need to make changes and try them out immediately.
 
-Developing from the Commannd Line
----------------------------------
+To debug and develop the source code conveniently, set up an environemt as follows. You will need at least Python
+version 3.10. Change to a suitable directory, and then:
 
-The PYTHONPATH automatically includes the current directory, so you can execute the package *without* installing
-it with pip, by checking the complete source out of github, and changing into the src directory:
+    python3 -m venv venv
+    source venv/bin/activate
+    git clone --depth=1 git@github.com:jmears63/batogram.git
+    cd batogram
+    pip install pip --upgrade   # Good practice.
+    pip install -r requirements.txt
 
-    git pull git@github.com:jmears63/batogram.git
-    cd batogramO
+Then you can run the code directly as a module. You need to be in the src directory so that Python
+can find the module:
+
     cd src
-    python3 -m batogram
-    # Now you can use your favourite editor to edit the source, and re-run:
-    kate src/batogram/about.py
+    python3 -m batogram   # Run the code as a module, NOT as a script:
 
 Developing using PyCharm
 ------------------------
@@ -33,6 +36,7 @@ Developing using PyCharm
 I generally do development using [PyCharm](https://www.jetbrains.com/pycharm/). Some things
 need to be configured for PyCharm to be able to run and debug from the environment:
 
+* Set up a basic development environment as outlined above.
 * Open a new PyCharm project based on the top level directory - that's the directory that contains README.md.
 * We need the src directory to be a source root, so navigate to File | Settings, and expand the node
 for the batogram project. Select "src" in the source tree, and make it a source root by clicking on
@@ -50,3 +54,31 @@ for the batogram project. Select "src" in the source tree, and make it a source 
 You can now run and debug the code interactively from PyCharm in the usual way.
 
 
+Developing using Visual Studio Code
+-----------------------------------
+
+Microsoft's [VS Code](https://code.visualstudio.com/) is a convenient and lightweight cross platform
+development environment.
+
+* Set up a basic development environment as outlined above.
+* Install the Microsoft Python extension in VS Code, if it is not already installed.
+* Use "File | Open Folder" to open a Batogram project.
+* Use "Run | Add Configuration" to create a configuration that runs batogram 
+as a module, and sets the working directory so the code module can be found
+by VS Code. The resulting launch.json will look something like this (pay attention to "module" and "cwd"):
+  
+  
+    Source code
+    {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: Module",
+                "type": "python",
+                "request": "launch",
+                "module": "batogram",
+                "justMyCode": true,
+                "cwd": "src"
+            }
+        ]
+    }
