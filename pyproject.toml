@@ -24,7 +24,6 @@ classifiers = [
     'Topic :: Multimedia :: Sound/Audio :: Analysis',
 ]
 dependencies = [
-    "pathlib",
     "numpy",
     "scipy",
     "Pillow",

@@ -44,8 +44,8 @@ FFT_OVERLAP_PERCENT_OPTIONS = {
     0: "0", 25: "25", 50: "50", 75: "75", 90: "90", 95: "95"}
 DEFAULT_FFT_OVERLAP_PERCENT = ADAPTIVE_FFT_OVERLAP_PERCENT
 
-INTERPOLATION_OPTIONS = {0: "None", 1: "Linear", 2: "Quadratic"}
-DEFAULT_INTERPOLATION = 1       # Linear is fairly smooth and fairly fast,
+INTERPOLATION_OPTIONS = {0: "None", 1: "Linear", 2: "Quadratic", 3: "Cubic"}
+DEFAULT_INTERPOLATION = 2       # Linear is fairly smooth and fairly fast,
                                 # and avoids edge artifacts that quadratic generates.
 
 # Note: boxcar window blows up in the calculations involving infinity

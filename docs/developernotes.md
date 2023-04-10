@@ -62,7 +62,7 @@ development environment.
 
 * Set up a basic development environment as outlined above.
 * Install the Microsoft Python extension in VS Code, if it is not already installed.
-* Use "File | Open Folder" to open a Batogram project.
+* Use "File | Open Folder" to open a Batogram project from the code you cloned from github.
 * Use "Run | Add Configuration" to create a configuration that runs batogram 
 as a module, and sets the working directory so the code module can be found
 by VS Code. The resulting launch.json will look something like this (pay attention to "module" and "cwd"):

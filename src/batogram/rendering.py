@@ -810,13 +810,15 @@ class SpectrogramZoomStep(PipelineStep):
         # Zoom the spectrogram index ranges into dilated canvas pixels size:
         y_scaler: float = calc_data.freq_dilated_pixels / (calc_data.last_freq_index - calc_data.first_freq_index)
         x_scaler: float = calc_data.time_dilated_pixels / (calc_data.last_segment_index - calc_data.first_segment_index)
+
         dilated_canvas_data = ndimage.zoom(clipped_inputdata,
                                            (y_scaler, x_scaler),
                                            # Scale to apply per axis.
+                                           # order=rs.zoom_interpolation,  # Interpolation spline order
                                            order=rs.zoom_interpolation,  # Interpolation spline order
                                            mode='nearest',
                                            # grid-constant results in bright artifacts at the bottom edge.
-                                           prefilter=True,  # To avoid slight blurring.
+                                           prefilter=False,  # Subjectively looks better as False: fewer artifacts.
                                            grid_mode=True)  # n pixels <=> width is n.
 
         # Clip the canvas dilated size back to the size we need to display:
