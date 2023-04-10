@@ -21,21 +21,13 @@ import tkinter as tk
 
 from PIL import ImageTk, Image
 from . import get_asset_path, __version__
+from .modalwindow import ModalWindow
 
 
-class AboutWindow(tk.Toplevel):
+class AboutWindow(ModalWindow):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("About Batogram")
-        self.transient()  # Doesn't seem to do anything.
-        self.attributes('-topmost', 'true')  # Keep in front of its parent.
-
-        ref = parent
-        width, height = 300, 300
-        self.geometry("{}x{}+{}+{}".format(
-            width, height,
-            ref.winfo_rootx() + (ref.winfo_width() - width) // 2,
-            ref.winfo_rooty() + (ref.winfo_height() - height) // 2))
 
         pad = 5
 
@@ -51,7 +43,7 @@ class AboutWindow(tk.Toplevel):
         label = tk.Label(self, text="Author: John Mears")
         label.grid(row=2, column=0, padx=pad, pady=pad)
 
-        btn = tk.Button(self, text="Close", command=self.destroy)
+        btn = tk.Button(self, text="Close", command=self.on_cancel)
         btn.grid(row=3, column=0, padx=pad, pady=pad)
 
-        self.columnconfigure(0, weight=1)   # Expand to use the width.
+        self.columnconfigure(0, weight=1, pad=100)   # Expand to use the width.
