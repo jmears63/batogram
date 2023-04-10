@@ -31,6 +31,8 @@ from typing import NamedTuple, Optional
 from pathlib import Path
 from . import audiofileservice as af
 from .amplitudegraphframe import AmplitudeGraphFrame
+from .appsettings import AppSettings
+from .appsettingsmodal import AppSettingsWindow
 from .audiofileservice import AudioFileService
 from .breadcrumbservice import BreadcrumbService, Breadcrumb
 from .buttonframe import ButtonFrame
@@ -53,6 +55,7 @@ from . import get_asset_path
 # One day, we will define the menus using a table including shortcuts and underlined letters:
 MENU_TEXT_FILE = "File"
 MENU_TEXT_ABOUT = "About"
+MENU_TEXT_SETTINGS = "Settings"
 MENU_TEXT_OPEN_MAIN = "Open"
 MENU_TEXT_OPEN_RECENT_MAIN = "Open recent"
 MENU_TEXT_OPEN_REF = "Open reference"
@@ -399,6 +402,9 @@ class RootWindow(tk.Tk):
         self._menu_file = None
         self._first_file_open = True    # Track whether this is the first time the user has opened a file.
 
+        self._app_settings: AppSettings = AppSettings()
+        self._app_settings.read()
+
         # Keep track of what cursors have been set:
         self._cursor_stack = []
         self._push_cursor()
@@ -528,6 +534,8 @@ class RootWindow(tk.Tk):
         self._menu_file.entryconfigure(MENU_TEXT_EXIT, accelerator='Ctrl+X')
         self.bind("<Control-x>", self.exit_event)
 
+        menubar.add_command(label=MENU_TEXT_SETTINGS, command=self._show_settings)
+
         menubar.add_command(label=MENU_TEXT_ABOUT, command=self._show_about)
 
         self.enable_menu_items()
@@ -650,6 +658,8 @@ class RootWindow(tk.Tk):
                 if p:
                     p.shutdown()
 
+            self._app_settings.write()
+
             self.destroy()
 
     def _on_data_change_main(self, _):
@@ -691,5 +701,10 @@ class RootWindow(tk.Tk):
 
     def _show_about(self):
         window = AboutWindow(self)
+        window.grab_set()
+        window.wait_window()
+
+    def _show_settings(self):
+        window = AppSettingsWindow(self, self._app_settings)
         window.grab_set()
         window.wait_window()

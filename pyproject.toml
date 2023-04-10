@@ -28,7 +28,9 @@ dependencies = [
     "numpy",
     "scipy",
     "Pillow",
-    "argparse"
+    "argparse",
+    "dataclasses-json",
+    "paltformdirs
 ]
 
 [tool.setuptools]
