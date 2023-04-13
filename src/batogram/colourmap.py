@@ -19,9 +19,8 @@
 # SOFTWARE.
 
 import numpy as np
-import pathlib as pl
 
-from batogram import get_asset_path
+from batogram import get_colour_map_path
 from batogram.appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP
 
 
@@ -46,7 +45,7 @@ class ColourMap:
             NB remove the initial row of column headers from files, if present.
         """
 
-        colour_mapping_path = get_asset_path(map_file)
+        colour_mapping_path = get_colour_map_path(map_file)
         raw_cmap: np.ndarray = np.genfromtxt(colour_mapping_path, delimiter=',', dtype=np.uint8)
 
         # Some formats have the value in the first column, which is not required:

@@ -24,13 +24,12 @@ classifiers = [
     'Topic :: Multimedia :: Sound/Audio :: Analysis',
 ]
 dependencies = [
-    "pathlib",
     "numpy",
     "scipy",
     "Pillow",
     "argparse",
     "dataclasses-json",
-    "paltformdirs
+    "platformdirs"
 ]
 
 [tool.setuptools]
