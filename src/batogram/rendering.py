@@ -22,7 +22,7 @@ import math
 import numpy as np
 import scipy
 
-from . import get_asset_path
+from . import get_asset_path, colourmap, appsettings
 from copy import deepcopy
 from dataclasses import dataclass
 from threading import Lock, Thread, Condition
@@ -907,26 +907,22 @@ class SpectrogramApplyColourMapStep(PipelineStep):
     def __init__(self, settings: GraphSettings):
         super().__init__(settings)
 
-        self._colour_map = ColourMap()
-        self._colour_map.load_map(get_asset_path("kindlmann-table-byte-1024.csv"))
-
     @dataclass
     class RelevantSettings:
-        colour_mapping_path: str
+        colour_map_name: str        # Included slightly artificially to invalidate cached results.
 
         def __init__(self, settings: GraphSettings):
-            self.colour_mapping_path = settings.colour_mapping_path
+            self.colour_map_name = appsettings.instance.colour_map
 
     def get_relevant_settings(self) -> RelevantSettings:
         """Get the settings subset that is relevant to this step. We will use this as a basis
         for cache invalidation."""
-        # TODO not used for now:
         return SpectrogramApplyColourMapStep.RelevantSettings(self._settings)
 
     def _implementation(self, inputdata, params):
         # previous_serial, = params
         # s = self.get_relevant_settings()
-        outputdata = self._colour_map.map(inputdata)
+        outputdata = colourmap.instance.map(inputdata)
         return outputdata
 
 

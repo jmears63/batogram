@@ -21,11 +21,9 @@ import math
 import tkinter as tk
 import numpy as np
 
-from . import get_asset_path
-
+from . import colourmap
 from abc import abstractmethod, ABC
 from typing import Any, List, Tuple
-from .colourmap import ColourMap
 from .common import clip_to_range
 from .frames import DrawableFrame
 from .validatingwidgets import ValidatingMapOptionMenu, ValidatingFrameHelper, ValidatingRadiobutton, \
@@ -165,11 +163,6 @@ class ScaleCanvas(tk.Canvas):
     def __init__(self, parent):
         super().__init__(parent, bg="black", height=15, width=CANVAS_WIDTH)
 
-        # For now, our own colour map. Eventually we need to use the same map
-        # as in the rendering pipeline, so that it can chosen in the UI.
-        self._colour_map = ColourMap()
-        self._colour_map.load_map(get_asset_path("kindlmann-table-byte-1024.csv"))
-
     def set_scale_pixels(self, prange: tuple[int, int] | None):
         """Draw a colour mapped scale."""
         width, height = self.winfo_width(), self.winfo_height()
@@ -181,7 +174,7 @@ class ScaleCanvas(tk.Canvas):
                 # Get values in the range 0-1. Values outside that range will be clippped
                 # to the limits at 0 and 1:
                 values = np.array([float(x - xmin) / float(xmax - xmin) for x in range(width)])
-                colours = self._colour_map.map(values)
+                colours = colourmap.instance.map(values)
                 for x in range(width):
                     colour = "#{:02x}{:02x}{:02x}".format(*colours[x])
                     self.create_line(x, 0, x, height - 1, fill=colour)

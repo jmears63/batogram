@@ -28,9 +28,10 @@ import tkinter.messagebox
 from itertools import chain
 from timeit import default_timer as timer
 from typing import NamedTuple, Optional
-from pathlib import Path
-from . import audiofileservice as af
+from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
+from .appsettings import AppSettings, COLOUR_MAPS
+from .appsettingsmodal import AppSettingsWindow
 from .audiofileservice import AudioFileService
 from .breadcrumbservice import BreadcrumbService, Breadcrumb
 from .buttonframe import ButtonFrame
@@ -53,6 +54,7 @@ from . import get_asset_path
 # One day, we will define the menus using a table including shortcuts and underlined letters:
 MENU_TEXT_FILE = "File"
 MENU_TEXT_ABOUT = "About"
+MENU_TEXT_SETTINGS = "Settings"
 MENU_TEXT_OPEN_MAIN = "Open"
 MENU_TEXT_OPEN_RECENT_MAIN = "Open recent"
 MENU_TEXT_OPEN_REF = "Open reference"
@@ -399,6 +401,9 @@ class RootWindow(tk.Tk):
         self._menu_file = None
         self._first_file_open = True    # Track whether this is the first time the user has opened a file.
 
+        appsettings.instance.read()
+        self._apply_settings()
+
         # Keep track of what cursors have been set:
         self._cursor_stack = []
         self._push_cursor()
@@ -528,6 +533,8 @@ class RootWindow(tk.Tk):
         self._menu_file.entryconfigure(MENU_TEXT_EXIT, accelerator='Ctrl+X')
         self.bind("<Control-x>", self.exit_event)
 
+        menubar.add_command(label=MENU_TEXT_SETTINGS, command=self._show_settings)
+
         menubar.add_command(label=MENU_TEXT_ABOUT, command=self._show_about)
 
         self.enable_menu_items()
@@ -573,7 +580,8 @@ class RootWindow(tk.Tk):
         initialdir = None
         if self._first_file_open:
             self._first_file_open = False
-            initialdir = Path.home()
+            initialdir = appsettings.instance.data_directory
+
         filepath = tk.filedialog.askopenfilename(title=title, filetypes=self.filetypes,
                                                  initialdir=initialdir)
         return filepath
@@ -650,6 +658,8 @@ class RootWindow(tk.Tk):
                 if p:
                     p.shutdown()
 
+            appsettings.instance.write()
+
             self.destroy()
 
     def _on_data_change_main(self, _):
@@ -693,3 +703,21 @@ class RootWindow(tk.Tk):
         window = AboutWindow(self)
         window.grab_set()
         window.wait_window()
+
+    def _show_settings(self):
+        modal = AppSettingsWindow(self, appsettings.instance, lambda: self._on_settings_ok())
+        modal.grab_set()
+        modal.wait_window()
+
+    def _on_settings_ok(self):
+        # Refresh some things from the updated settings values:
+        self._apply_settings()
+        self._main_pane.draw()
+        self._ref_pane.draw()
+
+    @staticmethod
+    def _apply_settings():
+        # Refresh some things from the updated settings values:
+        cmap_file = COLOUR_MAPS[appsettings.instance.colour_map]
+        colourmap.instance.reload_map(cmap_file)
+
