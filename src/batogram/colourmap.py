@@ -21,26 +21,38 @@
 import numpy as np
 import pathlib as pl
 
+from batogram import get_asset_path
+from batogram.appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP
+
 
 class ColourMap:
     """The colour map is used to render spectrograms in the UI."""
 
-    def __init__(self):
+    def __init__(self, map_file: str):
+        """
+        Don't use this to create instances, instead access
+        the single shared instance using get_instance().
+        """
+
         self._cmap = None
         self._num_steps: int | None = None
 
-    def load_map(self, colour_mapping_path: pl.Path):
-        """Read a colour map from a CSV with four columns like this:
-            0.0,0,0,0
-            0.0009775171065493646,1,0,1
-            ...
-            0.9990224828934506,255,255,255
-            1.0,255,255,255
+        self.reload_map(map_file)
+
+    def reload_map(self, map_file: str):
+        """
+            Read a colour map from a CSV with thee or four columns. The last three columns
+            are RGB byte values.
+            NB remove the initial row of column headers from files, if present.
         """
 
-        raw_cmap = np.genfromtxt(colour_mapping_path, delimiter=',', dtype=np.uint8)  # Rows are: value, R, G, B
-        # The first column is not required, the remaining 3 are RGB:
-        self._cmap = np.delete(raw_cmap, 0, axis=1)
+        colour_mapping_path = get_asset_path(map_file)
+        raw_cmap: np.ndarray = np.genfromtxt(colour_mapping_path, delimiter=',', dtype=np.uint8)
+
+        # Some formats have the value in the first column, which is not required:
+        if raw_cmap.shape[1] == 4:
+            raw_cmap = np.delete(raw_cmap, 0, axis=1)
+        self._cmap = raw_cmap
         self._num_steps = len(self._cmap)
 
     def map(self, inputdata: np.ndarray) -> np.ndarray:
@@ -59,3 +71,8 @@ class ColourMap:
         np.take(self._cmap, inputdata, axis=0, mode='clip', out=outputdata)
 
         return outputdata
+
+
+# The single global instance of the colour map:
+instance = ColourMap(COLOUR_MAPS[DEFAULT_COLOUR_MAP])
+

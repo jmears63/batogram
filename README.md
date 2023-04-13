@@ -90,12 +90,13 @@ Credits
 -------
 
 In no particular order:
-* [Pictogrammers Team](https://www.iconarchive.com/show/material-icons-by-pictogrammers/bat-icon.html)
-* [Tucker Beck](https://code.activestate.com/recipes/576688-tooltip-for-tkinter/)
-* [Remix Icon](https://remixicon.com/)
-* [Kenneth Moreland](https://www.kennethmoreland.com/color-advice/)
-* [David A. Riggs](https://github.com/riggsd/guano-py/blob/master/guano.py)
-* [Arnold Andreasson](https://github.com/arnoldandreasson) for testing and advice.
+* [Pictogrammers Team](https://www.iconarchive.com/show/material-icons-by-pictogrammers/bat-icon.html) for the application icon.
+* [Tucker Beck](https://code.activestate.com/recipes/576688-tooltip-for-tkinter/) for tooltip code.
+* [Remix Icon](https://remixicon.com/) for icons.
+* [Kenneth Moreland](https://www.kennethmoreland.com/color-advice/) for colour maps.
+* [David A. Riggs](https://github.com/riggsd/guano-py/blob/master/guano.py) for GUANO code.
+* [Arnold Andreasson](https://github.com/arnoldandreasson) for testing and insights.
+* [Peter Kovesi](https://colorcet.com/index.html) for colour maps.
 
 About the Author
 ----------------

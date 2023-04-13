@@ -43,7 +43,8 @@ class AboutWindow(ModalWindow):
         label = tk.Label(self, text="Author: John Mears")
         label.grid(row=2, column=0, padx=pad, pady=pad)
 
-        btn = tk.Button(self, text="Close", command=self.on_cancel)
+        btn = tk.Button(self, text="Close", underline=0, command=self.on_cancel)
+        self.bind('c', lambda event: self.on_cancel())
         btn.grid(row=3, column=0, padx=pad, pady=pad)
 
         self.columnconfigure(0, weight=1, pad=100)   # Expand to use the width.
