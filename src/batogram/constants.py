@@ -26,7 +26,8 @@ MAIN_AMPLITUDE_COMPLETER_EVENT = "<<MainAmplitudeCompleter>>"
 MAIN_PROFILE_COMPLETER_EVENT = "<<MainProfileCompleter>>"
 FONT_SIZE = 12
 ZOOM_ORDER = 2  # This will move into settings. 0-2 is a useful range.
-ASSETS_PATH = "."
+COLOUR_MAPS_PATH = "colour_maps"
+ASSETS_PATH = "assets"
 
 # Limit how far they can zoom in:
 MIN_F_RANGE: float = 500

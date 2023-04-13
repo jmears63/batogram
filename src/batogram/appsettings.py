@@ -1,7 +1,6 @@
 import os
 from dataclasses import dataclass
 
-import appsettings as appsettings
 from pathlib import Path
 
 from dataclasses_json import Undefined, dataclass_json
