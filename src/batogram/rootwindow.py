@@ -28,10 +28,9 @@ import tkinter.messagebox
 from itertools import chain
 from timeit import default_timer as timer
 from typing import NamedTuple, Optional
-from pathlib import Path
-from . import audiofileservice as af
+from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
-from .appsettings import AppSettings
+from .appsettings import AppSettings, COLOUR_MAPS
 from .appsettingsmodal import AppSettingsWindow
 from .audiofileservice import AudioFileService
 from .breadcrumbservice import BreadcrumbService, Breadcrumb
@@ -402,8 +401,8 @@ class RootWindow(tk.Tk):
         self._menu_file = None
         self._first_file_open = True    # Track whether this is the first time the user has opened a file.
 
-        self._app_settings: AppSettings = AppSettings()
-        self._app_settings.read()
+        appsettings.instance.read()
+        self._apply_settings()
 
         # Keep track of what cursors have been set:
         self._cursor_stack = []
@@ -581,7 +580,7 @@ class RootWindow(tk.Tk):
         initialdir = None
         if self._first_file_open:
             self._first_file_open = False
-            initialdir = self._app_settings.data_directory
+            initialdir = appsettings.instance.data_directory
 
         filepath = tk.filedialog.askopenfilename(title=title, filetypes=self.filetypes,
                                                  initialdir=initialdir)
@@ -659,7 +658,7 @@ class RootWindow(tk.Tk):
                 if p:
                     p.shutdown()
 
-            self._app_settings.write()
+            appsettings.instance.write()
 
             self.destroy()
 
@@ -706,6 +705,19 @@ class RootWindow(tk.Tk):
         window.wait_window()
 
     def _show_settings(self):
-        window = AppSettingsWindow(self, self._app_settings)
-        window.grab_set()
-        window.wait_window()
+        modal = AppSettingsWindow(self, appsettings.instance, lambda: self._on_settings_ok())
+        modal.grab_set()
+        modal.wait_window()
+
+    def _on_settings_ok(self):
+        # Refresh some things from the updated settings values:
+        self._apply_settings()
+        self._main_pane.draw()
+        self._ref_pane.draw()
+
+    @staticmethod
+    def _apply_settings():
+        # Refresh some things from the updated settings values:
+        cmap_file = COLOUR_MAPS[appsettings.instance.colour_map]
+        colourmap.instance.reload_map(cmap_file)
+

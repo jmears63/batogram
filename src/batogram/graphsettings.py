@@ -20,6 +20,8 @@
 
 from dataclasses import dataclass
 from typing import Optional, NoReturn, Callable
+
+from .appsettings import DEFAULT_COLOUR_MAP, COLOUR_MAPS
 from .common import AxisRange
 from .frames import DrawableFrame
 
@@ -92,9 +94,6 @@ class GraphSettings:
         self.fft_overlap = DEFAULT_FFT_OVERLAP_PERCENT
         self.window_type = DEFAULT_WINDOW_TYPE
         self.zoom_interpolation = DEFAULT_INTERPOLATION
-        # The colour mapping we are going to use. See https://www.kennethmoreland.com/color-advice.
-        self.colour_mapping_path = "kindlmann-table-byte-1024.csv"
-        self.colour_mapping_steps = 1024
         self.do_histogram_normalization = False
         self.bnc_adjust_type = BNC_ADAPTIVE_MODE
         self.bnc_background_threshold_percent = 80.0
