@@ -462,6 +462,7 @@ class SpectrogramCalcData:
 
         # Round to the nearest factor of 2:
         rounded_fft_samples = 2 ** int(scipy.log2(fft_samples) + 0.5)
+        rounded_fft_samples *= 2        # Subjectively, this looks better.
 
         # These limits need to make the range of samples that can be selected manually:
         rounded_fft_samples = max(64, rounded_fft_samples)
