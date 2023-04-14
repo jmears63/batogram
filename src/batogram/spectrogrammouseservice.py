@@ -24,8 +24,10 @@ from enum import Enum
 from timeit import default_timer as timer
 from typing import Tuple
 
-DRAG_RECTANGLE_COLOUR = "white"
-DRAG_LINE_COLOUR = "white"
+# Grey, so its visible against black and white.
+DRAG_RECTANGLE_COLOUR = "grey"
+DRAG_LINE_COLOUR = "grey"
+DRAG_DASH = (2, 2)
 ARROW_SHAPE = (16, 20, 6)
 
 
@@ -252,13 +254,14 @@ class SpectrogramMouseService:
             if self._is_frequency_clamped:
                 self._line1 = self._canvas.create_line(
                     self._start_position[0], 0, self._start_position[0], self._canvas_height,
-                    fill=DRAG_RECTANGLE_COLOUR)
+                    fill=DRAG_RECTANGLE_COLOUR, dash=DRAG_DASH)
                 self._line2 = self._canvas.create_line(
                     event.x, 0, event.x, self._canvas_height,
-                    fill=DRAG_RECTANGLE_COLOUR)
+                    fill=DRAG_RECTANGLE_COLOUR, dash=DRAG_DASH)
             else:
                 self._rect = self._canvas.create_rectangle(*self._start_position, event.x, event.y,
-                                                           outline=DRAG_RECTANGLE_COLOUR)
+                                                           outline=DRAG_RECTANGLE_COLOUR,
+                                                           dash=DRAG_DASH)
 
     def _on_pan_move(self, event):
         if self._state == MouseState.MIDDLE_DRAGGING:
