@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
+from typing import Tuple
 
 from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, FONT_SIZE, MIN_F_RANGE, MIN_T_RANGE
 from . import layouts
@@ -190,13 +191,13 @@ class SpectrogramGraphFrame(GraphFrame):
                 # Update the BnC histogram from the range discovered.
                 self._histogram_interface.show_histogram(histogram)
 
-    def on_zoom_to_rect(self, rect, frequency_clamped: bool):
+    def on_zoom_to_rect(self, rect: Tuple[int, int, int, int]):
         """Rescale to the pixel rectangle provided."""
         if self._layout is None:
             return  # No layout, we can't do anything.
 
         # Convert the canvas coords to axes values:
-        r_values = self._layout.rect_to_values(rect, frequency_clamped)
+        r_values = self._layout.rect_to_values(rect)
 
         # print("Rescaling graph to r_values {}".format(r_values))
 
@@ -223,7 +224,7 @@ class SpectrogramGraphFrame(GraphFrame):
             return  # No layout, we can't do anything.
 
         # The following will clip pan line to the range of the axes:
-        t1, f1, t2, f2 = self._layout.rect_to_values(rect, frequency_clamped=False)
+        t1, f1, t2, f2 = self._layout.rect_to_values(rect)
         dt_value, df_value = t2 - t1, f2 - f1
 
         # print("Panning graph by {}, {}".format(dt_value, df_value))

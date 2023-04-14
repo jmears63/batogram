@@ -140,18 +140,17 @@ class GraphLayout(Layout):
 
         self._data_ranges = x_range, y_range
 
-    def rect_to_values(self, pixel_rect, frequency_clamped: bool) -> Tuple[float, float, float, float] | None:
+    def rect_to_values(self, pixel_rect)\
+            -> Tuple[float, float, float, float] | None:
         """Scale the pixel rectangle supplied to real axis values."""
 
         l, t, r, b = pixel_rect
         if self._x_axis and self._y_axis:
+            # if clamp:
             vl = self._x_axis.canvas_to_axis(l)
             vr = self._x_axis.canvas_to_axis(r)
-            if frequency_clamped:
-                vb, vt = self._y_axis.get_axis_range().get_tuple()
-            else:
-                vt = self._y_axis.canvas_to_axis(t)
-                vb = self._y_axis.canvas_to_axis(b)
+            vt = self._y_axis.canvas_to_axis(t)
+            vb = self._y_axis.canvas_to_axis(b)
             return vl, vt, vr, vb
         else:
             return None

@@ -27,13 +27,18 @@ from typing import Tuple
 # Grey, so its visible against black and white.
 DRAG_RECTANGLE_COLOUR = "grey"
 DRAG_LINE_COLOUR = "grey"
-DRAG_DASH = (2, 2)
 ARROW_SHAPE = (16, 20, 6)
 
 
 class CursorMode(Enum):
     CURSOR_ZOOM = 0
     CURSOR_PAN = 1
+
+
+class DragMode(Enum):
+    DRAG_HORIZONTAL = 0
+    DRAG_VERTICAL = 1
+    DRAG_RECTANGLE = 2
 
 
 class MouseState(Enum):
@@ -64,22 +69,25 @@ class SpectrogramMouseService:
         self._line1 = None
         self._line2 = None
         self._last_wheel_time = timer()
-        self._is_frequency_clamped: bool = False
         self._canvas_height: int | None = None
+        self._canvas_width: int | None = None
+        self._last_drag_mode: DragMode | None = None
 
         # Left mouse button:
         canvas.bind('<ButtonPress-1>', self._on_button1_press)
-        canvas.bind('<Shift-ButtonPress-1>', self._on_shift_button1_press)
+        canvas.bind('<Shift-ButtonPress-1>', self._on_button1_press)
         canvas.bind('<ButtonRelease-1>', self._on_button1_release)
-        canvas.bind('<Shift-ButtonRelease-1>', self._on_button1_release)
+        canvas.bind('<Shift-ButtonRelease-1>', self._on_shift_button1_release)
         canvas.bind('<B1-Motion>', self._on_button1_move)
+        canvas.bind('<Shift-B1-Motion>', self._on_shift_button1_move)
 
         # Middle mouse button:
         canvas.bind('<ButtonPress-2>', self._on_button2_press)
-        canvas.bind('<Shift-ButtonPress-2>', self._on_shift_button2_press)
+        canvas.bind('<Shift-ButtonPress-2>', self._on_button2_press)
         canvas.bind('<ButtonRelease-2>', self._on_button2_release)
-        canvas.bind('<Shift-ButtonRelease-2>', self._on_button2_release)
+        canvas.bind('<Shift-ButtonRelease-2>', self._on_shift_button2_release)
         canvas.bind('<B2-Motion>', self._on_button2_move)
+        canvas.bind('<Shift-B2-Motion>', self._on_shift_button2_move)
 
         # Right mouse button:
         canvas.bind('<ButtonPress-3>', self._on_button3_press)
@@ -96,44 +104,53 @@ class SpectrogramMouseService:
     def _on_button1_press(self, event):
         # print("1+")
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_press(event, clamp=False)
+            self._on_zoom_press(event)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
-            self._on_pan_press(event, clamp=False)
-
-    def _on_shift_button1_press(self, event):
-        if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_press(event, clamp=True)
-        elif self._cursor_mode == CursorMode.CURSOR_PAN:
-            self._on_pan_press(event, clamp=True)
+            self._on_pan_press(event)
 
     def _on_button1_move(self, event):
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_move(event)
+            self._on_zoom_move(event, is_shift=False)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
-            self._on_pan_move(event)
+            self._on_pan_move(event, is_shift=False)
+
+    def _on_shift_button1_move(self, event):
+        if self._cursor_mode == CursorMode.CURSOR_ZOOM:
+            self._on_zoom_move(event, is_shift=True)
+        elif self._cursor_mode == CursorMode.CURSOR_PAN:
+            self._on_pan_move(event, is_shift=True)
 
     def _on_button1_release(self, event):
-        # print("1-")
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_release(event)
+            self._on_zoom_release(event, is_shift=False)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
-            self._on_pan_release(event)
+            self._on_pan_release(event, is_shift=False)
+
+    def _on_shift_button1_release(self, event):
+        if self._cursor_mode == CursorMode.CURSOR_ZOOM:
+            self._on_zoom_release(event, is_shift=True)
+        elif self._cursor_mode == CursorMode.CURSOR_PAN:
+            self._on_pan_release(event, is_shift=True)
 
     def _on_button2_press(self, event):
         # print("2+")
-        self._on_pan_press(event, clamp=False)
-
-    def _on_shift_button2_press(self, event):
-        # print("2+")
-        self._on_pan_press(event, clamp=True)
+        self._on_pan_press(event)
 
     def _on_button2_release(self, event):
         # print("2-")
-        self._on_pan_release(event)
+        self._on_pan_release(event, is_shift=False)
+
+    def _on_shift_button2_release(self, event):
+        # print("2-")
+        self._on_pan_release(event, is_shift=True)
 
     def _on_button2_move(self, event):
         # print("B2 move")
-        self._on_pan_move(event)
+        self._on_pan_move(event, is_shift=False)
+
+    def _on_shift_button2_move(self, event):
+        # print("B2 move")
+        self._on_pan_move(event, is_shift=True)
 
     def _on_button3_press(self, _):
         # print("3+")
@@ -202,7 +219,7 @@ class SpectrogramMouseService:
         self._canvas.bind("<MouseWheel>", self._on_wheel)
         self._canvas.bind("<Shift-MouseWheel>", self._on_shift_wheel)
 
-    def _on_zoom_drag_complete(self, start: Tuple[int, int], end: Tuple[int, int], frequency_clamped: bool):
+    def _on_zoom_drag_complete(self, start: Tuple[int, int], end: Tuple[int, int], mode: DragMode):
         """
         * Coordinates provided are relative to the top left corner of the canvas.
         * "start" and "end" are not in any particular order.
@@ -217,84 +234,101 @@ class SpectrogramMouseService:
         if l > r:
             l, r = r, l
 
-        # Sanity check - did they select a tiny area? If so, do nothing.
-        delta = 10
-        if frequency_clamped:
-            if r - l < delta:
-                return
-        else:
-            if r - l < delta or b - t < delta:
-                return
+        if mode == DragMode.DRAG_HORIZONTAL:
+            t, b = 0, self._canvas_height
+        elif mode == DragMode.DRAG_VERTICAL:
+            l, r = 0, self._canvas_width
+        elif mode == DragMode.DRAG_RECTANGLE:
+            pass
 
-        # Notify whoever it concerns that they need to rescale to the area selected:
-        self._graph_frame.on_zoom_to_rect((l, t, r, b), frequency_clamped)
+    # Notify whoever it concerns that they need to rescale to the area selected:
+        self._graph_frame.on_zoom_to_rect((l, t, r, b))
 
     def _reset(self):
         self._state = MouseState.START
         self._start_position = None
+        self._last_drag_mode = None
         self._delete_canvas_items()
 
-    def _on_zoom_press(self, event, clamp: bool):
+    def _on_zoom_press(self, event):
         self._reset()
         self._canvas_height = self._canvas.winfo_height()
+        self._canvas_width = self._canvas.winfo_width()
         self._state = MouseState.LEFT_DRAGGING
         self._start_position = event.x, event.y
-        self._is_frequency_clamped = clamp
 
-    def _on_pan_press(self, event, clamp: bool):
-        self._reset()
-        self._state = MouseState.MIDDLE_DRAGGING
-        self._start_position = event.x, event.y
-        self._is_frequency_clamped = clamp
-
-    def _on_zoom_move(self, event):
+    def _on_zoom_move(self, event, is_shift: bool):
         if self._state == MouseState.LEFT_DRAGGING:
             # If this is not the first move event, we need to delete the previous rectangle we drew:
             self._delete_canvas_items()
-            if self._is_frequency_clamped:
-                self._line1 = self._canvas.create_line(
-                    self._start_position[0], 0, self._start_position[0], self._canvas_height,
-                    fill=DRAG_RECTANGLE_COLOUR, dash=DRAG_DASH)
-                self._line2 = self._canvas.create_line(
-                    event.x, 0, event.x, self._canvas_height,
-                    fill=DRAG_RECTANGLE_COLOUR, dash=DRAG_DASH)
-            else:
-                self._rect = self._canvas.create_rectangle(*self._start_position, event.x, event.y,
-                                                           outline=DRAG_RECTANGLE_COLOUR,
-                                                           dash=DRAG_DASH)
+            mode: DragMode = self._get_drag_mode(event, is_shift)
+            if mode is not None:
+                if mode == DragMode.DRAG_HORIZONTAL:
+                    self._line1 = self._canvas.create_line(
+                        self._start_position[0], 0, self._start_position[0], self._canvas_height,
+                        fill=DRAG_RECTANGLE_COLOUR)
+                    self._line2 = self._canvas.create_line(
+                        event.x, 0, event.x, self._canvas_height,
+                        fill=DRAG_RECTANGLE_COLOUR)
+                elif mode == DragMode.DRAG_VERTICAL:
+                    self._line1 = self._canvas.create_line(
+                        0, self._start_position[1], self._canvas_width, self._start_position[1],
+                        fill=DRAG_RECTANGLE_COLOUR)
+                    self._line2 = self._canvas.create_line(
+                        0, event.y, self._canvas_width, event.y,
+                        fill=DRAG_RECTANGLE_COLOUR)
+                elif mode == DragMode.DRAG_RECTANGLE:
+                    self._rect = self._canvas.create_rectangle(*self._start_position, event.x, event.y,
+                                                               outline=DRAG_RECTANGLE_COLOUR)
 
-    def _on_pan_move(self, event):
-        if self._state == MouseState.MIDDLE_DRAGGING:
-            self._delete_canvas_items()
-            if self._is_frequency_clamped:
-                self._line = self._canvas.create_line(*self._start_position, event.x, self._start_position[1],
-                                                      fill=DRAG_LINE_COLOUR, arrow=tk.LAST, arrowshape=ARROW_SHAPE)
-            else:
-                self._line = self._canvas.create_line(*self._start_position, event.x, event.y,
-                                                      fill=DRAG_LINE_COLOUR, arrow=tk.LAST, arrowshape=ARROW_SHAPE)
-
-    def _on_zoom_release(self, event):
+    def _on_zoom_release(self, event, is_shift: bool):
         self._delete_canvas_items()
         if self._state == MouseState.LEFT_DRAGGING:
             self._state = MouseState.START
-            start = self._start_position
             end = event.x, event.y
-            self._start_position = None
-            if start != end:
-                self._on_zoom_drag_complete(start, end, self._is_frequency_clamped)
+            if self._start_position != end:
+                mode = self._get_drag_mode(event, is_shift)
+                if mode is not None:
+                    self._on_zoom_drag_complete(self._start_position, end, mode)
 
-    def _on_pan_release(self, event):
+            self._start_position = None
+
+    def _on_pan_press(self, event):
+        self._reset()
+        self._state = MouseState.MIDDLE_DRAGGING
+        self._start_position = event.x, event.y
+
+    def _on_pan_move(self, event, is_shift: bool):
+        if self._state == MouseState.MIDDLE_DRAGGING:
+            self._delete_canvas_items()
+            mode = self._get_drag_mode(event, is_shift)
+            if mode is not None:
+                if mode == DragMode.DRAG_HORIZONTAL:
+                    self._line = self._canvas.create_line(*self._start_position, event.x, self._start_position[1],
+                                                          fill=DRAG_LINE_COLOUR, arrow=tk.LAST, arrowshape=ARROW_SHAPE)
+                elif mode == DragMode.DRAG_VERTICAL:
+                    self._line = self._canvas.create_line(*self._start_position, self._start_position[0], event.y,
+                                                          fill=DRAG_LINE_COLOUR, arrow=tk.LAST, arrowshape=ARROW_SHAPE)
+                else:
+                    self._line = self._canvas.create_line(*self._start_position, event.x, event.y,
+                                                          fill=DRAG_LINE_COLOUR, arrow=tk.LAST, arrowshape=ARROW_SHAPE)
+
+    def _on_pan_release(self, event, is_shift: bool):
         self._delete_canvas_items()
         if self._state == MouseState.MIDDLE_DRAGGING:
             self._state = MouseState.START
             start = self._start_position
-            if self._is_frequency_clamped:
-                end = event.x, start[1]
-            else:
-                end = event.x, event.y
-            self._start_position = None
-            if start != end:
+            mode = self._get_drag_mode(event, is_shift)
+            if mode is not None:
+                if mode == DragMode.DRAG_HORIZONTAL:
+                    end = event.x, start[1]
+                elif mode == DragMode.DRAG_VERTICAL:
+                    end = start[0], event.y
+                else:
+                    end = event.x, event.y
                 self._graph_frame.on_pan((*start, *end))
+
+            self._start_position = None
 
     def set_cursor_mode(self, mode):
         self._cursor_mode = mode
@@ -324,3 +358,33 @@ class SpectrogramMouseService:
         if self._line is not None:
             self._canvas.delete(self._line)
             self._line = None
+
+    def _get_drag_mode(self, event, is_shift: bool) -> DragMode | None:
+        """
+        Decide if frequency or time is clamped, depending on the current direction
+        of the mouse offset.
+        """
+
+        # Holding down shift keeps to the current mode, if there is one:
+        if is_shift and self._last_drag_mode is not None:
+            return self._last_drag_mode
+
+        delta_x = abs(event.x - self._start_position[0])
+        delta_y = abs(event.y - self._start_position[1])
+
+        # Default: drag too small to care about.
+        mode = None
+        minimum = 10
+        threshold = 30
+
+        if delta_x > minimum or delta_y > minimum:
+            if delta_y < threshold:
+                mode = DragMode.DRAG_HORIZONTAL
+            elif delta_x < threshold:
+                mode = DragMode.DRAG_VERTICAL
+            else:
+                mode = DragMode.DRAG_RECTANGLE
+
+        self._last_drag_mode = mode
+
+        return mode
