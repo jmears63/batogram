@@ -91,14 +91,14 @@ class ButtonFrame(DrawableFrame):
         self._zoom_button = MyButton(self, self._zoom_image,
                                      command=lambda: self._handle_cursor_mode(CursorMode.CURSOR_ZOOM))
         self._zoom_button.grid(row=0, column=col, padx=(10, 0), ipadx=0, sticky="NSEW")
-        ToolTip(self._zoom_button, msg="Select zoom cursor mode\nHold shift to lock the frequency span")
+        ToolTip(self._zoom_button, msg="Select zoom cursor: left mouse drag to zoom.\nHold shift to lock mode.")
         col += 1
 
         self._pan_image = self._load_image("drag-move-2-line.png")
         self._pan_button = MyButton(self, self._pan_image,
                                     command=lambda: self._handle_cursor_mode(CursorMode.CURSOR_PAN))
         self._pan_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
-        ToolTip(self._pan_button, msg="Select pan cursor mode\nHold shift to lock the frequency span")
+        ToolTip(self._pan_button, msg="Select pan cursor: left mouse drag to pan/scroll.\nHold shift to lock mode.")
         col += 1
 
         spacer = tk.Label(self)

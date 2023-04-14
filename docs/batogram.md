@@ -6,27 +6,29 @@
 Panning and Zooming
 -------------------
 
-Use the buttons above the spectrogram together with the mouse and "shift" button to pan and
+Use the buttons above the spectrogram together with the mouse and "shift" button to pan, scroll and
 zoom the spectrogram.
 
 ![Buttons](buttons.png "Buttons")
 
-The home button zooms right out to include the entire range of the file. If the data file is very
-large, you may need to zoom back in spome way before the spectrogram is rendered.
+The **home** button zooms right out to include the entire range of the file. If the data
+file is very large, you may need to zoom back in spome way before the spectrogram
+is rendered.
 
-The left and right arrows move back and forth through the recent history of different pans
+The **left** and **right** arrows move back and forth through the recent history of different pans, scrolls
 and zooms. This can be useful, for example, if you have zoomed in too far and want to revert
-to the previous zoom.
+to the previous view.
 
 The next two buttons select function of the left mouse button: zoom or pan:
-* In zoom mode, the left mouse button can be used to zoom into a region of interest by dragging 
-a rectangle around the region. If the "shift" button is pressed before the mouse is first clicked,
-* the zoom is limited to the time range.
-* In pan mode, the left mouse button can be used to pan the image in any direction, 
-by dragging a visible pan vector. If the "shift" button is pressed before the mouse is first
-clicked, the pan is limited to the time range.
+* In **zoom** mode, the left mouse button is used to zoom into a region of interest by clicking
+and dragging. The type of zoom is selected automatically depending
+on the direction pof drag: vertical, horizontal or rectangular region zoom. 
+* In **pan** mode, the left mouse button can be used to pan or scroll. The type
+depends on the direction of drag: vertical, horizontal or oblique.
 
-The spectrogram can also be panned using the scroll bars.
+In either mode, hold down the shift button as you drag to lock the current zoom type.
+
+The spectrogram can also be panned and scrolled using the scroll bars.
 
 Spectrogram Settings
 --------------------
