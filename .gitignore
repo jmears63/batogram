@@ -5,3 +5,4 @@ venv
 *.pyc
 dist
 batogram.egg-info
+.vscode
