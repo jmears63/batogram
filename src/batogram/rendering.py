@@ -341,17 +341,17 @@ class SpectrogramCalcData:
             """Get the segment number corresponding to the time. t=0 at the centre of
             the first segment, and offsets are constant between there and subsequent
             centres. We round down intentionally."""
-            segment_index = int(t / step_time + 0.5)  # This rounds *down* to the nearest step
+            segment_index = int(t / step_time)  # This rounds *down* to the nearest step
             return segment_index
 
         def segment_index_to_time(i: int) -> float:
             """Get the axis time corresponding to a segment index - which is the time at the centre of the segment."""
-            t = i * step_time
+            t = i * step_time - step_time / 2
             return t
 
         def segment_index_to_time_index(segment_index: int):
             """Get the index of the first time value that is part of the segment."""
-            # Offset for the spacing of centres AND the negative time range.
+            # Offset for the spacing of centres - a negative time range index may result.
             time_index = int(segment_index * self.step_count - half_segment_offset)
             return time_index
 
@@ -383,7 +383,8 @@ class SpectrogramCalcData:
         # to calculate the segments - not the time range of the segments.
 
         self.first_time_index_for_segs = segment_index_to_time_index(self.first_segment_index)
-        self.last_time_index_for_segs = segment_index_to_time_index(self.last_segment_index)
+        self.last_time_index_for_segs = segment_index_to_time_index(self.last_segment_index)\
+                                        + self.actual_fft_samples   # Range to include the final segment.
 
         # Reverse calculate to the time range we actually cover, which is the segment centres.
         self.actual_time_axis_min = segment_index_to_time(self.first_segment_index)
