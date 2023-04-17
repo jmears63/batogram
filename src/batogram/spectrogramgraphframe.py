@@ -49,11 +49,10 @@ class SpectrogramCanvas(tk.Canvas):
 class SpectrogramGraphFrame(GraphFrame):
     """A graph frame containing a spectrogram."""
 
-    def __init__(self, parent, root, pipeline, data_context, settings, initial_cursor_mode, on_rescale_handler, is_reference=False):
+    def __init__(self, parent: "PanelFrame", root, pipeline, data_context, settings, initial_cursor_mode, is_reference=False):
         super().__init__(parent, root, pipeline, data_context, settings)
 
         self._is_reference = is_reference
-        self._on_rescale_handler = on_rescale_handler
         self._canvas = SpectrogramCanvas(self, height=100, width=100, initial_cursor_mode=initial_cursor_mode)
         self._canvas.grid(row=0, column=0, sticky='nesw')
         self.columnconfigure(0, weight=1)
@@ -216,7 +215,7 @@ class SpectrogramGraphFrame(GraphFrame):
 
         # Notify news of this rescale back to the main window so that it can redraw widgets affected:
         # news to widgets that need to know.
-        self._on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
+        self._parent.on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
 
     def on_pan(self, rect):
         """This is called in response to the user dragging a pan line with the mouse."""
@@ -234,7 +233,7 @@ class SpectrogramGraphFrame(GraphFrame):
         (l, r), (b, t) = t_range.get_tuple(), f_range.get_tuple()
         l, r, b, t = l - dt_value, r - dt_value, b - df_value, t - df_value
 
-        self._on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
+        self._parent.on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
 
     def on_zoom_about_centre(self, position, factor, frequency_clamped: bool) -> bool:
         """
@@ -275,9 +274,9 @@ class SpectrogramGraphFrame(GraphFrame):
 
         if frequency_clamped:
             _, frequency_range = self._layout.get_data_ranges()
-            self._on_rescale_handler(AxisRange(l, r), frequency_range)
+            self._parent.on_rescale_handler(AxisRange(l, r), frequency_range)
         else:
-            self._on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
+            self._parent.on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
 
         return True
 
@@ -312,7 +311,7 @@ class SpectrogramGraphFrame(GraphFrame):
         resultant_tmin = (file_tmax - file_tmin) * new_tmin + file_tmin
         resultant_tmax = (file_tmax - file_tmin) * new_tmax + file_tmin
 
-        self._on_rescale_handler(AxisRange(resultant_tmin, resultant_tmax), AxisRange(axis_fmin, axis_fmax))
+        self._parent.on_rescale_handler(AxisRange(resultant_tmin, resultant_tmax), AxisRange(axis_fmin, axis_fmax))
 
     def _scroll_move_frequency(self, _):
         # Scroll frequency to position f which is in the range 0 to 1.0.
@@ -332,7 +331,7 @@ class SpectrogramGraphFrame(GraphFrame):
         resultant_fmin = (file_fmax - file_fmin) * new_fmin + file_fmin
         resultant_fmax = (file_fmax - file_fmin) * new_fmax + file_fmin
 
-        self._on_rescale_handler(AxisRange(axis_tmin, axis_tmax), AxisRange(resultant_fmin, resultant_fmax))
+        self._parent.on_rescale_handler(AxisRange(axis_tmin, axis_tmax), AxisRange(resultant_fmin, resultant_fmax))
 
     def _scroll_delta_time(self, sign_s, size):
         # Apply a step to the scroll f which is in the range 0 to 1.0.
@@ -348,12 +347,11 @@ class SpectrogramGraphFrame(GraphFrame):
         if size == tk.UNITS:
             delta_t = axis_t_span * 0.05 * sign
         elif size == tk.PAGES:
-            delta_t = axis_t_span * 0.9 * sign
+            delta_t = axis_t_span * 0.8 * sign
         else:
             return
 
-        resultant_range = AxisRange(range_t.min + delta_t, range_t.max + delta_t)
-        self._on_rescale_handler(resultant_range, AxisRange(range_f.min, range_f.max))
+        self._parent.on_scroll_handler(delta_t, 0, range_t, range_f)
 
     def _scroll_delta_frequency(self, sign_s, size):
         # Apply a step to the scroll f which is in the range 0 to 1.0.
@@ -376,7 +374,7 @@ class SpectrogramGraphFrame(GraphFrame):
             return
 
         resultant_range = AxisRange(range_f.min + delta_t, range_f.max + delta_t)
-        self._on_rescale_handler(AxisRange(range_t.min, range_t.max), resultant_range)
+        self._parent.on_rescale_handler(AxisRange(range_t.min, range_t.max), resultant_range)
 
     def _update_time_scroller(self, axis_range, file_range):
         if self._scroller_t is None:

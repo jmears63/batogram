@@ -162,8 +162,7 @@ class PanelFrame(tk.Frame):
         self._amplitude_frame.grid(row=2, column=col, sticky='nesw', padx=pad)
 
         self._spectrogram_frame = SpectrogramGraphFrame(self, root, pipelines.spectrogram, self._dc, self._settings,
-                                                        initial_cursor_mode, self.on_rescale_handler,
-                                                        is_reference=is_reference)
+                                                        initial_cursor_mode, is_reference=is_reference)
         self._spectrogram_frame.grid(row=3, column=col, sticky='nesw', padx=pad)
 
         # Set up two-way communications between the scroll bar and the graph frame.
@@ -236,6 +235,39 @@ class PanelFrame(tk.Frame):
             self._dc.push_breadcrumb()
 
         self.draw(draw_scope)
+
+    def on_scroll_handler(self, delta_t: float, delta_f: float,
+                          range_t: AxisRange, range_f: AxisRange, add_breadcrumb=True):
+        """
+        Scroll time and/or frequency in response to the UI, maintaining the range, and limiting
+        to the range of available data. The deltas must be less than the current axis ranges.
+        """
+
+        # Limit the the deltas to the range of the available data, maintaining the span of each axis,
+        # and assuming (1) the existing range is valid (2) the deltas are less than the current axis ranges.
+        af_data = self._dc.get_afs_data()
+        if af_data:
+            time_min, time_max = af_data.time_range.get_tuple()
+            if delta_t > 0:
+                if range_t.max + delta_t > time_max:
+                    delta_t = time_max - range_t.max
+            else:
+                if range_t.min + delta_t < time_min:
+                    delta_t = -(range_t.min - time_min)
+
+            freq_min, freq_max = af_data.frequency_range.get_tuple()
+            if delta_f > 0:
+                if range_f.max + delta_f > freq_max:
+                    delta_f = freq_max - range_f.max
+            else:
+                if range_f.min + delta_f < freq_min:
+                    delta_f = -(range_f.min - freq_min)
+
+        limited_range_t = AxisRange(range_t.min + delta_t, range_t.max + delta_t)
+        limited_range_f = AxisRange(range_f.min + delta_f, range_f.max + delta_f)
+
+        self.on_rescale_handler(limited_range_t, limited_range_f,
+                                add_breadcrumb=add_breadcrumb, draw_scope=DrawableFrame.DRAW_ALL)
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         # Update the settings to match the *actual* new axis ranges:
@@ -411,7 +443,7 @@ class RootWindow(tk.Tk):
         self._menu_image = None
         self._menu_edit = None
         self._menu_file = None
-        self._first_file_open = True    # Track whether this is the first time the user has opened a file.
+        self._first_file_open = True  # Track whether this is the first time the user has opened a file.
 
         appsettings.instance.read()
         self._apply_settings()
