@@ -168,9 +168,9 @@ class PanelFrame(tk.Frame):
 
         # Set up two-way communications between the scroll bar and the graph frame.
         # Set repeatdelay=0 to disable repeating, which behaves oddly.
-        time_scroller = tk.Scrollbar(self, orient='horizontal', jump=True, repeatdelay=0)
-        self._spectrogram_frame.set_scroller_t(time_scroller)
-        time_scroller.grid(row=4, column=col, sticky="ew", padx=pad)
+        self._time_scroller = tk.Scrollbar(self, orient='horizontal', jump=True, repeatdelay=0)
+        self._spectrogram_frame.set_scroller_t(self._time_scroller)
+        self._time_scroller.grid(row=4, column=col, sticky="ew", padx=pad)
 
         self._readout_frame = ReadoutFrame(self)
         self._readout_frame.grid(row=6, column=col, pady=pad, sticky='we')
@@ -320,6 +320,18 @@ class PanelFrame(tk.Frame):
         # that will be used in adaptive window length calculations.
         return self._spectrogram_frame.calculate_screen_factors()
 
+    def on_left_key(self, event):
+        self._spectrogram_frame.tview(tk.SCROLL, 1, tk.UNITS)
+
+    def on_shift_left_key(self, event):
+        self._spectrogram_frame.tview(tk.SCROLL, 1, tk.PAGES)
+
+    def on_right_key(self, event):
+        self._spectrogram_frame.tview(tk.SCROLL, -1, tk.UNITS)
+
+    def on_shift_right_key(self, event):
+        self._spectrogram_frame.tview(tk.SCROLL, -1, tk.PAGES)
+
 
 class DataContext:
     """This class contains data used by a graph pane, including raw file data and axis ranges."""
@@ -424,6 +436,11 @@ class RootWindow(tk.Tk):
 
         self.bind(DATA_CHANGE_MAIN_EVENT, self._on_data_change_main)
         self.bind(DATA_CHANGE_REF_EVENT, self._on_data_change_ref)
+
+        self.bind('<Left>', self._main_pane.on_left_key)
+        self.bind('<Shift-Left>', self._main_pane.on_shift_left_key)
+        self.bind('<Right>', self._main_pane.on_right_key)
+        self.bind('<Shift-Right>', self._main_pane.on_shift_right_key)
 
         # Allow tk to work out the size of things before we try to draw any graphs:
         self.update_idletasks()
@@ -720,4 +737,3 @@ class RootWindow(tk.Tk):
         # Refresh some things from the updated settings values:
         cmap_file = COLOUR_MAPS[appsettings.instance.colour_map]
         colourmap.instance.reload_map(cmap_file)
-
