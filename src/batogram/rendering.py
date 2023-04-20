@@ -371,7 +371,7 @@ class SpectrogramCalcData:
 
         # Allow a left and right margin to hide any edge artifacts from zooming. The
         # result is data indexes that may be outside the range of available data:
-        margin: int = 0
+        margin: int = 10
         self.first_segment_index -= margin
         self.last_segment_index += margin
 

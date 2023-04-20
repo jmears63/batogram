@@ -24,6 +24,8 @@ import numpy as np
 
 from typing import Optional, Tuple
 from PIL import ImageTk, Image, ImageOps
+
+from . import colourmap
 from .common import AxisRange
 
 AXIS_BG_COLOUR = "#404040"
@@ -170,6 +172,15 @@ class GraphLayout(Layout):
     @staticmethod
     def _draw_graph_image(canvas, data_area, image):
         (il, it, ir, ib) = data_area
+
+        # There may be a right margin to fill, if we are zoomed right out:
+        image_width: int = image.shape[1]
+        data_area_width: int = ir - il
+        if image_width < data_area_width:
+            delta = data_area_width - image_width
+            fill_colour: str = colourmap.instance.get_polyfilla_colour()
+            canvas.create_rectangle(ir - delta, it, ir, ib, fill=fill_colour, outline=fill_colour)
+
         inverted_image = Image.fromarray(np.uint8(image)).convert('RGB')
         pil_image = ImageOps.flip(inverted_image)
         image = ImageTk.PhotoImage(pil_image)

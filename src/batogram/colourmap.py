@@ -35,6 +35,7 @@ class ColourMap:
 
         self._cmap = None
         self._num_steps: int | None = None
+        self._polyfilla_colour: str | None = None
 
         self.reload_map(map_file)
 
@@ -54,6 +55,10 @@ class ColourMap:
         self._cmap = raw_cmap
         self._num_steps = len(self._cmap)
 
+        # Calculate the "lowest" colour as a string:
+        entry = self._cmap[0]
+        self._polyfilla_colour = "#{:02X}{:02X}{:02X}".format(*entry)
+
     def map(self, inputdata: np.ndarray) -> np.ndarray:
         """Replace each value in the input with an (RGB) tuple.
         The input data values must be in the range 0-1."""
@@ -71,7 +76,10 @@ class ColourMap:
 
         return outputdata
 
+    def get_polyfilla_colour(self) -> str:
+        """Get the 'lowest' colour of the spectrum to be used for filling awkward gaps."""
+        return self._polyfilla_colour
+
 
 # The single global instance of the colour map:
-instance = ColourMap(COLOUR_MAPS[DEFAULT_COLOUR_MAP])
-
+instance: ColourMap = ColourMap(COLOUR_MAPS[DEFAULT_COLOUR_MAP])
