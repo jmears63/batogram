@@ -330,15 +330,15 @@ class SpectrogramCalcData:
         half_segment_offset: int = int(self.actual_fft_samples / 2)  # Ignore the rounding error, small.
         step_time: float = (self.actual_fft_samples - self.actual_fft_overlap_samples) / sample_rate
         time_points = file_data.sample_count
-        max_segments: int = int(
-            (time_points - half_segment_offset) / self.step_count) + 1  # Ignore any leftover time points.
+        # max_segment_count: int = int((time_points - half_segment_offset) / self.step_count) + 1  # Ignore any leftover time points.
+        max_segment_count: int = int((time_points - self.actual_fft_overlap_samples) / self.step_count)  # Ignore any leftover time points.
         time_axis_min, time_axis_max = axis_time_range.get_tuple()
         freq_axis_min, freq_axis_max = axis_frequency_range.get_tuple()
 
         # ************** Calculations relating to the time axis **************
 
         def time_to_segment_index(t: float) -> int:
-            """Get the segment number corresponding to the time. t=0 at the centre of
+            """Get the segment number corresponding to the axis time. t=0 at the centre of
             the first segment, and offsets are constant between there and subsequent
             centres. We round down intentionally."""
             segment_index = int(t / step_time)  # This rounds *down* to the nearest step
@@ -346,18 +346,19 @@ class SpectrogramCalcData:
 
         def segment_index_to_time(i: int) -> float:
             """Get the axis time corresponding to a segment index - which is the time at the centre of the segment."""
-            t = i * step_time - step_time / 2
+            t = i * step_time # - step_time / 2
             return t
 
         def segment_index_to_time_index(segment_index: int):
-            """Get the index of the first time value that is part of the segment."""
+            """Get the index of the FIRST time value that is part of the segment."""
             # Offset for the spacing of centres - a negative time range index may result.
             time_index = int(segment_index * self.step_count - half_segment_offset)
             return time_index
 
         def time_to_time_index(t: float):
-            """Get the index of the time sample at this axis time."""
-            time_index = int(t * sample_rate)
+            """Get the index of the time sample at the centre of the segment whose centre
+            is this axis time."""
+            time_index = int(t * sample_rate) + half_segment_offset
             return time_index
 
         # Convert the axis ranges supplied to data index ranges, rounding outwards.
@@ -365,30 +366,30 @@ class SpectrogramCalcData:
         # This convention avoids varying time offsets as different window sizes are selected.
 
         self.first_segment_index = time_to_segment_index(time_axis_min)
-        self.last_segment_index: int = self.first_segment_index + math.ceil(
-            (time_axis_max - time_axis_min) / step_time) + 1 + 1  # Half open and round outwards.
+        self.last_segment_index: int = self.first_segment_index + math.ceil(    # Round outwards.
+            (time_axis_max - time_axis_min) / step_time) + 1                    # Half open.
 
         # Allow a left and right margin to hide any edge artifacts from zooming. The
         # result is data indexes that may be outside the range of available data:
-        margin: int = 10
+        margin: int = 0
         self.first_segment_index -= margin
         self.last_segment_index += margin
 
-        # Limit the segment indexes to the possible range:
+        # Limit the segment indexes to the possible range, last segment index is half open:
         self.first_segment_index = max(0, self.first_segment_index)  # Shouldn't be needed.
-        self.last_segment_index = min(max_segments, self.last_segment_index)
+        self.last_segment_index = min(max_segment_count, self.last_segment_index)
 
         # Convert the segment index range to a time index range. We know the time indexes are sane,
         # because we clipped the segment indexes above. These time index ranges are the range needed
         # to calculate the segments - not the time range of the segments.
-
         self.first_time_index_for_segs = segment_index_to_time_index(self.first_segment_index)
-        self.last_time_index_for_segs = segment_index_to_time_index(self.last_segment_index)\
-                                        + self.actual_fft_samples   # Range to include the final segment.
+        # Note: (1) the last_segment_index is half open so - 1. (2) include the full index range for the previous
+        # segment so that it can be calculated.
+        self.last_time_index_for_segs = segment_index_to_time_index(self.last_segment_index - 1) + self.actual_fft_samples
 
         # Reverse calculate to the time range we actually cover, which is the segment centres.
         self.actual_time_axis_min = segment_index_to_time(self.first_segment_index)
-        self.actual_time_axis_max = segment_index_to_time(self.last_segment_index)
+        self.actual_time_axis_max = segment_index_to_time(self.last_segment_index - 1)  # -1 because half open range
 
         # Calculate the time index range corresponding to the actual axis values:
         self.first_time_index_for_amp = time_to_time_index(self.actual_time_axis_min)
@@ -463,7 +464,7 @@ class SpectrogramCalcData:
 
         # Round to the nearest factor of 2:
         rounded_fft_samples = 2 ** int(scipy.log2(fft_samples) + 0.5)
-        rounded_fft_samples *= 2        # Subjectively, this looks better.
+        rounded_fft_samples *= 2  # Subjectively, this looks better.
 
         # These limits need to make the range of samples that can be selected manually:
         rounded_fft_samples = max(64, rounded_fft_samples)
@@ -911,7 +912,7 @@ class SpectrogramApplyColourMapStep(PipelineStep):
 
     @dataclass
     class RelevantSettings:
-        colour_map_name: str        # Included slightly artificially to invalidate cached results.
+        colour_map_name: str  # Included slightly artificially to invalidate cached results.
 
         def __init__(self, settings: GraphSettings):
             self.colour_map_name = appsettings.instance.colour_map
@@ -1216,7 +1217,7 @@ class ProfileLineSegmentStep(PipelineStep):
         try:
             profile_data = np.percentile(input_data, 98, axis=1)
         except IndexError as e:
-            profile_data = np.mean(input_data, axis=1)      # If there is no data in the percentile.
+            profile_data = np.mean(input_data, axis=1)  # If there is no data in the percentile.
 
         rows, = profile_data.shape
 

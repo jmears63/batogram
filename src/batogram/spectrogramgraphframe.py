@@ -367,14 +367,36 @@ class SpectrogramGraphFrame(GraphFrame):
         # Vertical scrollers increase downward:
         sign = sign * -1.0
         if size == tk.UNITS:
-            delta_t = axis_f_span * 0.05 * sign
+            delta_f = axis_f_span * 0.05 * sign
         elif size == tk.PAGES:
-            delta_t = axis_f_span * 0.9 * sign
+            delta_f = axis_f_span * 0.9 * sign
         else:
             return
 
-        resultant_range = AxisRange(range_f.min + delta_t, range_f.max + delta_t)
-        self._parent.on_rescale_handler(AxisRange(range_t.min, range_t.max), resultant_range)
+        self._parent.on_scroll_handler(0, delta_f, range_t, range_f)
+
+    def set_preset_time_range(self, sign: int):
+        """Zoom the time range in or out, centered on the current range.
+        Positive sign increases the axis range, ie zoom out.
+        """
+
+        time_range, _ = self._layout.get_data_ranges()
+        centre = (time_range.min + time_range.max) / 2
+        span = time_range.max - time_range.min
+
+        if sign > 0:
+            span *= 1.2
+        else:
+            span *= 0.8
+
+        if span < MIN_T_RANGE:
+            # Allow them to zoom back out again, to avoid getting stuck.
+            if sign < 0:
+                print("Ignoring insane zoom in.")
+                return False  # Insane zoom requested, ignore it.
+
+        _, frequency_range = self._layout.get_data_ranges()
+        self._parent.on_rescale_handler(AxisRange(centre - span / 2, centre + span / 2), frequency_range)
 
     def _update_time_scroller(self, axis_range, file_range):
         if self._scroller_t is None:

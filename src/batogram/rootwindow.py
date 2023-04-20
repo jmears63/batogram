@@ -1,5 +1,3 @@
-#!./venv/bin/python3
-
 # Copyright (c) 2023 John Mears
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -364,6 +362,18 @@ class PanelFrame(tk.Frame):
     def on_shift_right_key(self, event):
         self._spectrogram_frame.tview(tk.SCROLL, -1, tk.PAGES)
 
+    def on_up_key(self, event):
+        self._spectrogram_frame.set_preset_time_range(-1)
+
+    def on_shift_up_key(self, event):
+        pass
+
+    def on_down_key(self, event):
+        self._spectrogram_frame.set_preset_time_range(+1)
+
+    def on_shift_down_key(self, event):
+        pass
+
 
 class DataContext:
     """This class contains data used by a graph pane, including raw file data and axis ranges."""
@@ -473,6 +483,10 @@ class RootWindow(tk.Tk):
         self.bind('<Shift-Left>', self._main_pane.on_shift_left_key)
         self.bind('<Right>', self._main_pane.on_right_key)
         self.bind('<Shift-Right>', self._main_pane.on_shift_right_key)
+        self.bind('<Up>', self._main_pane.on_up_key)
+        self.bind('<Shift-Up>', self._main_pane.on_shift_up_key)
+        self.bind('<Down>', self._main_pane.on_down_key)
+        self.bind('<Shift-Down>', self._main_pane.on_shift_down_key)
 
         # Allow tk to work out the size of things before we try to draw any graphs:
         self.update_idletasks()
