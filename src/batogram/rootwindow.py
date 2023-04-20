@@ -351,16 +351,16 @@ class PanelFrame(tk.Frame):
         return self._spectrogram_frame.calculate_screen_factors()
 
     def on_left_key(self, event):
-        self._spectrogram_frame.tview(tk.SCROLL, 1, tk.UNITS)
-
-    def on_shift_left_key(self, event):
-        self._spectrogram_frame.tview(tk.SCROLL, 1, tk.PAGES)
-
-    def on_right_key(self, event):
         self._spectrogram_frame.tview(tk.SCROLL, -1, tk.UNITS)
 
-    def on_shift_right_key(self, event):
+    def on_shift_left_key(self, event):
         self._spectrogram_frame.tview(tk.SCROLL, -1, tk.PAGES)
+
+    def on_right_key(self, event):
+        self._spectrogram_frame.tview(tk.SCROLL, 1, tk.UNITS)
+
+    def on_shift_right_key(self, event):
+        self._spectrogram_frame.tview(tk.SCROLL, 1, tk.PAGES)
 
     def on_up_key(self, event):
         self._spectrogram_frame.set_preset_time_range(-1)

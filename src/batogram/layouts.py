@@ -19,10 +19,13 @@
 # SOFTWARE.
 
 import math
+import sys
 import tkinter as tk
+from dataclasses import dataclass
+
 import numpy as np
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from PIL import ImageTk, Image, ImageOps
 
 from . import colourmap
@@ -142,7 +145,7 @@ class GraphLayout(Layout):
 
         self._data_ranges = x_range, y_range
 
-    def rect_to_values(self, pixel_rect)\
+    def rect_to_values(self, pixel_rect) \
             -> Tuple[float, float, float, float] | None:
         """Scale the pixel rectangle supplied to real axis values."""
 
@@ -227,14 +230,21 @@ class GraphLayout(Layout):
                 canvas.create_line(l, y_pixels, r, y_pixels, fill=GRID_COLOUR, width=1, dash=(1, 1))
 
 
+@dataclass
+class AxisUnit:
+    limit: float = sys.float_info.max  # Upper limit for this unit, or sys.float_info.max if it is the default.
+    units: str = ""  # The unit.
+    scaler: float = 1.0  # Multiples the tick vakues.
+
+
 class AxisLayout(Layout):
     """This class knows how to lay out and draw a graph axis."""
 
     ORIENT_VERTICAL = 1
     ORIENT_HORIZONTAL = 2
 
-    def __init__(self, orientation: object, font_height: object, title: object, canvas_width: object,
-                 canvas_height: object, hide_text: object = False):
+    def __init__(self, orientation: int, font_height: int, title: str, canvas_width: int,
+                 canvas_height: int, units: List[AxisUnit], hide_text: bool = False):
         super().__init__(font_height, canvas_width, canvas_height)
         self._orientation = orientation
         self._title = title
@@ -244,6 +254,8 @@ class AxisLayout(Layout):
         self._min_pixel = None
         self._max_pixel = None
         self._axis_range: Optional[AxisRange] = None
+        self._units: List[AxisUnit] = sorted(units, key=lambda u: u.limit)  # Ascending.
+        self._units_to_use: AxisUnit | None = None
 
     def _layout(self):
         # These coordinates increase from 0 on the outside to maximum
@@ -270,19 +282,21 @@ class AxisLayout(Layout):
     def get_size(self):
         return self._size
 
-    def draw(self, canvas, x, y, extent, axis_range: AxisRange, multiplier=1, target_spacing_pixels=100):
-        # One day we could make this more abstract by having a Tk flavoured derived
-        # class or by passing in a drawing context of our own devising. Will that day ever come?
-
+    def draw(self, canvas, x, y, extent, axis_range: AxisRange, target_spacing_pixels=100):
         # Note: create_rectangle doesn't include the bottom/right edges, so we have to +1.
 
         self._axis_range = axis_range
 
-        (ticks, decimal_places) = self.calculate_ticks(self._axis_range, multiplier, extent,
+        # Decide what units to use based on the axis range:
+        u = self._get_units(axis_range)
+
+        (ticks, decimal_places) = self.calculate_ticks(self._axis_range, u.scaler, extent,
                                                        target_spacing_pixels=target_spacing_pixels)
 
         # Negative font height is in pixels:
         axis_font = (self._font_name, -self._font_height)
+
+        text: str = "{} ({})".format(self._title, u.units)
 
         if self._orientation == self.ORIENT_VERTICAL:
             Layout._create_rectangle(canvas, x, y, self._size - 1, y + extent, AXIS_BG_COLOUR)
@@ -290,7 +304,7 @@ class AxisLayout(Layout):
             canvas.create_line([(x + self._axis_offset - 1, y), (x + self._axis_offset - 1, y + extent + 1)],
                                fill=AXIS_FG_COLOUR, width=1)
             if not self._hide_text:
-                canvas.create_text(x + self._title_start, x + extent / 2, text=self._title, fill=AXIS_FG_COLOUR,
+                canvas.create_text(x + self._title_start, x + extent / 2, text=text, fill=AXIS_FG_COLOUR,
                                    angle=90, font=axis_font, anchor=tk.N)
             for v, p in ticks:
                 canvas.create_line(x + self._tick_end, y + extent - p, x + self._tick_start, y + extent - p,
@@ -307,7 +321,7 @@ class AxisLayout(Layout):
             # Line seems to need a +1 to reach the final pixel:
             canvas.create_line([(x, y), (x + extent + 1, y)], fill=AXIS_FG_COLOUR, width=1)
             if not self._hide_text:
-                canvas.create_text(x + extent / 2, y + self._size - self._title_end, text=self._title,
+                canvas.create_text(x + extent / 2, y + self._size - self._title_end, text=text,
                                    fill=AXIS_FG_COLOUR,
                                    font=axis_font, anchor=tk.N)
             for t, p in ticks:
@@ -324,23 +338,40 @@ class AxisLayout(Layout):
 
     def canvas_to_axis(self, p):
         v = (p - self._min_pixel) / (self._max_pixel - self._min_pixel) * (
-                    self._axis_range.max - self._axis_range.min) + self._axis_range.min
+                self._axis_range.max - self._axis_range.min) + self._axis_range.min
         return v
 
     def get_axis_range(self) -> AxisRange:
         return self._axis_range
 
+    def _get_units(self, axis_range) -> AxisUnit:
+        """Decide what units to use based on the axis range."""
+
+        if len(self._units) == 1:
+            return self._units[0]
+        else:
+            abs_max: float = max(abs(axis_range.min), abs(axis_range.max))
+            # The possible units are already sorted in ascending order.
+            for u in self._units:
+                if abs_max < u.limit:
+                    return u
+            return u
+
 
 class SpectrogramLayout(GraphLayout):
     """This Layout knows how to lay out and raw a spectrogram."""
 
+    _x_axis_unit = [AxisUnit(scaler=1.0, units="s"),        # Default
+                    AxisUnit(limit=0.5, scaler=1E-3, units="ms")
+                    ]
+    _y_axis_unit = [AxisUnit(scaler=1000.0, units="kHz")]
+
     def __init__(self, font_height, canvas_width, canvas_height):
         super().__init__(font_height, canvas_width, canvas_height)
-        self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "time (s)", canvas_width,
-                                  canvas_height)
-        self._y_axis = AxisLayout(AxisLayout.ORIENT_VERTICAL, font_height, "frequency (kHz)", canvas_width,
-                                  canvas_height,
-                                  hide_text=False)
+        self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "time", canvas_width,
+                                  canvas_height, self._x_axis_unit)
+        self._y_axis = AxisLayout(AxisLayout.ORIENT_VERTICAL, font_height, "frequency", canvas_width,
+                                  canvas_height, self._y_axis_unit, hide_text=False)
         self._layout()
 
     def _layout(self):
@@ -377,7 +408,7 @@ class SpectrogramLayout(GraphLayout):
 
         # Draw the axes:
         (yaxis_x, yaxis_y, yaxis_extent) = (0, self._margin, self._canvas_height - self._x_axis_height - self._margin)
-        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range, multiplier=1000)
+        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range)
 
         (xaxis_x, xaxis_y, xaxis_extent) = (
             self._y_axis_width - 1, self._canvas_height - self._x_axis.get_size(),
@@ -422,15 +453,16 @@ class SpectrogramLayout(GraphLayout):
 class AmplitudeLayout(GraphLayout):
     """This Layout knows how to lay out and raw an amplitude graph."""
 
+    _x_axis_unit = [AxisUnit()]
+    _y_axis_unit = [AxisUnit()]
+
     def __init__(self, font_height, canvas_width, canvas_height, is_reference=False):
         super().__init__(font_height, canvas_width, canvas_height)
         self._is_reference = is_reference
-        self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "time (s)", canvas_width,
-                                  canvas_height)
+        self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "time", canvas_width,
+                                  canvas_height, units=self._x_axis_unit)
         self._y_axis = AxisLayout(AxisLayout.ORIENT_VERTICAL, font_height, "amplitude", canvas_width,
-                                  canvas_height,
-                                  # hide_text=is_reference,
-                                  hide_text=False)
+                                  canvas_height, units=self._y_axis_unit, hide_text=False)
         self._layout()
 
     def _layout(self):
@@ -489,12 +521,15 @@ class AmplitudeLayout(GraphLayout):
 class ProfileLayout(GraphLayout):
     """This Layout knows how to lay out and raw a profile graph."""
 
+    _x_axis_unit = [AxisUnit()]
+    _y_axis_unit = [AxisUnit()]
+
     def __init__(self, font_height, canvas_width, canvas_height):
         super().__init__(font_height, canvas_width, canvas_height)
         self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "dB", canvas_width,
-                                  canvas_height)
+                                  canvas_height, units=self._x_axis_unit)
         self._y_axis = AxisLayout(AxisLayout.ORIENT_VERTICAL, font_height, "frequency (kHz)", canvas_width,
-                                  canvas_height, hide_text=True)
+                                  canvas_height, units=self._y_axis_unit, hide_text=True)
         self._layout()
 
     def _layout(self):
@@ -532,7 +567,7 @@ class ProfileLayout(GraphLayout):
 
         # Draw the axes:
         (yaxis_x, yaxis_y, yaxis_extent) = (0, self._margin, self._canvas_height - self._x_axis_height - self._margin)
-        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range, multiplier=1000)
+        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range)
 
         (xaxis_x, xaxis_y, xaxis_extent) = (
             self._y_axis_width - 1, self._canvas_height - self._x_axis.get_size(),
@@ -541,7 +576,8 @@ class ProfileLayout(GraphLayout):
 
         # Create a capture that can be used to finish drawing the graph later on, when the image
         # is available:
-        def draw_followup(is_memory_limit_hit: bool = False, points=None, axis_range: AxisRange = AxisRange(rmin=0, rmax=1)):
+        def draw_followup(is_memory_limit_hit: bool = False, points=None,
+                          axis_range: AxisRange = AxisRange(rmin=0, rmax=1)):
             # Reblank the data area in case the two phases of drawing got out of order, to
             # avoid multiple data appearing on the same axis:
             l, t, r, b = self._data_area
