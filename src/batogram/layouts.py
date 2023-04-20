@@ -282,15 +282,21 @@ class AxisLayout(Layout):
     def get_size(self):
         return self._size
 
-    def draw(self, canvas, x, y, extent, axis_range: AxisRange, target_spacing_pixels=100):
+    def draw(self, canvas, x, y, extent, axis_range: AxisRange, zero_based_axis: bool, target_spacing_pixels=100):
         # Note: create_rectangle doesn't include the bottom/right edges, so we have to +1.
 
         self._axis_range = axis_range
 
-        # Decide what units to use based on the axis range:
-        u = self._get_units(axis_range)
+        if zero_based_axis:
+            # Offset the time ticks so that they always start at zero:
+            offset_axis_range = AxisRange(0, self._axis_range.max - self._axis_range.min)
+        else:
+            offset_axis_range = self._axis_range
 
-        (ticks, decimal_places) = self.calculate_ticks(self._axis_range, u.scaler, extent,
+        # Decide what units to use based on the axis range:
+        u = self._get_units(offset_axis_range)
+
+        (ticks, decimal_places) = self.calculate_ticks(offset_axis_range, u.scaler, extent,
                                                        target_spacing_pixels=target_spacing_pixels)
 
         # Negative font height is in pixels:
@@ -361,7 +367,7 @@ class AxisLayout(Layout):
 class SpectrogramLayout(GraphLayout):
     """This Layout knows how to lay out and raw a spectrogram."""
 
-    _x_axis_unit = [AxisUnit(scaler=1.0, units="s"),        # Default
+    _x_axis_unit = [AxisUnit(scaler=1.0, units="s"),  # Default
                     AxisUnit(limit=0.5, scaler=1E-3, units="ms")
                     ]
     _y_axis_unit = [AxisUnit(scaler=1000.0, units="kHz")]
@@ -385,7 +391,7 @@ class SpectrogramLayout(GraphLayout):
         self._dead_space = (
             0, self._canvas_height - self._x_axis_height, self._y_axis_width - 1, self._canvas_height - 1)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid):
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid, zero_based_x_axis: bool):
         super().draw(canvas, x_range, y_range, show_grid)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
@@ -408,12 +414,12 @@ class SpectrogramLayout(GraphLayout):
 
         # Draw the axes:
         (yaxis_x, yaxis_y, yaxis_extent) = (0, self._margin, self._canvas_height - self._x_axis_height - self._margin)
-        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range)
+        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range, zero_based_axis=False)
 
         (xaxis_x, xaxis_y, xaxis_extent) = (
             self._y_axis_width - 1, self._canvas_height - self._x_axis.get_size(),
             self._canvas_width - self._y_axis_width - self._margin)
-        x_ticks = self._x_axis.draw(canvas, xaxis_x, xaxis_y, xaxis_extent, x_range)
+        x_ticks = self._x_axis.draw(canvas, xaxis_x, xaxis_y, xaxis_extent, x_range, zero_based_axis=zero_based_x_axis)
 
         # Create a capture that can be used to finish drawing the graph later on, when the image
         # is available:
@@ -543,7 +549,7 @@ class ProfileLayout(GraphLayout):
         self._dead_space = (
             0, self._canvas_height - self._x_axis_height, self._y_axis_width - 1, self._canvas_height - 1)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool):
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
         super().draw(canvas, x_range, y_range, show_grid)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
@@ -567,12 +573,12 @@ class ProfileLayout(GraphLayout):
 
         # Draw the axes:
         (yaxis_x, yaxis_y, yaxis_extent) = (0, self._margin, self._canvas_height - self._x_axis_height - self._margin)
-        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range)
+        y_ticks = self._y_axis.draw(canvas, yaxis_x, yaxis_y, yaxis_extent, y_range, zero_based_axis=False)
 
         (xaxis_x, xaxis_y, xaxis_extent) = (
             self._y_axis_width - 1, self._canvas_height - self._x_axis.get_size(),
             self._canvas_width - self._y_axis_width - self._margin)
-        x_ticks = self._x_axis.draw(canvas, xaxis_x, xaxis_y, xaxis_extent, x_range)
+        x_ticks = self._x_axis.draw(canvas, xaxis_x, xaxis_y, xaxis_extent, x_range, zero_based_axis=zero_based_x_axis)
 
         # Create a capture that can be used to finish drawing the graph later on, when the image
         # is available:
@@ -588,7 +594,7 @@ class ProfileLayout(GraphLayout):
             Layout._create_rectangle(canvas, *self._dead_space, AXIS_BG_COLOUR)
             if not is_memory_limit_hit:
                 new_x_ticks = self._x_axis.draw(canvas, xaxis_x, xaxis_y, xaxis_extent, axis_range,
-                                                target_spacing_pixels=40)
+                                                target_spacing_pixels=40, zero_based_axis=zero_based_x_axis)
 
                 # Draw the actual data:
                 if points is not None:

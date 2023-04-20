@@ -64,7 +64,8 @@ class ProfileGraphFrame(GraphFrame):
         width, height = self._canvas.winfo_width(), self._canvas.winfo_height()
         layout = layouts.ProfileLayout(FONT_SIZE, width, height)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
-        graph_completer, data_area = layout.draw(self._canvas, profile_range, frequency_range, self._settings.show_grid)
+        graph_completer, data_area = layout.draw(self._canvas, profile_range, frequency_range,
+                                                 self._settings.show_grid, self._settings.zero_based_time)
         if af_data and self._pipeline:
             # Kick off the pipeline which will create a graph in another thread,
             # and complete by generating an event that will finish drawing the grph:

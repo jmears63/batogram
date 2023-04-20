@@ -65,6 +65,7 @@ BNC_MODES = {BNC_ADAPTIVE_MODE: "Auto", BNC_MANUAL_MODE: "Manual", BNC_INTERACTI
 class GraphSettings:
     """Settings relating to a specific graph panel."""
     time_range: Optional[AxisRange]
+    zero_based_time: bool
     frequency_range: Optional[AxisRange]
     show_grid: bool
     show_profile: bool
@@ -85,6 +86,7 @@ class GraphSettings:
                  on_user_applied_settings: Callable[[int], NoReturn],
                  show_profile=True):
         self.time_range = AxisRange(0, 1)
+        self.zero_based_time = True
         self.frequency_range = AxisRange(0, 1)
         self._on_app_modified_settings: Callable[[int], NoReturn] = on_app_modified_settings  # Call this to signal that the UI needs to refresh.
         self._on_user_applied_settings: Callable[[int], NoReturn] = on_user_applied_settings  # Call this to signal that the application needs to refresh.

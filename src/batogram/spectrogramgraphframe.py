@@ -125,7 +125,8 @@ class SpectrogramGraphFrame(GraphFrame):
         width, height = self.get_canvas_size()
         self._layout = layouts.SpectrogramLayout(FONT_SIZE, width, height)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
-        graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range, self._settings.show_grid)
+        graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range, self._settings.show_grid,
+                                                       self._settings.zero_based_time)
 
         if afs_data:
             self._update_time_scroller(time_range, afs_data.time_range)
