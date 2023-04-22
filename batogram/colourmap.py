@@ -20,8 +20,8 @@
 
 import numpy as np
 
-from batogram import get_colour_map_path
-from batogram.appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP
+from . import get_colour_map_path
+from .appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP
 
 
 class ColourMap:

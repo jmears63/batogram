@@ -1,13 +1,13 @@
 batogram
 ========
 
-Batogram is an open source application for viewing bat calls spectrograms.
+Batogram is an open source application for viewing bat call spectrograms.
 
 Some capabilities and features: 
 * Rendering of spectrograms from .wav files.
 * Auto selection of many parameters for simple operation.
 * Efficient rendering with graceful handling of larger data files.
-* Pan and scale using the mouse or by manual selection.
+* Pan and scale using the mouse, keys or by manual selection.
 * Handling of multichannel data files, including stereo.
 * Basic side by side comparison of two spectrograms.
 * Display of GUANO metadata, including the ability to click to open the location in Google Maps.

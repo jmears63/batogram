@@ -36,17 +36,17 @@ dependencies = [
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["batogram*"]
 
 [tool.setuptools.package-data]
 # For some reason these file types also need to be listed in MANIFEST.in
-# "*" = ["*.png", "*.csv", "*.wav"]
-"*" = ["*.png", "*.csv"]
+"*" = ["assets/*.png", "colour_maps/*.csv"]
 
 [project.scripts]
 # Automatically create a command to run the program. There is an alternative to run a GUI script,
 # with no terminal window.
-batogram = "batogram.__main__:run"
+batogram = "batogram.runner:run"
 
 [project.urls]
 "Homepage" = "https://github.com/jmears63/batogram"

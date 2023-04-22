@@ -22,7 +22,7 @@ import math
 import numpy as np
 import scipy
 
-from . import get_asset_path, colourmap, appsettings
+from . import colourmap, appsettings
 from copy import deepcopy
 from dataclasses import dataclass
 from threading import Lock, Thread, Condition
@@ -30,7 +30,6 @@ from typing import Type, Tuple, Optional, Any, Callable
 from scipy import ndimage
 from .audiofileservice import AudioFileService, RawDataReader
 from .chunky_spectrogram import chunky_spectrogram
-from .colourmap import ColourMap
 from .common import AxisRange, AreaTuple, clip_to_range
 from .graphsettings import GraphSettings, ADAPTIVE_FFT_SAMPLES, ADAPTIVE_FFT_OVERLAP_PERCENT, \
     FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE

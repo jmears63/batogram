@@ -369,22 +369,25 @@ class SpectrogramMouseService:
         if is_shift and self._last_drag_mode is not None:
             return self._last_drag_mode
 
-        delta_x = abs(event.x - self._start_position[0])
-        delta_y = abs(event.y - self._start_position[1])
-
         # Default: drag too small to care about.
         mode = None
         minimum = 10
         threshold = 30
 
-        if delta_x > minimum or delta_y > minimum:
-            if delta_y < threshold:
-                mode = DragMode.DRAG_HORIZONTAL
-            elif delta_x < threshold:
-                mode = DragMode.DRAG_VERTICAL
-            else:
-                mode = DragMode.DRAG_RECTANGLE
+        # _start_position is None once in a while, not sure how that comes about:
+        if self._start_position is not None:
 
-        self._last_drag_mode = mode
+            delta_x = abs(event.x - self._start_position[0])
+            delta_y = abs(event.y - self._start_position[1])
+
+            if delta_x > minimum or delta_y > minimum:
+                if delta_y < threshold:
+                    mode = DragMode.DRAG_HORIZONTAL
+                elif delta_x < threshold:
+                    mode = DragMode.DRAG_VERTICAL
+                else:
+                    mode = DragMode.DRAG_RECTANGLE
+
+            self._last_drag_mode = mode
 
         return mode

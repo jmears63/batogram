@@ -28,7 +28,7 @@ from timeit import default_timer as timer
 from typing import NamedTuple, Optional
 from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
-from .appsettings import AppSettings, COLOUR_MAPS
+from .appsettings import COLOUR_MAPS
 from .appsettingsmodal import AppSettingsWindow
 from .audiofileservice import AudioFileService
 from .breadcrumbservice import BreadcrumbService, Breadcrumb
@@ -374,6 +374,18 @@ class PanelFrame(tk.Frame):
     def on_shift_down_key(self, event):
         pass
 
+    def on_page_up_key(self, event):
+        self._spectrogram_frame.fview(tk.SCROLL, -1, tk.UNITS)
+
+    def on_shift_page_up_key(self, event):
+        self._spectrogram_frame.fview(tk.SCROLL, -1, tk.PAGES)
+
+    def on_page_down_key(self, event):
+        self._spectrogram_frame.fview(tk.SCROLL, 1, tk.UNITS)
+
+    def on_shift_page_down_key(self, event):
+        self._spectrogram_frame.fview(tk.SCROLL, 1, tk.PAGES)
+
 
 class DataContext:
     """This class contains data used by a graph pane, including raw file data and axis ranges."""
@@ -487,6 +499,10 @@ class RootWindow(tk.Tk):
         self.bind('<Shift-Up>', self._main_pane.on_shift_up_key)
         self.bind('<Down>', self._main_pane.on_down_key)
         self.bind('<Shift-Down>', self._main_pane.on_shift_down_key)
+        self.bind('<Prior>', self._main_pane.on_page_up_key)
+        self.bind('<Shift-Prior>', self._main_pane.on_shift_page_up_key)
+        self.bind('<Next>', self._main_pane.on_page_down_key)
+        self.bind('<Shift-Next>', self._main_pane.on_shift_page_down_key)
 
         # Allow tk to work out the size of things before we try to draw any graphs:
         self.update_idletasks()
