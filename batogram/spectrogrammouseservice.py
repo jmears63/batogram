@@ -165,14 +165,14 @@ class SpectrogramMouseService:
         pass
 
     def _on_wheel(self, event):
-        print("wheel {}".format(event))
+        # print("wheel {}".format(event))
         if event.delta > 0:
             self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=False)
         else:
             self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, frequency_clamped=False)
 
     def _on_shift_wheel(self, event):
-        print("shift wheel {}".format(event))
+        # print("shift wheel {}".format(event))
         if event.delta > 0:
             self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=True)
         else:
