@@ -11,10 +11,26 @@ Some capabilities and features:
 * Handling of multichannel data files, including stereo.
 * Basic side by side comparison of two spectrograms.
 * Display of GUANO metadata, including the ability to click to open the location in Google Maps.
-* Runs on Windows, macOS and Linux operating systems.
+* Runs on Windows, Linux and macOS (experimental) operating systems.
 
 Installation
 ------------
+
+### Windows
+
+There are currently two approaches to installing Batogram on Windows. The first and simplest
+method is as follows:
+
+* Download the Batogram executable for Windows. Probaly Windows Defender will warn you
+of the danger of downloading such files from unknown sources. Decide whether you are
+confident to go ahead. Assuming you are, proceed then to the next step.
+* Copy the downloaded executable to your desktop, so that you can find it when you want it.
+* Double click it to run it. The first time you run it, it will take a little longer to start 
+up than usual.
+
+The second installation method is to install Python on your Windows computer, and follow the 
+same steps as the Linux installation. If you take this route, I assume you know what you are doing
+and provide no further instructions.
 
 ### Linux
 
@@ -36,32 +52,11 @@ You need to have Python 3.10 as a minimum.
     # Batogram is now in PATH. You can run it with this simple command:
     batogram
 
-### Windows
-For now, Batogram is installed onto windows using the following slightly convoluted
-steps. At some point in the future, I will provide a simpler install.
+### macOS (experimental)
 
-This sequence assumes Windows 11.
-
-* Launch the Microsoft Store. You can do this from the Start menu - search for Microsoft Store,
-and launch it.
-* In the store, search for Python using the upper right menu. Select a version which is
-at least 3.10 - probably, the most recent version. I used version 3.11.
-* Go ahead and install it.
-* Open a windows command prompt - for example, by searching for cmd from the start menu. 
-
-In the command prompt, enter this command to install Batogram and its dependencies, which
-may take a few moments:
-
-    pip install batogram
-
-The install command will finish by displaying a path to batogram.exe. You may wish to copy
-that file to your desktop for convenient launching. Otherwise, you can launch
-Batogram from the command prompt:
-
-    python -m batogram
-
-Subsequently you can launch Batogram using that command in the command prompt, or by double
-clicking on batogram.exe on your desktop, if you copied it there in the previous step.
+I am not an expert on Apple products, and don't have any macOS systems to test this software on.
+However, it should be possible to follow the same steps as the Linux installation to install and run
+batogram.
 
 Usage
 -----
