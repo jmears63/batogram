@@ -21,16 +21,18 @@ Installation
 There are currently two approaches to installing Batogram on Windows. The first and simplest
 method is as follows:
 
-* Download the Batogram executable for Windows. Probaly Windows Defender will warn you
-of the danger of downloading such files from unknown sources. Decide whether you are
-confident to go ahead. Assuming you are, proceed then to the next step.
-* Copy the downloaded executable to your desktop, so that you can find it when you want it.
-* Double click it to run it. The first time you run it, it will take a little longer to start 
-up than usual.
+* Download a Batogram executable for Windows from Github. Available releases are listed 
+[here](https://github.com/jmears63/batogram/releases).
+* Probably Windows Defender will warn you of the danger of downloading such files from unknown
+sources. Assess the risk and decide if you going ahead. Assuming you are, proceed to the
+next step.
+* Copy the downloaded executable to your Windows desktop, so that you can find it when you want it.
+* Double click it on the desktop to run it. The first time you run it, it will take a little longer to start 
+up than usual. You will notice a command window launched alongside Batogram - ignore it. This is to
+aid debugging, and will be removed in a future release.
 
-The second installation method is to install Python on your Windows computer, and follow the 
-same steps as the Linux installation. If you take this route, I assume you know what you are doing
-and provide no further instructions.
+The second installation method is to install Python on your Windows computer, and then follow the 
+same steps as the Linux installation. If you take this route, I assume you know what you are doing.
 
 ### Linux
 
@@ -54,9 +56,9 @@ You need to have Python 3.10 as a minimum.
 
 ### macOS (experimental)
 
-I am not an expert on Apple products, and don't have any macOS systems to test this software on.
-However, it should be possible to follow the same steps as the Linux installation to install and run
-batogram.
+It should be possible to follow the same steps as the Linux installation to install and run
+batogram. However, I am not an expert on Apple products, and don't have any macOS systems to
+test this on.
 
 Usage
 -----
