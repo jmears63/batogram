@@ -387,6 +387,9 @@ class PanelFrame(tk.Frame):
     def on_shift_page_down_key(self, event):
         self._spectrogram_frame.fview(tk.SCROLL, 1, tk.PAGES)
 
+    def on_home_key(self, event):
+        self.on_home_button()
+
 
 class DataContext:
     """This class contains data used by a graph pane, including raw file data and axis ranges."""
@@ -504,6 +507,7 @@ class RootWindow(tk.Tk):
         self.bind('<Shift-Prior>', self._main_pane.on_shift_page_up_key)
         self.bind('<Next>', self._main_pane.on_page_down_key)
         self.bind('<Shift-Next>', self._main_pane.on_shift_page_down_key)
+        self.bind('<Home>', self._main_pane.on_home_key)
 
         # Allow tk to work out the size of things before we try to draw any graphs:
         self.update_idletasks()

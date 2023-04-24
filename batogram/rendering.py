@@ -198,7 +198,7 @@ class PipelineStep:
                 t1 = process_time()
                 outputdata = self._implementation(inputdata, params, calc_data)
                 t2 = process_time()
-                print("{:.0f} ms for {}".format((t2 - t1) * 1000, type(self).__name__))
+                # print("{:.0f} ms for {}".format((t2 - t1) * 1000, type(self).__name__))
 
                 # Cache the result in case we need it again (quite likely):
                 self._cacheddata = outputdata
