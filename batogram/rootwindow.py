@@ -265,7 +265,8 @@ class PanelFrame(tk.Frame):
         limited_range_f = AxisRange(range_f.min + delta_f, range_f.max + delta_f)
 
         self.on_rescale_handler(limited_range_t, limited_range_f,
-                                add_breadcrumb=add_breadcrumb, draw_scope=DrawableFrame.DRAW_ALL)
+                                add_breadcrumb=add_breadcrumb,
+                                draw_scope=DrawableFrame.DRAW_ALL)
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         # Update the settings to match the *actual* new axis ranges:

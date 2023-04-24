@@ -22,7 +22,8 @@ There are currently two approaches to installing Batogram on Windows. The first 
 method is as follows:
 
 * Download a Batogram executable for Windows from Github. Available releases are listed 
-[here](https://github.com/jmears63/batogram/releases).
+[here](https://github.com/jmears63/batogram/releases). You need the file named batogram.exe, listed
+under Assets.
 * Probably Windows Defender will warn you of the danger of downloading such files from unknown
 sources. Assess the risk and decide if you going ahead. Assuming you are, proceed to the
 next step.
