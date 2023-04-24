@@ -176,13 +176,18 @@ class GraphLayout(Layout):
     def _draw_graph_image(canvas, data_area, image):
         (il, it, ir, ib) = data_area
 
-        # There may be a right margin to fill, if we are zoomed right out:
+        # There may be a right margin to fill, if we are zoomed right out. And
+        # rounding errors may result in the image being one pixel short. So, we apply
+        # polyfilla around the right and bottom edge.
         image_height, image_width, _ = image.shape
-        data_area_width: int = ir - il
+        data_area_width, data_area_height = ir - il + 1, ib - it + 1
+        fill_colour: str = colourmap.instance.get_polyfilla_colour()
         if image_width < data_area_width:
             delta = data_area_width - image_width
-            fill_colour: str = colourmap.instance.get_polyfilla_colour()
-            canvas.create_rectangle(ir - delta, it, ir, it + image_height - 1, fill=fill_colour, outline=fill_colour)
+            canvas.create_rectangle(ir - delta, it, ir, ib, fill=fill_colour, outline=fill_colour)
+        if image_height < data_area_height:
+            delta = data_area_height - image_height
+            canvas.create_rectangle(il, ib - delta, ir, ib, fill=fill_colour, outline=fill_colour)
 
         inverted_image = Image.fromarray(np.uint8(image)).convert('RGB')
         pil_image = ImageOps.flip(inverted_image)
