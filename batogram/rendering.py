@@ -172,7 +172,7 @@ class PipelineStep:
         self._cachedparams = None
         self._lock = Lock()
 
-    def process_data(self, inputdata, params: Tuple, calc_data: "SpectrogramCalcData") -> (Any, int, bool):
+    def process_data(self, inputdata, params: Tuple) -> (Any, int, bool):
 
         # Hold a lock for this step as we do its calculation. This allows us to share
         # a step between different pipelines so that can do the calculation only once,
@@ -197,7 +197,7 @@ class PipelineStep:
                 # print("Calculating data for {}".format(type(self)))
                 # The cache didn't work out, so we have to do the calculation.
                 t1 = process_time()
-                outputdata = self._implementation(inputdata, params, calc_data)
+                outputdata = self._implementation(inputdata, params)
                 t2 = process_time()
                 # print("{:.0f} ms for {}".format((t2 - t1) * 1000, type(self).__name__))
 
@@ -209,7 +209,7 @@ class PipelineStep:
 
         return outputdata, self._serial, not was_cached_used
 
-    def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
+    def _implementation(self, inputdata, params):
         # Subclasses need to implement this.
         raise NotImplementedError()
 
@@ -597,31 +597,32 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         # Note that this step is shared with the profile pipeline, to avoid needless double calculation,
         # so we need to make sure we use the same settings in each pipeline.
 
-        params = filedata_serial, request.raw_data_reader
+        params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
+            calc_data.last_time_index_for_segs
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
-            None, params, calc_data)
+            None, params)
 
         if rawdata.min() == rawdata.max():
             raise FailGracefullyException("Range of raw data values is zero")
 
         # Include the actual fft samples and overlap to force a cache miss when they change:
         params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
-            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples
+            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent
         (specdata, self._graph_params), specdata_serial, _ = \
-            self._spectrogram_step.process_data((rawdata, raw_data_offset), params, calc_data)
+            self._spectrogram_step.process_data((rawdata, raw_data_offset), params)
 
         del rawdata  # Allow the gc to reclaim this memory.
 
         params = raw_data_serial, height, width, request.axis_time_range, request.axis_frequency_range, \
-            file_time_range, file_frequency_range
-        zoomed_specdata, zoomed_serial, _ = self._zoom_step.process_data(specdata, params, calc_data)
+            file_time_range, file_frequency_range, calc_data
+        zoomed_specdata, zoomed_serial, _ = self._zoom_step.process_data(specdata, params)
 
         params = (zoomed_serial,)
-        (bnc_specdata, auto_vrange), bnc_serial, _ = self._bnc_step.process_data(zoomed_specdata, params, calc_data)
+        (bnc_specdata, auto_vrange), bnc_serial, _ = self._bnc_step.process_data(zoomed_specdata, params)
         # auto_vrange is the auto range chosen, or None if not in autorange mode.
 
         mapped_specdata, mapped_specdata_serial, _ = self._apply_colour_map_step.process_data(
-            bnc_specdata, (bnc_serial,), calc_data)
+            bnc_specdata, (bnc_serial,))
 
         # Decide if the histogram needs updating (only if it has changed, taking into
         # account the basis setting):
@@ -665,13 +666,11 @@ class SpectrogramDataReaderStep(PipelineStep):
     def __init__(self, settings: GraphSettings):
         super().__init__(settings)
 
-    def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
-        calc_data: SpectrogramCalcData
-        _, raw_data_reader = params
+    def _implementation(self, inputdata, params):
+        _, raw_data_reader, time_min_index, time_max_index = params
 
-        time_min_index, time_max_index = calc_data.first_time_index_for_segs, calc_data.last_time_index_for_segs
         raw_data, samples_read = raw_data_reader.read_raw_data((time_min_index, time_max_index))
-        return raw_data, calc_data.first_time_index_for_segs
+        return raw_data, time_min_index
 
 
 class SpectrogramFftStep(PipelineStep):
@@ -696,10 +695,9 @@ class SpectrogramFftStep(PipelineStep):
         for cache invalidation."""
         return SpectrogramFftStep.RelevantSettings(self._settings)
 
-    def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
-        calc_data: SpectrogramCalcData
+    def _implementation(self, inputdata, params):
         previous_serial, sample_rate, file_data_samples, axis_time_range, actual_fft_samples, \
-            actual_fft_overlap_samples = params
+            actual_fft_overlap_samples, actual_fft_overlap_percent = params
         rs = self.get_relevant_settings()
 
         # Input data is a subset of raw data from the input file, chosen to include
@@ -733,7 +731,7 @@ class SpectrogramFftStep(PipelineStep):
         # Multiplier is 10, not 20, because _do_spectrogram has already squared it.
         db_spectrogram = 10 * np.log10(combined_spectrogram)
         return db_spectrogram, \
-            GraphParams(fft_samples=calc_data.actual_fft_samples, fft_overlap=calc_data.actual_fft_overlap_percent,
+            GraphParams(fft_samples=actual_fft_samples, fft_overlap=actual_fft_overlap_percent,
                         window_type=rs.window_type)
 
     @staticmethod
@@ -814,10 +812,9 @@ class SpectrogramZoomStep(PipelineStep):
         for cache invalidation."""
         return SpectrogramZoomStep.RelevantSettings(self._settings)
 
-    def _implementation(self, specdata, params, calc_data: "SpectrogramCalcData"):
-        calc_data: SpectrogramCalcData
+    def _implementation(self, specdata, params):
         previous_serial, canvas_height, canvas_width, canvas_time_range, canvas_frequency_range, \
-            file_time_range, file_frequency_range = params
+            file_time_range, file_frequency_range, calc_data = params
 
         rs = self.get_relevant_settings()
 
@@ -878,7 +875,7 @@ class SpectrogramBNCStep(PipelineStep, BnCHelper):
         for cache invalidation."""
         return SpectrogramBNCStep.RelevantSettings(self._settings)
 
-    def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
+    def _implementation(self, inputdata, params):
         """Rescale the input data to the range 0-1 that will be directly mapped to the colour map.
         Data outside the range is clipped to the limits of the range.
         """
@@ -938,7 +935,7 @@ class SpectrogramApplyColourMapStep(PipelineStep):
         for cache invalidation."""
         return SpectrogramApplyColourMapStep.RelevantSettings(self._settings)
 
-    def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
+    def _implementation(self, inputdata, params):
         # previous_serial, = params
         # s = self.get_relevant_settings()
         outputdata = colourmap.instance.map(inputdata)
@@ -1002,20 +999,22 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
             self._completion_data = True, request, None
             return
 
-        params = filedata_serial, request.raw_data_reader
+        params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
+            calc_data.last_time_index_for_segs
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
-            None, params, calc_data)
+            None, params)
 
         # For performance, reduce the data volume to be close to the target canvas width. The
         # resulting reduced data matches the time range wanted for the axis:
-        params = filedata_serial, width, axis_trange, axis_arange, filedata_trange, filedata_arange, filedata_sample_count
+        params = filedata_serial, width, axis_trange, axis_arange, filedata_trange, filedata_arange, \
+            filedata_sample_count, calc_data.first_time_index_for_amp, calc_data.last_time_index_for_amp
         (reduced_data, reduction_ratio), reduce_serial, _ = self._reduce_step.process_data(
-            (rawdata, raw_data_offset), params, calc_data)
+            (rawdata, raw_data_offset), params)
 
         # Draw the amplitude spans into a bitmap array:
         params = reduce_serial, sample_rate, height, width, axis_trange, axis_arange, filedata_trange, filedata_arange
         line_segments, ampdata_serial, _ = self._amplitude_image_step.process_data(
-            reduced_data, params, calc_data)
+            reduced_data, params)
 
         # print("Amplitude calcs complete")
         self._completion_data = False, request, line_segments
@@ -1031,9 +1030,10 @@ class AmplitudeReduceData(PipelineStep):
     def __init__(self, settings: GraphSettings):
         super().__init__(settings)
 
-    def _implementation(self, input_data, params, calc_data: "SpectrogramCalcData"):
+    def _implementation(self, input_data, params):
         calc_data: SpectrogramCalcData
-        previous_serial, canvas_width, axis_trange, axis_arange, filedata_trange, filedata_arange, filedata_samples = params
+        previous_serial, canvas_width, axis_trange, axis_arange, filedata_trange, filedata_arange, \
+            filedata_samples, first_time_index_for_amp, last_time_index_for_amp = params
         (rawdata, input_data_offset) = input_data
         del input_data
         channels, _ = rawdata.shape
@@ -1041,8 +1041,8 @@ class AmplitudeReduceData(PipelineStep):
 
         # Map the required axis range back to raw data samples supplied:
         # The time axis range corresponds to the segment range:
-        min_input_index = calc_data.first_time_index_for_amp - input_data_offset
-        max_input_index = calc_data.last_time_index_for_amp - input_data_offset
+        min_input_index = first_time_index_for_amp - input_data_offset
+        max_input_index = last_time_index_for_amp - input_data_offset
 
         # Sanity:
         min_input_index = max(0, min_input_index)
@@ -1083,7 +1083,7 @@ class AmplitudeLineSegmentStep(PipelineStep):
     def __init__(self, settings: GraphSettings):
         super().__init__(settings)
 
-    def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
+    def _implementation(self, inputdata, params):
         previous_serial, sample_rate, height, width, trange, arange, filedata_trange, filedata_arange = params
 
         # Input data is in aggregated buckets, each point is the amplitude range, and the bucket range
@@ -1192,25 +1192,26 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
         # This step is shared with the main spectrogram pipeline step, to avoid needlessly
         # calculating it twice:
 
-        params = filedata_serial, request.raw_data_reader
+        params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
+            calc_data.last_time_index_for_segs
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
-            None, params, calc_data)
+            None, params)
 
-        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, calc_data.actual_fft_samples,\
-            calc_data.actual_fft_overlap_samples
+        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
+            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent
         (specdata, self._graph_params), specdata_serial, spectrogram_serial = \
-            self._spectrogram_step.process_data((rawdata, raw_data_offset), params, calc_data)
+            self._spectrogram_step.process_data((rawdata, raw_data_offset), params)
 
         del rawdata  # Allow the gc to reclaim this memory.
 
-        params = spectrogram_serial, height, width, request.axis_time_range, request.axis_frequency_range, \
-            file_time_range, file_frequency_range
-        zoomed_specdata, zoomed_serial, _ = self._zoom_step.process_data(specdata, params, calc_data)
+        params = raw_data_serial, height, width, request.axis_time_range, request.axis_frequency_range, \
+            file_time_range, file_frequency_range, calc_data
+        zoomed_specdata, zoomed_serial, _ = self._zoom_step.process_data(specdata, params)
 
         # Create a series of points for drawing the profile:
         params = zoomed_serial, height, width
         (profile_points, vmin, vmax), specdata_serial, _ = self._profile_line_segment_step.process_data(
-            zoomed_specdata, params, calc_data)
+            zoomed_specdata, params)
 
         self._completion_data = False, request, profile_points, AxisRange(vmin, vmax)
 
@@ -1224,7 +1225,7 @@ class ProfileLineSegmentStep(PipelineStep):
     def __init__(self, settings: GraphSettings):
         super().__init__(settings)
 
-    def _implementation(self, input_data, params, calc_data: "SpectrogramCalcData"):
+    def _implementation(self, input_data, params):
         previous_serial, height, width = params
 
         # The input is the spectrogram data. Aggregate each row to get the profile.
