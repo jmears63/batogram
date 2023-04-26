@@ -123,10 +123,9 @@ class RenderingPipeline(Thread):
 
             request, on_completion, on_error = pending_request_tuple
 
-            self.do_processing(request)
             try:
                 # Derived classes must define this to contain work they want doing:
-                # self.do_processing(request)
+                self.do_processing(request)
                 pass
             except FailGracefullyException as _:
                 pass
