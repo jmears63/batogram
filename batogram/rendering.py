@@ -180,13 +180,14 @@ class PipelineStep:
         # cached response. The step needs to be atomic for this to work.
 
         with self._lock:
+            caching_enabled: bool = True
             was_cached_used: bool = False
             outputdata = None
             # Get a hash of the settings that relate to this step, or None if nun:
             settings = deepcopy(self.get_relevant_settings())
             # See if we can use cached results:
             if self._cacheddata is not None:
-                if params == self._cachedparams:
+                if params == self._cachedparams and caching_enabled:
                     if settings is None or settings == self._cached_settings:
                         # We can use the cached value:
                         # print("Using cached data for {}".format(type(self)))
@@ -325,6 +326,7 @@ class SpectrogramCalcData:
         else:
             self.actual_fft_overlap_percent = settings.fft_overlap
 
+        # print("fft_samples = {}, fft_overlap = {}".format(self.actual_fft_samples, self.actual_fft_overlap_percent))
         self.actual_fft_overlap_samples = int(self.actual_fft_overlap_percent / 100.0 * self.actual_fft_samples)
         self.step_count: int = int(self.actual_fft_samples - self.actual_fft_overlap_samples)
         half_segment_offset: int = int(self.actual_fft_samples / 2)  # Ignore the rounding error, small.
@@ -602,7 +604,9 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         if rawdata.min() == rawdata.max():
             raise FailGracefullyException("Range of raw data values is zero")
 
-        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range
+        # Include the actual fft samples and overlap to force a cache miss when they change:
+        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
+            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples
         (specdata, self._graph_params), specdata_serial, _ = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params, calc_data)
 
@@ -694,7 +698,8 @@ class SpectrogramFftStep(PipelineStep):
 
     def _implementation(self, inputdata, params, calc_data: "SpectrogramCalcData"):
         calc_data: SpectrogramCalcData
-        previous_serial, sample_rate, file_data_samples, axis_time_range = params
+        previous_serial, sample_rate, file_data_samples, axis_time_range, actual_fft_samples, \
+            actual_fft_overlap_samples = params
         rs = self.get_relevant_settings()
 
         # Input data is a subset of raw data from the input file, chosen to include
@@ -711,7 +716,7 @@ class SpectrogramFftStep(PipelineStep):
         # print("calculating spectrogram: {}: {}", params, inputdata.shape)
 
         combined_spectrogram = self._do_spectrogram(data_read, sample_rate, rs.window_type,
-                                                    calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples)
+                                                    actual_fft_samples, actual_fft_overlap_samples)
 
         # print("delta_t = {}".format(delta_t))
 
@@ -1191,7 +1196,8 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
             None, params, calc_data)
 
-        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range
+        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, calc_data.actual_fft_samples,\
+            calc_data.actual_fft_overlap_samples
         (specdata, self._graph_params), specdata_serial, spectrogram_serial = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params, calc_data)
 
