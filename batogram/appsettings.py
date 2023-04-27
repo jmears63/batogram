@@ -34,7 +34,7 @@ COLOUR_MAPS = {
 @dataclass()
 class AppSettings:
     colour_map: str = DEFAULT_COLOUR_MAP
-    data_directory: str = Path.home()
+    data_directory: str = str(Path.home())
     # Remember to add new attributes to the _copy_other method.
 
     def write(self):

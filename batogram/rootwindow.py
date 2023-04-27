@@ -660,14 +660,14 @@ class RootWindow(tk.Tk):
     def _open_main_file_event(self, _):
         self._open_main_file()
 
-    def _open_file_dialog(self, title: str):
+    def _open_file_dialog(self, title: str) -> str:
         initialdir = None
         if self._first_file_open:
             self._first_file_open = False
             initialdir = appsettings.instance.data_directory
 
-        filepath = tk.filedialog.askopenfilename(title=title, filetypes=self.filetypes,
-                                                 initialdir=initialdir)
+        filepath: str = tk.filedialog.askopenfilename(title=title, filetypes=self.filetypes,
+                                                      initialdir=initialdir)
         return filepath
 
     def _open_main_file(self):
