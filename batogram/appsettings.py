@@ -1,11 +1,13 @@
 import os
+from typing import Tuple
+
+import numpy as np
+
 from dataclasses import dataclass
-
 from pathlib import Path
-
 from dataclasses_json import Undefined, dataclass_json
 from platformdirs import user_data_dir
-
+from scipy.interpolate import CubicSpline
 
 DEFAULT_COLOUR_MAP = "Kindlmann *"
 
@@ -35,7 +37,26 @@ COLOUR_MAPS = {
 class AppSettings:
     colour_map: str = DEFAULT_COLOUR_MAP
     data_directory: str = str(Path.home())
-    # Remember to add new attributes to the _copy_other method.
+    main_mic_response_path: str = ""
+    ref_mic_response_path: str = ""
+
+    def _copy_other(self, other: "AppSettings"):
+        # Could we use deep_copy for this?
+        self.colour_map = other.colour_map
+        self.data_directory = other.data_directory
+        self.main_mic_response_path = other.main_mic_response_path
+        self.ref_mic_response_path = other.ref_mic_response_path
+
+
+class AppSettingsWrapper(AppSettings):
+    """Subclass the data class, so we can have ephemeral fields that aren't streamed as
+    JSON etc"""
+    main_mic_response_data: Tuple[CubicSpline, float, float, float, float] | None
+    ref_mic_response_data: Tuple[CubicSpline, float, float, float, float] | None
+
+    def __init__(self, *args, **nargs):
+        super().__init__(*args, **nargs)
+        self._reset()
 
     def write(self):
         path = self._get_file_path()
@@ -45,6 +66,7 @@ class AppSettings:
             f.write(s)
 
     def read(self):
+        self._reset()
         try:
             path = self._get_file_path()
             with open(path, "r") as f:
@@ -57,8 +79,23 @@ class AppSettings:
                 # Surely there is a neater way to do this?
                 self._copy_other(file_settings)
 
+                self.main_mic_response_data = self._read_response_file_data(self.main_mic_response_path)
+                self.ref_mic_response_data = self._read_response_file_data(self.ref_mic_response_path)
+
         except FileNotFoundError:
-            pass    # There will be no such file the first time around.
+            pass    # There will be no settings file the first time around.
+
+    def _read_response_file_data(self, path: str):
+        if path is not None and path != "":
+            try:
+                return self._read_mic_response_data(path)
+            except BaseException as e:
+                print("Unable to read data from {}: {}".format(path, str(e)))
+                return None
+
+    def _reset(self):
+        self.main_mic_response_data = None
+        self.ref_main_mic_response_data = None
 
     @staticmethod
     def _get_file_path():
@@ -66,11 +103,54 @@ class AppSettings:
         d = user_data_dir("batogram", "fitzharrys")
         return "{}/appsettings.json".format(d)
 
-    def _copy_other(self, other: "AppSettings"):
-        self.colour_map = other.colour_map
-        self.data_directory = other.data_directory
+    def set_main_mic_response_file(self, file: str):
+        """Attempt to read and parse the file contents, and assign the field if
+        it succeeds. If the file is bad, a ValueError or FileNotFound is thrown."""
+
+        self.main_mic_response_path = ""
+        self.main_mic_response_data = None
+
+        if file is None or file == "":
+            self.main_mic_response_data = None
+            self.main_mic_response_path = ""
+        else:
+            self.main_mic_response_data = self._read_mic_response_data(file)      # Raises an exception if the file is no good.
+            self.main_mic_response_path = file
+
+    def set_ref_mic_response_file(self, file: str):
+        """Attempt to read and parse the file contents, and assign the field if
+        it succeeds. If the file is bad, a ValueError or FileNotFound is thrown."""
+
+        self.ref_mic_response_path = ""
+        self.ref_mic_response_data = None
+
+        if file is None or file == "":
+            self.ref_mic_response_data = None
+            self.ref_mic_response_path = ""
+        else:
+            self.ref_mic_response_data = self._read_mic_response_data(file)      # Raises an exception if the file is no good.
+            self.ref_mic_response_path = file
+
+    @staticmethod
+    def _read_mic_response_data(file) -> Tuple[CubicSpline, float, float, float, float]:
+        # ValueError raised if the file format is bad:
+        print("_read_mic_response_data({})".format(file))
+        data: np.ndarray = np.loadtxt(file, delimiter=',', dtype=float)
+
+        # Sanity checking:
+        if len(data.shape) != 2 or data.shape[1] < 1:
+            raise ValueError("Invalid file format")
+
+        # Make sure it is ascending by frequency:
+        sorted_data = data[np.argsort(data[:, 0])]
+
+        # Calculate a cubic spline for use during rendering:
+        transposed_data = np.transpose(sorted_data)
+        response_frequencies = transposed_data[0]
+        response_values = transposed_data[1]
+        cs = CubicSpline(response_frequencies, response_values)
+        return cs, response_frequencies[0], response_frequencies[-1], response_values[0], response_values[-1]
 
 
 # The single global instance of this class:
-instance: "AppSettings" = AppSettings()
-
+instance: "AppSettingsWrapper" = AppSettingsWrapper()

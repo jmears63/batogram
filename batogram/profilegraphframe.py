@@ -33,7 +33,7 @@ PROFILE_WIDTH = 90
 class ProfileGraphFrame(GraphFrame):
     """A Frame containing a profile graph for a spectrogram."""
 
-    def __init__(self, parent, root, pipeline, data_context, settings):
+    def __init__(self, parent, root, pipeline, data_context, settings, is_reference):
         super().__init__(parent, root, pipeline, data_context, settings)
 
         self._canvas = tk.Canvas(self, bg="black", height=1, width=PROFILE_WIDTH)
@@ -41,6 +41,7 @@ class ProfileGraphFrame(GraphFrame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         self._parent = parent
+        self._is_reference = is_reference
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(MAIN_PROFILE_COMPLETER_EVENT, self._do_completer)
@@ -71,7 +72,7 @@ class ProfileGraphFrame(GraphFrame):
             # and complete by generating an event that will finish drawing the grph:
             self._completer = graph_completer
             screen_factors = self._parent.get_screen_factors()
-            request = self._get_pipeline_request(af_data, data_area, time_range, frequency_range, screen_factors,
+            request = self._get_pipeline_request(self._is_reference, af_data, data_area, time_range, frequency_range, screen_factors,
                                                  self._dc.get_afs())
             self._pipeline.submit(request,
                                   lambda: self.event_generate(MAIN_PROFILE_COMPLETER_EVENT),
@@ -81,8 +82,8 @@ class ProfileGraphFrame(GraphFrame):
             graph_completer()
 
     @staticmethod
-    def _get_pipeline_request(data, data_area, time_range, frequency_range, screen_factors: tuple[float, float], rdr: RawDataReader):
-        request = ProfilePipelineRequest(data_area, data, time_range, frequency_range, screen_factors, rdr)
+    def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range, screen_factors: tuple[float, float], rdr: RawDataReader):
+        request = ProfilePipelineRequest(is_reference, data_area, data, time_range, frequency_range, screen_factors, rdr)
         return request
 
     def _do_completer(self, _):

@@ -18,14 +18,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from typing import List, Callable
 
 from pathlib import Path
 
-from batogram import colourmap
-from batogram.appsettings import AppSettings, COLOUR_MAPS, DEFAULT_COLOUR_MAP
+from batogram.appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP, AppSettingsWrapper
 from batogram.modalwindow import ModalWindow
 
 
@@ -41,15 +41,17 @@ class ColourMapOptionMenu(tk.OptionMenu):
 
 
 class AppSettingsWindow(ModalWindow):
-    def __init__(self, parent, app_settings: AppSettings, apply_updates: Callable):
+    def __init__(self, parent, app_settings: AppSettingsWrapper, apply_updates: Callable):
         super().__init__(parent)
-        self._app_settings: AppSettings = app_settings
+        self._app_settings: AppSettingsWrapper = app_settings
         self._apply_updates: Callable = apply_updates
 
         self.title("Settings")
 
         self._data_directory_var: tk.StringVar = tk.StringVar()
         self._colour_scale_var: tk.StringVar = tk.StringVar()
+        self._main_mic_response_var: tk.StringVar = tk.StringVar()
+        self._ref_mic_response_var: tk.StringVar = tk.StringVar()
 
         self._settings_to_vars()
 
@@ -59,17 +61,39 @@ class AppSettingsWindow(ModalWindow):
 
         settings_frame = tk.Frame(self)
 
-        label = tk.Label(settings_frame, text="Initial data directory:", anchor=tk.E)
-        label.grid(row=0, column=0, padx=pad, pady=pad, sticky=tk.E)
-        label = tk.Label(settings_frame, textvariable=self._data_directory_var, width=20, anchor=tk.W)
-        label.grid(row=0, column=1, padx=pad, pady=pad, sticky=tk.EW)
-        button = tk.Button(settings_frame, text="Select", width = button_width, command=self._select_data_directory)
-        button.grid(row=0, column=2, padx=pad, pady=pad)
-
+        settings_row = 0
         label = tk.Label(settings_frame, text="Colour scale:", anchor=tk.E)
-        label.grid(row=1, column=0, padx=pad, pady=pad, sticky=tk.E)
+        label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
         menu = ColourMapOptionMenu(settings_frame, self._colour_scale_var)
-        menu.grid(row=1, column=1, padx=pad, pady=pad, sticky=tk.EW)
+        menu.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
+
+        settings_row += 1
+        label = tk.Label(settings_frame, text="Initial data directory:", anchor=tk.E)
+        label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
+        label = tk.Label(settings_frame, textvariable=self._data_directory_var, width=20, anchor=tk.W)
+        label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
+        button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_data_directory)
+        button.grid(row=settings_row, column=2, padx=pad, pady=pad)
+
+        settings_row += 1
+        label = tk.Label(settings_frame, text="Mic response (main):", anchor=tk.E)
+        label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
+        label = tk.Label(settings_frame, textvariable=self._main_mic_response_var, width=20, anchor=tk.W)
+        label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
+        button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_main_mic_response)
+        button.grid(row=settings_row, column=2, padx=pad, pady=pad)
+        button = tk.Button(settings_frame, text="Clear", width=button_width, command=self._clear_main_mic_response)
+        button.grid(row=settings_row, column=3, padx=pad, pady=pad)
+
+        settings_row += 1
+        label = tk.Label(settings_frame, text="Mic response (ref):", anchor=tk.E)
+        label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
+        label = tk.Label(settings_frame, textvariable=self._ref_mic_response_var, width=20, anchor=tk.W)
+        label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
+        button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_ref_mic_response)
+        button.grid(row=settings_row, column=2, padx=pad, pady=pad)
+        button = tk.Button(settings_frame, text="Clear", width=button_width, command=self._clear_ref_mic_response)
+        button.grid(row=settings_row, column=3, padx=pad, pady=pad)
 
         settings_frame.columnconfigure(1, weight=1)
         settings_frame.grid(row=0, column=0, sticky=tk.EW)
@@ -107,14 +131,64 @@ class AppSettingsWindow(ModalWindow):
     def _settings_to_vars(self):
         self._data_directory_var.set(self._app_settings.data_directory)
         self._colour_scale_var.set(self._app_settings.colour_map)
+        # basename to avoid very long label contents:
+        self._main_mic_response_var.set(os.path.basename(self._app_settings.main_mic_response_path))
+        self._ref_mic_response_var.set(os.path.basename(self._app_settings.ref_mic_response_path))
 
     def _vars_to_settings(self):
         self._app_settings.data_directory = self._data_directory_var.get()
         self._app_settings.colour_map = self._colour_scale_var.get()
+        # Intentionally don't assign response paths to the settings, that has already been done, and anyway
+        # the var only contains the basename.
 
     def _select_data_directory(self):
         initial = self._app_settings.data_directory if self._app_settings.data_directory != "" else Path.home()
         directory_selected = filedialog.askdirectory(parent=self, mustexist=True, initialdir=initial)
         if directory_selected is not None:
             self._app_settings.data_directory = directory_selected
-            self._data_directory_var.set(directory_selected)
+            self._data_directory_var.set(os.path.basename(directory_selected))
+
+    def _select_main_mic_response(self):
+        file_selected = self._select_mic_response(self._app_settings.main_mic_response_path)
+
+        # None if they escaped/cancelled:
+        if file_selected is not None:
+            try:
+                self._app_settings.set_main_mic_response_file(file_selected)
+                self._main_mic_response_var.set(os.path.basename(file_selected))
+            except ValueError as e:
+                messagebox.showerror('File Error', str(e), parent=self)
+            except FileNotFoundError as e:
+                messagebox.showerror('File Error', str(e), parent=self)
+
+    def _select_ref_mic_response(self):
+        file_selected = self._select_mic_response(self._app_settings.ref_mic_response_path)
+
+        # None if they escaped/cancelled:
+        if file_selected is not None:
+            try:
+                self._app_settings.set_ref_mic_response_file(file_selected)
+                self._ref_mic_response_var.set(os.path.basename(file_selected))
+            except ValueError as e:
+                messagebox.showerror('File Error', str(e), parent=self)
+            except FileNotFoundError as e:
+                messagebox.showerror('File Error', str(e), parent=self)
+
+    def _select_mic_response(self, mic_response_path):
+        initialdir: str = str(Path.home())
+        if mic_response_path is not None:
+            initialdir = os.path.dirname(mic_response_path)
+        file_selected = filedialog.askopenfilename(parent=self,
+                                                   initialfile=mic_response_path,
+                                                   initialdir=initialdir,
+                                                   filetypes=(('Data files', '*.csv *.CSV'), )
+                                                   )
+        return file_selected if file_selected != '' else None
+
+    def _clear_main_mic_response(self):
+        self._app_settings.set_main_mic_response_file(None)
+        self._main_mic_response_var.set("")
+
+    def _clear_ref_mic_response(self):
+        self._app_settings.set_ref_mic_response_file(None)
+        self._ref_mic_response_var.set("")

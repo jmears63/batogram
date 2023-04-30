@@ -49,7 +49,7 @@ class SpectrogramCanvas(tk.Canvas):
 class SpectrogramGraphFrame(GraphFrame):
     """A graph frame containing a spectrogram."""
 
-    def __init__(self, parent: "PanelFrame", root, pipeline, data_context, settings, initial_cursor_mode, is_reference=False):
+    def __init__(self, parent: "PanelFrame", root, pipeline, data_context, settings, initial_cursor_mode, is_reference):
         super().__init__(parent, root, pipeline, data_context, settings)
 
         self._is_reference = is_reference
@@ -137,7 +137,7 @@ class SpectrogramGraphFrame(GraphFrame):
                 # this thread.
                 self._completer = graph_completer
                 screen_factors = self._parent.get_screen_factors()
-                request = self._get_pipeline_request(afs_data, data_area, time_range, frequency_range, screen_factors,
+                request = self._get_pipeline_request(self._is_reference, afs_data, data_area, time_range, frequency_range, screen_factors,
                                                      self._dc.get_afs())
                 self._pipeline.submit(request,
                                       lambda: self.event_generate(MAIN_SPECTROGAM_COMPLETER_EVENT),
@@ -169,9 +169,9 @@ class SpectrogramGraphFrame(GraphFrame):
         self._canvas.set_cursor_mode(mode)
 
     @staticmethod
-    def _get_pipeline_request(data, data_area, time_range, frequency_range, screen_factors: tuple[float, float],
+    def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range, screen_factors: tuple[float, float],
                               raw_data_reader: RawDataReader):
-        request = SpectrogramPipelineRequest(data_area, data, time_range, frequency_range, screen_factors, raw_data_reader)
+        request = SpectrogramPipelineRequest(is_reference, data_area, data, time_range, frequency_range, screen_factors, raw_data_reader)
         return request
 
     def _do_completer(self, _):

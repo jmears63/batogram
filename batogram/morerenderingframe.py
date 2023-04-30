@@ -20,6 +20,8 @@
 
 import math
 import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog
 
 from .graphsettings import FFT_SAMPLES_OPTIONS, FFT_OVERLAP_PERCENT_OPTIONS, INTERPOLATION_OPTIONS, WINDOW_TYPE_OPTIONS, \
     borderwidth, GraphSettings

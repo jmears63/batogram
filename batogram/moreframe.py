@@ -309,3 +309,18 @@ class MoreTopFrame(tk.Frame):
 
     def set_guano_data(self, data: GuanoFile | None):
         self._settings_notebook.set_guano_data(data)
+
+
+    def _select_mic_response(self):
+        filetypes = (
+            ('Data files', '*.csv *.CSV'),
+        )
+
+        file_selected = filedialog.askopenfilename(parent=self,
+                                                   initialfile=self._app_settings.main_mic_response_path,
+                                                   initialdir=Path.home(),
+                                                   filetypes=filetypes)
+        if file_selected is not None:
+            self._app_settings.main_mic_response_path = file_selected
+            initialfile = self._app_settings.main_mic_response_path if self._app_settings.main_mic_response_path != "" else Path.home()
+            self._mic_response_var.set(file_selected)

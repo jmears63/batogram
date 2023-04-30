@@ -23,6 +23,7 @@ from time import process_time
 
 import numpy as np
 import scipy
+from scipy.interpolate import CubicSpline
 
 from . import colourmap, appsettings
 from copy import deepcopy
@@ -223,13 +224,15 @@ class PipelineStep:
 
 
 class SpectrogramPipelineRequest(RenderingRequest):
-    def __init__(self, data_area, file_data: AudioFileService.RenderingData, time_range: AxisRange,
-                 frequency_range: AxisRange, screen_factors: tuple[float, float], raw_data_reader: RawDataReader):
+    def __init__(self, is_reference: bool, data_area, file_data: AudioFileService.RenderingData, time_range: AxisRange,
+                 frequency_range: AxisRange, screen_factors: tuple[float, float],
+                 raw_data_reader: RawDataReader):
         super().__init__(data_area, file_data)
         self.axis_time_range: AxisRange = time_range
         self.axis_frequency_range: AxisRange = frequency_range
         self.raw_data_reader = raw_data_reader
         self.screen_factors = screen_factors
+        self.is_reference = is_reference
 
     def __str__(self):
         return "SpectrogramPipelineRequest: {} etc".format(self.data_area)
@@ -332,7 +335,8 @@ class SpectrogramCalcData:
         step_time: float = (self.actual_fft_samples - self.actual_fft_overlap_samples) / sample_rate
         time_points = file_data.sample_count
         # max_segment_count: int = int((time_points - half_segment_offset) / self.step_count) + 1  # Ignore any leftover time points.
-        max_segment_count: int = int((time_points - self.actual_fft_overlap_samples) / self.step_count)  # Ignore any leftover time points.
+        max_segment_count: int = int(
+            (time_points - self.actual_fft_overlap_samples) / self.step_count)  # Ignore any leftover time points.
         time_axis_min, time_axis_max = axis_time_range.get_tuple()
         freq_axis_min, freq_axis_max = axis_frequency_range.get_tuple()
 
@@ -347,7 +351,7 @@ class SpectrogramCalcData:
 
         def segment_index_to_time(i: int) -> float:
             """Get the axis time corresponding to a segment index - which is the time at the centre of the segment."""
-            t = i * step_time # - step_time / 2
+            t = i * step_time  # - step_time / 2
             return t
 
         def segment_index_to_time_index(segment_index: int):
@@ -367,8 +371,8 @@ class SpectrogramCalcData:
         # This convention avoids varying time offsets as different window sizes are selected.
 
         self.first_segment_index = time_to_segment_index(time_axis_min)
-        self.last_segment_index: int = self.first_segment_index + math.ceil(    # Round outwards.
-            (time_axis_max - time_axis_min) / step_time) + 1                    # Half open.
+        self.last_segment_index: int = self.first_segment_index + math.ceil(  # Round outwards.
+            (time_axis_max - time_axis_min) / step_time) + 1  # Half open.
 
         # Allow a left and right margin to hide any edge artifacts from zooming. The
         # result is data indexes that may be outside the range of available data:
@@ -386,7 +390,8 @@ class SpectrogramCalcData:
         self.first_time_index_for_segs = segment_index_to_time_index(self.first_segment_index)
         # Note: (1) the last_segment_index is half open so - 1. (2) include the full index range for the previous
         # segment so that it can be calculated.
-        self.last_time_index_for_segs = segment_index_to_time_index(self.last_segment_index - 1) + self.actual_fft_samples
+        self.last_time_index_for_segs = segment_index_to_time_index(
+            self.last_segment_index - 1) + self.actual_fft_samples
 
         # Reverse calculate to the time range we actually cover, which is the segment centres.
         self.actual_time_axis_min = segment_index_to_time(self.first_segment_index)
@@ -606,7 +611,8 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
 
         # Include the actual fft samples and overlap to force a cache miss when they change:
         params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
-            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent
+            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent, \
+            request.is_reference
         (specdata, self._graph_params), specdata_serial, _ = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params)
 
@@ -696,7 +702,7 @@ class SpectrogramFftStep(PipelineStep):
 
     def _implementation(self, inputdata, params):
         previous_serial, sample_rate, file_data_samples, axis_time_range, actual_fft_samples, \
-            actual_fft_overlap_samples, actual_fft_overlap_percent = params
+            actual_fft_overlap_samples, actual_fft_overlap_percent, is_reference = params
         rs = self.get_relevant_settings()
 
         # Input data is a subset of raw data from the input file, chosen to include
@@ -712,8 +718,8 @@ class SpectrogramFftStep(PipelineStep):
 
         # print("calculating spectrogram: {}: {}", params, inputdata.shape)
 
-        combined_spectrogram = self._do_spectrogram(data_read, sample_rate, rs.window_type,
-                                                    actual_fft_samples, actual_fft_overlap_samples)
+        frequencies, combined_spectrogram = self._do_spectrogram(data_read, sample_rate, rs.window_type,
+                                                                 actual_fft_samples, actual_fft_overlap_samples)
 
         # print("delta_t = {}".format(delta_t))
 
@@ -729,12 +735,39 @@ class SpectrogramFftStep(PipelineStep):
         # Convert the resulting spectrogram to dB.
         # Multiplier is 10, not 20, because _do_spectrogram has already squared it.
         db_spectrogram = 10 * np.log10(combined_spectrogram)
+
+        # Apply frequency response correction if required.
+        response_data = appsettings.instance.ref_mic_response_data if is_reference else appsettings.instance.main_mic_response_data
+        if response_data is not None:
+            frequency_response = self._calculate_frequency_response(frequencies, response_data)
+            # We need to change the shape of the frequency response so that it will "broadcast" over the spectrogram:
+            frequency_response = frequency_response.reshape(-1, 1)
+            db_spectrogram -= frequency_response
+
         return db_spectrogram, \
             GraphParams(fft_samples=actual_fft_samples, fft_overlap=actual_fft_overlap_percent,
                         window_type=rs.window_type)
 
     @staticmethod
-    def _do_spectrogram(data: np.ndarray, sample_rate: int, window_type, actual_fft_samples: int, overlap: int):
+    def _calculate_frequency_response(frequencies: np.ndarray, mic_response_data: Tuple[CubicSpline, float, float, float, float])\
+            -> np.ndarray:
+        """Interpolate/extrapolate the microphones response to match the frequency buckets suppled."""
+
+        cs, f_min, f_max, r_min, r_max = mic_response_data
+        interpolated = cs(frequencies)
+        # Override the spline's extrapolation with constant extrapolation (much safer):
+        for i in range(len(frequencies)):
+            f = frequencies[i]
+            if f < f_min:
+                interpolated[i] = r_min
+            if f > f_max:
+                interpolated[i] = r_max
+
+        return interpolated
+
+    @staticmethod
+    def _do_spectrogram(data: np.ndarray, sample_rate: int, window_type, actual_fft_samples: int, overlap: int) \
+            -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the spectrogram that is the scalar sum of powers from all channels - ie,
         ignoring phase.
@@ -742,10 +775,11 @@ class SpectrogramFftStep(PipelineStep):
 
         # Create a spectrogram for each channel:
         spectrograms = []
+        frequencies = None
         for d in data:
             # print("spectrogram of {} points".format(len(d)))
             # t1 = process_time()
-            _, _, spectrum_data = chunky_spectrogram(
+            fbuckets, _, spectrum_data = chunky_spectrogram(
                 d, fs=sample_rate,
                 window=window_type,
                 nperseg=actual_fft_samples,
@@ -758,6 +792,9 @@ class SpectrogramFftStep(PipelineStep):
                 # Power per Hz.
                 axis=-1,
                 mode='psd')  # psd to square the data to get power.
+
+            if frequencies is None:
+                frequencies = fbuckets
 
             # t2 = process_time()
             # print("chunked_spectrogram time: {}".format(t2 - t1))
@@ -790,7 +827,7 @@ class SpectrogramFftStep(PipelineStep):
         # np.sum(spectrograms, axis=0, out=combined_spectrogram)  # Sum across all axes. Hungry on memory.
 
         # return combined_spectrogram
-        return spectrograms[0]
+        return frequencies, spectrograms[0]
 
 
 class SpectrogramZoomStep(PipelineStep):
@@ -1131,13 +1168,14 @@ class AmplitudeLineSegmentStep(PipelineStep):
 
 
 class ProfilePipelineRequest(RenderingRequest):
-    def __init__(self, data_area, file_data: AudioFileService.RenderingData, time_range: AxisRange,
+    def __init__(self, is_reference: bool, data_area, file_data: AudioFileService.RenderingData, time_range: AxisRange,
                  frequency_range: AxisRange, screen_factors, raw_data_reader: RawDataReader):
         super().__init__(data_area, file_data)
         self.axis_time_range = time_range
         self.axis_frequency_range = frequency_range
         self.raw_data_reader = raw_data_reader
         self.screen_factors = screen_factors
+        self.is_reference = is_reference
 
     def __str__(self):
         return "ProfilePipelineRequest {} etc".format(self.data_area)
@@ -1197,7 +1235,8 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
             None, params)
 
         params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
-            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent
+            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent, \
+            request.is_reference
         (specdata, self._graph_params), specdata_serial, spectrogram_serial = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params)
 

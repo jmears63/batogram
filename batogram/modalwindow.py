@@ -4,8 +4,7 @@ import tkinter as tk
 class ModalWindow(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
-        self.transient(parent)  # Doesn't seem to do anything.
-        # self.attributes('-topmost', 'true')  # Keep in front of its parent.
+        self.transient(parent)
 
         # Find the highest level parent window we can:
         ancestor = parent

@@ -173,7 +173,7 @@ class PanelFrame(tk.Frame):
         self._readout_frame.grid(row=6, column=col, pady=pad, sticky='we')
 
         col = 1
-        self._profile_frame = ProfileGraphFrame(self, root, pipelines.profile, self._dc, self._settings)
+        self._profile_frame = ProfileGraphFrame(self, root, pipelines.profile, self._dc, self._settings, is_reference=is_reference)
         self._profile_frame.grid(row=3, column=col, sticky='ns')
 
         col = 2
