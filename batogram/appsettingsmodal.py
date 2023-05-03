@@ -155,7 +155,7 @@ class AppSettingsWindow(ModalWindow):
         if file_selected is not None:
             try:
                 self._app_settings.set_main_mic_response_file(file_selected)
-                self._main_mic_response_var.set(os.path.basename(file_selected))
+                self._main_mic_response_var.set(self._shortened_path(file_selected))
             except ValueError as e:
                 messagebox.showerror('File Error', str(e), parent=self)
             except FileNotFoundError as e:
@@ -168,7 +168,7 @@ class AppSettingsWindow(ModalWindow):
         if file_selected is not None:
             try:
                 self._app_settings.set_ref_mic_response_file(file_selected)
-                self._ref_mic_response_var.set(os.path.basename(file_selected))
+                self._ref_mic_response_var.set(self._shortened_path(file_selected))
             except ValueError as e:
                 messagebox.showerror('File Error', str(e), parent=self)
             except FileNotFoundError as e:
@@ -184,7 +184,12 @@ class AppSettingsWindow(ModalWindow):
                                                    initialdir=initialdir,
                                                    filetypes=(('Data files', '*.csv *.CSV'), )
                                                    )
-        return file_selected if file_selected != '' else None
+        # No idea why but that function sometimes returns an empty tuple
+        # when the user cancels:
+        if file_selected == () or file_selected == '':
+            file_selected = None
+
+        return file_selected
 
     def _clear_main_mic_response(self):
         self._app_settings.set_main_mic_response_file(None)

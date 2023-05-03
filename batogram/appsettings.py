@@ -136,7 +136,7 @@ class AppSettingsWrapper(AppSettings):
     @staticmethod
     def _read_mic_response_data(file) -> Tuple[CubicSpline, float, float, float, float]:
         # ValueError raised if the file format is bad:
-        print("_read_mic_response_data({})".format(file))
+        # print("_read_mic_response_data({})".format(file))
         data: np.ndarray = np.loadtxt(file, delimiter=',', dtype=float)
 
         # Sanity checking:

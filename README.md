@@ -1,6 +1,8 @@
 batogram
 ========
 
+![Screen Shot](docs/screenshot.png "Screen Shot")
+
 Batogram is an open source application for viewing bat call spectrograms.
 
 Some capabilities and features: 
