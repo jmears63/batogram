@@ -65,7 +65,7 @@ class ButtonFrame(DrawableFrame):
         spacer1_index = col
         col += 1
 
-        self._home_image = self._load_image("home-4-line.png")
+        self._home_image = self._load_image("fullscreen-line.png")
         self._home_button = MyButton(self, self._home_image, command=home_command)
         self._home_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
         ToolTip(self._home_button, msg="Reset axis ranges to match input data")
