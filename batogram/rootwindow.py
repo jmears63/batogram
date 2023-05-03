@@ -592,17 +592,17 @@ class RootWindow(tk.Tk):
         self['menu'] = menubar
 
         self._menu_file = tk.Menu(menubar)
-        menubar.add_cascade(menu=self._menu_file, label=MENU_TEXT_FILE)
-        self._menu_file.add_command(label=MENU_TEXT_OPEN_MAIN, command=self._open_main_file)
+        menubar.add_cascade(menu=self._menu_file, label=MENU_TEXT_FILE, underline=0)
+        self._menu_file.add_command(label=MENU_TEXT_OPEN_MAIN, command=self._open_main_file, underline=0)
         self._menu_file.entryconfigure(MENU_TEXT_OPEN_MAIN, accelerator='Ctrl+O')
         self.bind("<Control-o>", self._open_main_file_event)
         self._menu_recent_main = tk.Menu(self._menu_file)
         self._menu_file.add_cascade(menu=self._menu_recent_main, label=MENU_TEXT_OPEN_RECENT_MAIN)
         self._populate_file_history(self._menu_recent_main, self._main_historian, self._do_open_main_file)
-        self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_file_event)
+        self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_file_event, underline=0)
         self._menu_file.add_separator()
 
-        self._menu_file.add_command(label=MENU_TEXT_OPEN_REF, command=self._open_ref_file)
+        self._menu_file.add_command(label=MENU_TEXT_OPEN_REF, command=self._open_ref_file, underline=5)
         self._menu_file.entryconfigure(MENU_TEXT_OPEN_REF, accelerator='Ctrl+R')
         self.bind("<Control-r>", self._open_ref_file_event)
         self._menu_recent_ref = tk.Menu(self._menu_file)
@@ -613,11 +613,11 @@ class RootWindow(tk.Tk):
 
         # self._menu_file.add_command(label=MENU_TEXT_SAVE, command=self.save_files_as)
         # self._menu_file.add_separator()
-        self._menu_file.add_command(label=MENU_TEXT_EXIT, command=self.exit)
+        self._menu_file.add_command(label=MENU_TEXT_EXIT, command=self.exit, underline=1)
         self._menu_file.entryconfigure(MENU_TEXT_EXIT, accelerator='Ctrl+X')
         self.bind("<Control-x>", self.exit_event)
 
-        menubar.add_command(label=MENU_TEXT_SETTINGS, command=self._show_settings)
+        menubar.add_command(label=MENU_TEXT_SETTINGS, command=self._show_settings, underline=0)
 
         menubar.add_command(label=MENU_TEXT_ABOUT, command=self._show_about)
 
