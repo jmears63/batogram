@@ -130,17 +130,16 @@ class AppSettingsWindow(ModalWindow):
         self._apply_updates()
 
     def _settings_to_vars(self):
-        self._data_directory_var.set(self._app_settings.data_directory)
+        self._data_directory_var.set(self._shortened_path(self._app_settings.data_directory))
         self._colour_scale_var.set(self._app_settings.colour_map)
         self._main_mic_response_var.set(self._shortened_path(self._app_settings.main_mic_response_path))
         self._ref_mic_response_var.set(self._shortened_path(self._app_settings.ref_mic_response_path))
 
     def _vars_to_settings(self):
         self._app_settings.serial_number += 1       # So we know when to redraw.
-        self._app_settings.data_directory = self._data_directory_var.get()
         self._app_settings.colour_map = self._colour_scale_var.get()
-        # Intentionally don't assign response paths to the settings, that has already been done, and anyway
-        # the var only contains the basename.
+        # Intentionally don't assign paths to the settings, that has already been done, and anyway
+        # the var only contains the shortened name.
 
     def _select_data_directory(self):
         initial = self._app_settings.data_directory if self._app_settings.data_directory != "" else Path.home()
@@ -178,6 +177,7 @@ class AppSettingsWindow(ModalWindow):
     def _select_mic_response(self, mic_response_path):
         initialdir: str = str(Path.home())
         if mic_response_path is not None:
+            # Use the path of the existing response file:
             initialdir = os.path.dirname(mic_response_path)
         file_selected = filedialog.askopenfilename(parent=self,
                                                    initialfile=mic_response_path,
@@ -198,7 +198,9 @@ class AppSettingsWindow(ModalWindow):
     def _shortened_path(path: str) -> str:
         """Create a shortened version of a path intended to fit in a UI label widget."""
 
-        shortened_lpath = path
-        if path != "":
-            shortened_lpath = os.path.relpath(path, start=Path.home())
-        return shortened_lpath
+        try:
+            shortened_path = os.path.relpath(path, start=Path.home())
+        except ValueError as e:
+            shortened_path = path
+
+        return shortened_path
