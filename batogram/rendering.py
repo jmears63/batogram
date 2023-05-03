@@ -601,8 +601,10 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         # Note that this step is shared with the profile pipeline, to avoid needless double calculation,
         # so we need to make sure we use the same settings in each pipeline.
 
+        # Include the settings serial number artificially so that any settings change
+        # results in a complete rerender:
         params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
-            calc_data.last_time_index_for_segs
+            calc_data.last_time_index_for_segs, appsettings.instance.serial_number
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
             None, params)
 
@@ -672,7 +674,7 @@ class SpectrogramDataReaderStep(PipelineStep):
         super().__init__(settings)
 
     def _implementation(self, inputdata, params):
-        _, raw_data_reader, time_min_index, time_max_index = params
+        _, raw_data_reader, time_min_index, time_max_index, _ = params
 
         raw_data, samples_read = raw_data_reader.read_raw_data((time_min_index, time_max_index))
         return raw_data, time_min_index
@@ -1036,7 +1038,7 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
             return
 
         params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
-            calc_data.last_time_index_for_segs
+            calc_data.last_time_index_for_segs, appsettings.instance.serial_number
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
             None, params)
 
@@ -1230,7 +1232,7 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
         # calculating it twice:
 
         params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
-            calc_data.last_time_index_for_segs
+            calc_data.last_time_index_for_segs, appsettings.instance.serial_number
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
             None, params)
 

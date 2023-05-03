@@ -39,6 +39,7 @@ class AppSettings:
     data_directory: str = str(Path.home())
     main_mic_response_path: str = ""
     ref_mic_response_path: str = ""
+    serial_number: int = 0
 
     def _copy_other(self, other: "AppSettings"):
         # Could we use deep_copy for this?
@@ -46,6 +47,7 @@ class AppSettings:
         self.data_directory = other.data_directory
         self.main_mic_response_path = other.main_mic_response_path
         self.ref_mic_response_path = other.ref_mic_response_path
+        self.serial_number += 1
 
 
 class AppSettingsWrapper(AppSettings):
@@ -103,7 +105,7 @@ class AppSettingsWrapper(AppSettings):
         d = user_data_dir("batogram", "fitzharrys")
         return "{}/appsettings.json".format(d)
 
-    def set_main_mic_response_file(self, file: str):
+    def set_main_mic_response_file(self, file: str | None):
         """Attempt to read and parse the file contents, and assign the field if
         it succeeds. If the file is bad, a ValueError or FileNotFound is thrown."""
 
@@ -117,7 +119,7 @@ class AppSettingsWrapper(AppSettings):
             self.main_mic_response_data = self._read_mic_response_data(file)      # Raises an exception if the file is no good.
             self.main_mic_response_path = file
 
-    def set_ref_mic_response_file(self, file: str):
+    def set_ref_mic_response_file(self, file: str | None):
         """Attempt to read and parse the file contents, and assign the field if
         it succeeds. If the file is bad, a ValueError or FileNotFound is thrown."""
 

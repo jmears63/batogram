@@ -664,6 +664,8 @@ class RootWindow(tk.Tk):
         initialdir = None
         if self._first_file_open:
             self._first_file_open = False
+            # Only do this the first time a file is opened; thereafter, the dialog
+            # remembers where the user last navigated it to:
             initialdir = appsettings.instance.data_directory
 
         filepath: str = tk.filedialog.askopenfilename(title=title, filetypes=self.filetypes,

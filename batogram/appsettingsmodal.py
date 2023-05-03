@@ -57,6 +57,7 @@ class AppSettingsWindow(ModalWindow):
 
         pad = 5
         margin = 30
+        width = 30
         button_width = 7
 
         settings_frame = tk.Frame(self)
@@ -70,7 +71,7 @@ class AppSettingsWindow(ModalWindow):
         settings_row += 1
         label = tk.Label(settings_frame, text="Initial data directory:", anchor=tk.E)
         label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
-        label = tk.Label(settings_frame, textvariable=self._data_directory_var, width=20, anchor=tk.W)
+        label = tk.Label(settings_frame, textvariable=self._data_directory_var, width=width, anchor=tk.W)
         label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
         button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_data_directory)
         button.grid(row=settings_row, column=2, padx=pad, pady=pad)
@@ -78,7 +79,7 @@ class AppSettingsWindow(ModalWindow):
         settings_row += 1
         label = tk.Label(settings_frame, text="Mic response (main):", anchor=tk.E)
         label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
-        label = tk.Label(settings_frame, textvariable=self._main_mic_response_var, width=20, anchor=tk.W)
+        label = tk.Label(settings_frame, textvariable=self._main_mic_response_var, width=width, anchor=tk.W)
         label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
         button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_main_mic_response)
         button.grid(row=settings_row, column=2, padx=pad, pady=pad)
@@ -88,7 +89,7 @@ class AppSettingsWindow(ModalWindow):
         settings_row += 1
         label = tk.Label(settings_frame, text="Mic response (ref):", anchor=tk.E)
         label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
-        label = tk.Label(settings_frame, textvariable=self._ref_mic_response_var, width=20, anchor=tk.W)
+        label = tk.Label(settings_frame, textvariable=self._ref_mic_response_var, width=width, anchor=tk.W)
         label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
         button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_ref_mic_response)
         button.grid(row=settings_row, column=2, padx=pad, pady=pad)
@@ -131,11 +132,11 @@ class AppSettingsWindow(ModalWindow):
     def _settings_to_vars(self):
         self._data_directory_var.set(self._app_settings.data_directory)
         self._colour_scale_var.set(self._app_settings.colour_map)
-        # basename to avoid very long label contents:
-        self._main_mic_response_var.set(os.path.basename(self._app_settings.main_mic_response_path))
-        self._ref_mic_response_var.set(os.path.basename(self._app_settings.ref_mic_response_path))
+        self._main_mic_response_var.set(self._shortened_path(self._app_settings.main_mic_response_path))
+        self._ref_mic_response_var.set(self._shortened_path(self._app_settings.ref_mic_response_path))
 
     def _vars_to_settings(self):
+        self._app_settings.serial_number += 1       # So we know when to redraw.
         self._app_settings.data_directory = self._data_directory_var.get()
         self._app_settings.colour_map = self._colour_scale_var.get()
         # Intentionally don't assign response paths to the settings, that has already been done, and anyway
@@ -146,7 +147,7 @@ class AppSettingsWindow(ModalWindow):
         directory_selected = filedialog.askdirectory(parent=self, mustexist=True, initialdir=initial)
         if directory_selected is not None:
             self._app_settings.data_directory = directory_selected
-            self._data_directory_var.set(os.path.basename(directory_selected))
+            self._data_directory_var.set(self._shortened_path(directory_selected))
 
     def _select_main_mic_response(self):
         file_selected = self._select_mic_response(self._app_settings.main_mic_response_path)
@@ -192,3 +193,12 @@ class AppSettingsWindow(ModalWindow):
     def _clear_ref_mic_response(self):
         self._app_settings.set_ref_mic_response_file(None)
         self._ref_mic_response_var.set("")
+
+    @staticmethod
+    def _shortened_path(path: str) -> str:
+        """Create a shortened version of a path intended to fit in a UI label widget."""
+
+        shortened_lpath = path
+        if path != "":
+            shortened_lpath = os.path.relpath(path, start=Path.home())
+        return shortened_lpath
