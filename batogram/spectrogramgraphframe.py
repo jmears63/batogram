@@ -381,23 +381,16 @@ class SpectrogramGraphFrame(GraphFrame):
         Positive sign increases the axis range, ie zoom out.
         """
 
-        time_range, _ = self._layout.get_data_ranges()
-        centre = (time_range.min + time_range.max) / 2
-        span = time_range.max - time_range.min
+        new_time_range: AxisRange = self._layout.calc_preferred_time_range(sign)
 
-        if sign > 0:
-            span *= 1.2
-        else:
-            span *= 0.8
-
-        if span < MIN_T_RANGE:
+        if new_time_range.max - new_time_range.min < MIN_T_RANGE:
             # Allow them to zoom back out again, to avoid getting stuck.
             if sign < 0:
                 print("Ignoring insane zoom in.")
                 return False  # Insane zoom requested, ignore it.
 
         _, frequency_range = self._layout.get_data_ranges()
-        self._parent.on_rescale_handler(AxisRange(centre - span / 2, centre + span / 2), frequency_range)
+        self._parent.on_rescale_handler(new_time_range, frequency_range)
 
     def _update_time_scroller(self, axis_range, file_range):
         if self._scroller_t is None:

@@ -124,6 +124,9 @@ class GraphLayout(Layout):
     def get_data_ranges(self) -> Tuple[AxisRange, AxisRange]:
         return self._data_ranges
 
+    def calc_preferred_time_range(self, sign: int) -> AxisRange:
+        return self._x_axis.calc_preferred_range(sign)
+
     def _get_right_margin(self):
         return self._canvas_width - self._margin, 0, self._canvas_width - 1, self._canvas_height - 1
 
@@ -367,6 +370,57 @@ class AxisLayout(Layout):
                 if abs_max < u.limit:
                     return u
             return u
+
+    _preferred_ms_per_100pixels = [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0]
+
+    def calc_preferred_range(self, sign: int) -> AxisRange:
+        """Calculate a preset axis range that is next large (or smaller) than the current range."""
+
+        #
+        # We want the total time span to result in one of these peferred ranges.
+        #   1, 2, 5, 10, 20, 50 etc ms per 100 pixels.
+        # so (time range) / (data_width_pixels) = preset value
+        #
+        # The supplied sign tells us whether we are aiming to zoom in or out relative to the current.
+        # Positive sign increases the axis range.
+        #
+
+        current_range = self._axis_range
+        centre = (current_range.min + current_range.max) / 2
+        span = current_range.max - current_range.min
+        pixel_span = self._max_pixel - self._min_pixel
+
+        # Calculate the current scaling, that we went to round up or down to preferred:
+        ms_per_100pixels = span * 100.0 * 1000.0 / pixel_span
+        new_ms_per_100pixels = ms_per_100pixels     # Default - no change.
+
+        nudge_factor = 1.05     # Slight fudge in case the current range is a preferred range.
+        if sign > 0:
+            # We want to increase and round the range:
+            nudged_ms_per_100pixels = ms_per_100pixels * nudge_factor
+            for preferred in self._preferred_ms_per_100pixels:
+                if nudged_ms_per_100pixels < preferred:
+                    new_ms_per_100pixels = preferred
+                    break
+            # Otherwise, the range is already larger than the largest, no change.
+            pass
+        elif sign < 0:
+            # We want to decrease and round the range:
+            nudged_ms_per_100pixels = ms_per_100pixels / nudge_factor
+            for preferred in reversed(self._preferred_ms_per_100pixels):
+                if nudged_ms_per_100pixels > preferred:
+                    new_ms_per_100pixels = preferred
+                    break
+            # Otherwise, the range is already smaller than the smallest, no change.
+            pass
+
+        new_span = new_ms_per_100pixels * pixel_span / (100.0 * 1000.0)
+        # print("Prefered {} -> {}".format(span, new_span))
+
+        # The new span might go beyond the range of the actual data, but it will
+        # be clipped by the caller.
+
+        return AxisRange(centre - new_span / 2, centre + new_span / 2)
 
 
 class SpectrogramLayout(GraphLayout):
