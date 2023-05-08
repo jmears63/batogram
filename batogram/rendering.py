@@ -17,6 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import annotations
 
 import math
 from time import process_time
@@ -557,7 +558,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
     def get_completion_data(self):
         return self._completion_data
 
-    def get_graph_parameters(self) -> GraphParams | None:
+    def get_graph_parameters(self) -> Optional[GraphParams]:
         return self._graph_params
 
     def do_processing(self, request: SpectrogramPipelineRequest):

@@ -17,6 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from typing import Optional
 
 import numpy as np
 
@@ -34,8 +35,8 @@ class ColourMap:
         """
 
         self._cmap = None
-        self._num_steps: int | None = None
-        self._polyfilla_colour: str | None = None
+        self._num_steps: Optional[int] = None
+        self._polyfilla_colour: Optional[str] = None
 
         self.reload_map(map_file)
 

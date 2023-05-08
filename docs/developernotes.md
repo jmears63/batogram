@@ -15,7 +15,7 @@ batogram code. This is not convenient for development though, when you want a co
 directory, and need to make changes and try them out immediately.
 
 To debug and develop the source code conveniently, set up an environemt as follows. You will need at least Python
-version 3.10. Change to a suitable directory, and then:
+version 3.9. Change to a suitable directory, and then:
 
     python3 -m venv venv
     source venv/bin/activate

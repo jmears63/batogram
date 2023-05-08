@@ -20,6 +20,8 @@
 
 import os
 import time
+from typing import Optional
+
 import numpy as np
 
 from abc import ABC, abstractmethod
@@ -79,13 +81,13 @@ class AudioFileService(RawDataReader):
         self._data_serial: int = 0  # Used for the pipeline to detect when the file data has changed.
         self._metadata = None
         self._guano_data = None
-        self._file_parser: WavFileParser | None = None
-        self._channels: int | None = None
-        self._bytes_per_value: int | None = None
+        self._file_parser: Optional[WavFileParser] = None
+        self._channels: Optional[int] = None
+        self._bytes_per_value: Optional[int] = None
 
     def open(self):
         self._file_parser = WavFileParser(self._filepath)
-        chunks = self._file_parser.open()
+        chunks: WavFileParser.Chunks = self._file_parser.open()
         sample_rate, data, guanodata = chunks.header.sample_rate_hz, chunks.data, chunks.guanodata
 
         channels = chunks.header.num_channels  # Avoid warnings.

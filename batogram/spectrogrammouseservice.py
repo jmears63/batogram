@@ -22,7 +22,7 @@ import tkinter as tk
 
 from enum import Enum
 from timeit import default_timer as timer
-from typing import Tuple
+from typing import Tuple, Optional
 
 # Grey, so its visible against black and white.
 DRAG_RECTANGLE_COLOUR = "grey"
@@ -69,9 +69,9 @@ class SpectrogramMouseService:
         self._line1 = None
         self._line2 = None
         self._last_wheel_time = timer()
-        self._canvas_height: int | None = None
-        self._canvas_width: int | None = None
-        self._last_drag_mode: DragMode | None = None
+        self._canvas_height: Optional[int] = None
+        self._canvas_width: Optional[int] = None
+        self._last_drag_mode: Optional[DragMode] = None
 
         # Left mouse button:
         canvas.bind('<ButtonPress-1>', self._on_button1_press)
@@ -359,7 +359,7 @@ class SpectrogramMouseService:
             self._canvas.delete(self._line)
             self._line = None
 
-    def _get_drag_mode(self, event, is_shift: bool) -> DragMode | None:
+    def _get_drag_mode(self, event, is_shift: bool) -> Optional[DragMode]:
         """
         Decide if frequency or time is clamped, depending on the current direction
         of the mouse offset.

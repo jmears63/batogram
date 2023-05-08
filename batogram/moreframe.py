@@ -20,6 +20,8 @@
 
 import tkinter as tk
 import webbrowser
+from typing import Optional
+
 import numpy as np
 
 from .graphsettings import GraphSettings
@@ -73,13 +75,13 @@ class UrlLabel(tk.Label):
 
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        self._url: str | None = None
+        self._url: Optional[str] = None
         self._underlined_font = font.Font(self, self.cget("font"))
         self._underlined_font.configure(underline=True)
         self._normal_font = font.Font(self, self.cget("font"))
         self.bind('<Button-1>', self._on_click)
 
-    def set_url(self, url: str | None):
+    def set_url(self, url: Optional[str]):
         self._url = url
         if url is not None:
             self.config(fg=self._CLICKABLE_COLOUR)
@@ -98,7 +100,7 @@ class UrlLabel(tk.Label):
 class GuanoValue(tk.Label):
     """A file metadata value from GUANO data."""
 
-    def __init__(self, parent: "GuanoFrame", label: UrlLabel, guano_name: str, units: str | None):
+    def __init__(self, parent: "GuanoFrame", label: UrlLabel, guano_name: str, units: Optional[str]):
         self._my_var = tk.StringVar()
         super().__init__(parent, textvariable=self._my_var, width=25, anchor="w")
         self._my_parent: "GuanoFrame" = parent
@@ -121,13 +123,13 @@ class GuanoValue(tk.Label):
 
 
 class LatLongGuanoValue(GuanoValue):
-    def __init__(self, parent: "GuanoFrame", label: UrlLabel, guano_name: str, units: str | None):
+    def __init__(self, parent: "GuanoFrame", label: UrlLabel, guano_name: str, units: Optional[str]):
         super().__init__(parent, label, guano_name, units)
 
     def notify_update(self, data: GuanoFile):
         super().notify_update(data)
 
-        url: str | None = None
+        url: Optional[str] = None
         if data is not None and self._guano_name in data:
             lat_long = data[self._guano_name]
             try:
@@ -172,7 +174,7 @@ class MoreWindow(tk.Toplevel):
 class GuanoFrame(tk.Frame):
     def __init__(self, parent, pad: int):
         super().__init__(parent)
-        self._guano_data: GuanoFile | None = None
+        self._guano_data: Optional[GuanoFile] = None
         self._value_widgets = []
         self._pad = pad
 
@@ -307,20 +309,5 @@ class MoreTopFrame(tk.Frame):
     def get_histogram_interface(self) -> HistogramInterface:
         return self._settings_notebook
 
-    def set_guano_data(self, data: GuanoFile | None):
+    def set_guano_data(self, data: Optional[GuanoFile]):
         self._settings_notebook.set_guano_data(data)
-
-
-    def _select_mic_response(self):
-        filetypes = (
-            ('Data files', '*.csv *.CSV'),
-        )
-
-        file_selected = filedialog.askopenfilename(parent=self,
-                                                   initialfile=self._app_settings.main_mic_response_path,
-                                                   initialdir=Path.home(),
-                                                   filetypes=filetypes)
-        if file_selected is not None:
-            self._app_settings.main_mic_response_path = file_selected
-            initialfile = self._app_settings.main_mic_response_path if self._app_settings.main_mic_response_path != "" else Path.home()
-            self._mic_response_var.set(file_selected)

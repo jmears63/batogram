@@ -22,7 +22,7 @@ import io
 import numpy as np
 
 from dataclasses import dataclass
-from typing import List, Callable, Any, Tuple
+from typing import List, Callable, Any, Tuple, Optional
 from .external.guano import GuanoFile
 
 
@@ -59,9 +59,9 @@ class WavFileParser:
         self._filepath = filepath
         self._f = None
         self._start_of_data = None      # File offset to where data starts.
-        self._fmt_header: WavFileParser.Header | None = None
+        self._fmt_header: Optional[WavFileParser.Header] = None
 
-    def open(self) -> np.ndarray | None:
+    def open(self) -> Chunks:
         # Binary mode:
         self._f = open(self._filepath, "rb")
         return self._read_chunks()
@@ -71,7 +71,7 @@ class WavFileParser:
             self._f.close()
         self._f = None
 
-    def _read_chunks(self,) -> np.ndarray | None:
+    def _read_chunks(self,) -> Chunks:
         """Read all the metadata we can from the wav file. Call read_data() later to get the actual data."""
 
         # See http://soundfile.sapp.org/doc/WaveFormat/
@@ -162,7 +162,7 @@ class WavFileParser:
         return WavFileParser.Header(num_channels=num_channels, sample_rate_hz=sample_rate_hz,
                                     bits_per_sample=bits_per_sample)
 
-    def _skim_data(self, header: Header) -> Data | None:
+    def _skim_data(self, header: Header) -> Optional[Data]:
         """Process the data chunk without storing any of the data."""
 
         data_byte_count = self._read_int32("ChunkSize")
@@ -207,7 +207,7 @@ class WavFileParser:
                                   data_range=(min_value, max_value),
                                   data_byte_count=data_byte_count)
 
-    def read_data(self, index_range: tuple[int, int]) -> tuple[np.ndarray | None, int]:
+    def read_data(self, index_range: tuple[int, int]) -> tuple[Optional[np.ndarray], int]:
         """Read the request range of data (half open), and return the data and actual count read."""
 
         dt = None
@@ -248,7 +248,7 @@ class WavFileParser:
 
         return data, actual_samples_read
 
-    def _read_guan(self) -> GuanoFile | None:
+    def _read_guan(self) -> Optional[GuanoFile]:
         # https://www.wildlifeacoustics.com/SCHEMA/GUANO.html
         # https://github.com/riggsd/guano-py/blob/master/guano.py
 
@@ -272,7 +272,7 @@ class WavFileParser:
             raise WavFileError("Unexpected value for {} in {}: found {}: {}"
                                .format(fieldname, self._filepath, value, text))
 
-    def _read_int32(self, fieldname: str, expected: int | None = None) -> int:
+    def _read_int32(self, fieldname: str, expected: Optional[int] = None) -> int:
         b = self._f.read(4)
         n = int.from_bytes(b, byteorder='little')
         if expected is not None and n != expected:
@@ -280,7 +280,7 @@ class WavFileParser:
                                .format(fieldname, self._filepath, n, expected))
         return n
 
-    def _read_int16(self, fieldname: str, expected: int | None = None) -> int:
+    def _read_int16(self, fieldname: str, expected: Optional[int] = None) -> int:
         b = self._f.read(2)
         n = int.from_bytes(b, byteorder='little')
         if expected is not None and n != expected:
@@ -288,7 +288,7 @@ class WavFileParser:
                                .format(fieldname, self._filepath, n, expected))
         return n
 
-    def _read_text_bytes(self, length, fieldname, expected: bytes | None = None) -> List[bytes]:
+    def _read_text_bytes(self, length, fieldname, expected: Optional[bytes] = None) -> List[bytes]:
         b = self._f.read(length)
         if expected is not None and b != expected:
             raise WavFileError("Unexpected value for {} in {}: found {}, expected {}"

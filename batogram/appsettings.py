@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 
@@ -53,8 +53,8 @@ class AppSettings:
 class AppSettingsWrapper(AppSettings):
     """Subclass the data class, so we can have ephemeral fields that aren't streamed as
     JSON etc"""
-    main_mic_response_data: Tuple[CubicSpline, float, float, float, float] | None
-    ref_mic_response_data: Tuple[CubicSpline, float, float, float, float] | None
+    main_mic_response_data: Optional[Tuple[CubicSpline, float, float, float, float]]
+    ref_mic_response_data: Optional[Tuple[CubicSpline, float, float, float, float]]
 
     def __init__(self, *args, **nargs):
         super().__init__(*args, **nargs)
@@ -105,7 +105,7 @@ class AppSettingsWrapper(AppSettings):
         d = user_data_dir("batogram", "fitzharrys")
         return "{}/appsettings.json".format(d)
 
-    def set_main_mic_response_file(self, file: str | None):
+    def set_main_mic_response_file(self, file: Optional[str]):
         """Attempt to read and parse the file contents, and assign the field if
         it succeeds. If the file is bad, a ValueError or FileNotFound is thrown."""
 
@@ -119,7 +119,7 @@ class AppSettingsWrapper(AppSettings):
             self.main_mic_response_data = self._read_mic_response_data(file)      # Raises an exception if the file is no good.
             self.main_mic_response_path = file
 
-    def set_ref_mic_response_file(self, file: str | None):
+    def set_ref_mic_response_file(self, file: Optional[str]):
         """Attempt to read and parse the file contents, and assign the field if
         it succeeds. If the file is bad, a ValueError or FileNotFound is thrown."""
 

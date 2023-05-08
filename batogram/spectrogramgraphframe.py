@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
-from typing import Tuple
+from typing import Tuple, Optional
 
 from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, FONT_SIZE, MIN_F_RANGE, MIN_T_RANGE
 from . import layouts
@@ -59,7 +59,7 @@ class SpectrogramGraphFrame(GraphFrame):
         self.rowconfigure(0, weight=1)
 
         self._layout = None
-        self._histogram_interface: HistogramInterface | None = None
+        self._histogram_interface: Optional[HistogramInterface] = None
 
         # Scrollers are (individually) optional:
         self._scroller_t = None

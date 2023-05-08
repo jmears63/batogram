@@ -118,8 +118,8 @@ class GraphLayout(Layout):
         self._margin = int(self._font_height * 2)
         self._data_ranges: Optional[Tuple[AxisRange, AxisRange]] = None
         self._data_area = None
-        self._x_axis: AxisLayout | None = None
-        self._y_axis: AxisLayout | None = None
+        self._x_axis: Optional[AxisLayout] = None
+        self._y_axis: Optional[AxisLayout] = None
 
     def get_data_ranges(self) -> Tuple[AxisRange, AxisRange]:
         return self._data_ranges
@@ -139,7 +139,7 @@ class GraphLayout(Layout):
     def _get_bottom_margin(self, axis_size):
         return 0, self._canvas_height - 1, self._canvas_width - 1, self._canvas_height - axis_size - 1
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool):
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc., which are fast to draw, are drawn immediately by this method
         (2) The image and things overlaying it (such as the grid) are drawn later when the image
@@ -149,7 +149,7 @@ class GraphLayout(Layout):
         self._data_ranges = x_range, y_range
 
     def rect_to_values(self, pixel_rect) \
-            -> Tuple[float, float, float, float] | None:
+            -> Optional[Tuple[float, float, float, float]]:
         """Scale the pixel rectangle supplied to real axis values."""
 
         l, t, r, b = pixel_rect
@@ -263,7 +263,7 @@ class AxisLayout(Layout):
         self._max_pixel = None
         self._axis_range: Optional[AxisRange] = None
         self._units: List[AxisUnit] = sorted(units, key=lambda u: u.limit)  # Ascending.
-        self._units_to_use: AxisUnit | None = None
+        self._units_to_use: Optional[AxisUnit] = None
 
     def _layout(self):
         # These coordinates increase from 0 on the outside to maximum
@@ -366,6 +366,7 @@ class AxisLayout(Layout):
         else:
             abs_max: float = max(abs(axis_range.min), abs(axis_range.max))
             # The possible units are already sorted in ascending order.
+            u = self._units[0]      # Avoid a warning.
             for u in self._units:
                 if abs_max < u.limit:
                     return u
@@ -451,7 +452,7 @@ class SpectrogramLayout(GraphLayout):
             0, self._canvas_height - self._x_axis_height, self._y_axis_width - 1, self._canvas_height - 1)
 
     def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid, zero_based_x_axis: bool):
-        super().draw(canvas, x_range, y_range, show_grid)
+        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc, which are fast to draw, are drawn immediately by this method
@@ -538,8 +539,8 @@ class AmplitudeLayout(GraphLayout):
         self._data_area = (
             self._y_axis_width, 0, self._canvas_width - self._margin - 1, self._canvas_height)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid):
-        super().draw(canvas, x_range, y_range, show_grid)
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool = False):
+        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc, which are fast to draw, are drawn immediately by this method
@@ -609,7 +610,7 @@ class ProfileLayout(GraphLayout):
             0, self._canvas_height - self._x_axis_height, self._y_axis_width - 1, self._canvas_height - 1)
 
     def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
-        super().draw(canvas, x_range, y_range, show_grid)
+        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc, which are fast to draw, are drawn immediately by this method

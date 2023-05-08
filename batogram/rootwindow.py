@@ -130,9 +130,9 @@ class SettingsButtonsController:
 
 class GraphPipelines(NamedTuple):
     """A tuple of rendering pipelines relating to a set of graphs."""
-    amplitude: AmplitudePipeline | None
-    spectrogram: SpectrogramPipeline | None
-    profile: ProfilePipeline | None
+    amplitude: Optional[AmplitudePipeline]
+    spectrogram: Optional[SpectrogramPipeline]
+    profile: Optional[ProfilePipeline]
 
 
 class PanelFrame(tk.Frame):
@@ -399,7 +399,7 @@ class DataContext:
     DEFAULT_AMPLITUDE_RANGE = AxisRange(rmin=-1, rmax=1)
 
     def __init__(self):
-        self.afs: AudioFileService | None = None
+        self.afs: Optional[AudioFileService] = None
         self.breadcrumb_service = BreadcrumbService()
         self.time_range: Optional[AxisRange] = None
         self.frequency_range: Optional[AxisRange] = None
@@ -412,7 +412,7 @@ class DataContext:
         self.frequency_range = self.DEFAULT_FREQUENCY_RANGE
         self.amplitude_range = self.DEFAULT_AMPLITUDE_RANGE
 
-    def _set_afs(self, afs: AudioFileService | None):
+    def _set_afs(self, afs: Optional[AudioFileService]):
         # If we already have an afs, close it:
         if self.afs is not None:
             self.afs.close()
@@ -421,10 +421,10 @@ class DataContext:
     def get_ranges(self):
         return self.time_range, self.frequency_range, self.amplitude_range
 
-    def get_afs(self) -> AudioFileService | None:
+    def get_afs(self) -> Optional[AudioFileService]:
         return self.afs
 
-    def get_afs_data(self) -> AudioFileService.RenderingData | None:
+    def get_afs_data(self) -> Optional[AudioFileService.RenderingData]:
         return self.afs.get_rendering_data() if self.afs is not None else None
 
     def update_from_af(self, afs: AudioFileService):

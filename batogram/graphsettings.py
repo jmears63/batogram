@@ -21,7 +21,6 @@
 from dataclasses import dataclass
 from typing import Optional, NoReturn, Callable
 
-from .appsettings import DEFAULT_COLOUR_MAP, COLOUR_MAPS
 from .common import AxisRange
 from .frames import DrawableFrame
 

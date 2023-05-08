@@ -40,7 +40,7 @@ same steps as the Linux installation. If you take this route, I assume you know 
 ### Linux
 
 On Linux, Batogram is currently installed from the command line using pip, as below.
-You need to have Python 3.10 as a minimum.  
+You need to have Python 3.9 as a minimum.  
 
     # Create a virtual environment at a convenient location in your home directory:
     mkdir ~/batogram
