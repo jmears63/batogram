@@ -1,7 +1,7 @@
 import pathlib as pl
 from . import constants as c
 
-__version__: str = "1.0.6"
+__version__: str = "1.0.7"
 
 
 def get_asset_path(asset_file: str):

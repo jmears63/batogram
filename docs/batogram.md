@@ -49,6 +49,7 @@ of the mouse pointer.
 * The left and right arrow keys pan the spectrogram parallel to the time axis.
 * The page up and page down keys scroll the spectrogram parallel to the freqency axis.
 * The up and down arrow keys expand or compress the time range, leaving the frequency range unchanged.
+The range range is selected from a predefined set (1/2/5/120/20/50/etc ms per 100 pixels).
 
 Use shift together with a navigation key to apply larger increments.
 
@@ -113,10 +114,12 @@ Settings
 A settings dialog can be access from the top menu bar. This contains infrequently changed
 settings that apply to the entire application.
 
-* _Initial data directory_ determines the directory that File Open dialogs start from. Typically you
-should point this where you store your data files.
 * _Colour scale_ allows you to choose between different colour maps. The most successful ones are marked
 with an asterisk. Selection is a matter of taste and eyesight.
+* _Initial data directory_ determines the directory that File Open dialogs start from. Typically you
+should point this where you store your data files.
+* Mic response (main and ref) allows you to correct for microphone frequency response, by specifying a
+response for the main and reference spectrograms. More on the file format is provided [here](mic-response.md).
 
 
 Side by Side Comparison

@@ -1,3 +1,10 @@
+### Release 1.0.7
+Various minor improvements and fixes:
+* Microphone frequency response can corrected by providing a CSV calibration file.   
+* Batogram is now compatible with Python 3.9 (previously 3.10 was required).
+* Up/down keys now select one of a predefined set of time scales (1,2,5,10,20,50 etc ms).
+* Other small improvements and fixes.
+
 ### Release 1.0.6
 Various minor improvements and fixes:
 * Panning and scrolling using arrow keys and page up/down keys, with shift.

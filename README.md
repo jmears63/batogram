@@ -1,4 +1,4 @@
-batogram
+Batogram
 ========
 
 ![Screen Shot](docs/screenshot.png "Screen Shot")
