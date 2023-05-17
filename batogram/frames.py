@@ -54,9 +54,16 @@ class GraphFrame(DrawableFrame):
         self._dc = data_context
         self._settings: "GraphSettings" = settings
         self._layout = None
+        self._after_id = None
 
     def _on_canvas_change(self, _):
-        self.draw()
+        # Don't directly draw here, it results in very laggy window resizing on Windows. Perhaps
+        # there is contention between tkinter and the rendering threads?
+
+        if self._after_id:
+            self.after_cancel(self._after_id)
+        lag_ms = 500
+        self._after_id = self.after(lag_ms, self.draw)
 
     @staticmethod
     def _pipeline_error_handler(e):

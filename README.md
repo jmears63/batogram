@@ -11,6 +11,7 @@ Some capabilities and features:
 * Efficient rendering with graceful handling of larger data files.
 * Pan and scale using the mouse, keys or by manual selection.
 * Handling of multichannel data files, including stereo.
+* Ability to correct for microphone frequency response.
 * Basic side by side comparison of two spectrograms.
 * Display of GUANO metadata, including the ability to click to open the location in Google Maps.
 * Runs on Windows, Linux and macOS (experimental) operating systems.
