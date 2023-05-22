@@ -366,7 +366,7 @@ class AxisLayout(Layout):
         else:
             abs_max: float = max(abs(axis_range.min), abs(axis_range.max))
             # The possible units are already sorted in ascending order.
-            u = self._units[0]      # Avoid a warning.
+            u = self._units[0]  # Avoid a warning.
             for u in self._units:
                 if abs_max < u.limit:
                     return u
@@ -393,9 +393,9 @@ class AxisLayout(Layout):
 
         # Calculate the current scaling, that we went to round up or down to preferred:
         ms_per_100pixels = span * 100.0 * 1000.0 / pixel_span
-        new_ms_per_100pixels = ms_per_100pixels     # Default - no change.
+        new_ms_per_100pixels = ms_per_100pixels  # Default - no change.
 
-        nudge_factor = 1.05     # Slight fudge in case the current range is a preferred range.
+        nudge_factor = 1.05  # Slight fudge in case the current range is a preferred range.
         if sign > 0:
             # We want to increase and round the range:
             nudged_ms_per_100pixels = ms_per_100pixels * nudge_factor
@@ -432,8 +432,9 @@ class SpectrogramLayout(GraphLayout):
                     ]
     _y_axis_unit = [AxisUnit(scaler=1000.0, units="kHz")]
 
-    def __init__(self, font_height, canvas_width, canvas_height):
+    def __init__(self, font_height, canvas_width, canvas_height, time_marker_pair: Optional["TimeMarkerPair"]):
         super().__init__(font_height, canvas_width, canvas_height)
+        self._time_marker_pair: Optional["TimeMarkerPair"] = time_marker_pair
         self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "time", canvas_width,
                                   canvas_height, self._x_axis_unit)
         self._y_axis = AxisLayout(AxisLayout.ORIENT_VERTICAL, font_height, "frequency", canvas_width,
@@ -463,7 +464,7 @@ class SpectrogramLayout(GraphLayout):
         # We draw things in a specific order so that some things appear on top of others.
 
         # First blank out the entire canvas to avoid leftovers being visible when resizing:
-        Layout._create_rectangle(canvas, 0, 0, self._canvas_width, self._canvas_height, 'black')
+        canvas.delete('all')
 
         # Fill the margins and the bit of dead space in the bottom left:
         (t, l, r, b) = self._dead_space
@@ -499,6 +500,13 @@ class SpectrogramLayout(GraphLayout):
             if show_grid:
                 self._draw_x_grid(canvas, x_ticks, self._data_area)
                 self._draw_y_grid(canvas, y_ticks, self._data_area)
+
+            if self._time_marker_pair is not None:
+                al, at, ar, ab = self._get_top_margin()
+                al += self._y_axis_width
+                ar -= self._margin
+                marker_rect = al, at, ar, ab
+                self._time_marker_pair.draw(marker_rect, self._data_area, self._margin, self._x_axis.get_axis_range())
 
         return draw_completer, self._data_area
 
@@ -554,7 +562,7 @@ class AmplitudeLayout(GraphLayout):
         # We draw things in a specific order so that some things appear on top of others.
 
         # First blank out the entire canvas to avoid leftovers being visible when resizing:
-        Layout._create_rectangle(canvas, 0, 0, width, height, 'black')
+        canvas.delete('all')
 
         # Fill the margins:
         Layout._create_rectangle(canvas, *self._get_right_margin(), AXIS_BG_COLOUR)
@@ -577,9 +585,6 @@ class AmplitudeLayout(GraphLayout):
                 line_colour = "#00FFFF"
                 if line_segments is not None:
                     self._draw_graph_line_segments(canvas, self._data_area, line_segments, line_colour)
-
-                if show_grid:
-                    self._draw_x_grid(canvas, x_ticks, self._data_area)
 
         return draw_followup, self._data_area
 
@@ -624,7 +629,7 @@ class ProfileLayout(GraphLayout):
         # We draw things in a specific order so that some things appear on top of others.
 
         # First blank out the entire canvas to avoid leftovers being visible when resizing:
-        Layout._create_rectangle(canvas, 0, 0, width, height, 'black')
+        canvas.delete('all')
 
         # Fill the margins:
         Layout._create_rectangle(canvas, *self._get_top_margin(), AXIS_BG_COLOUR)

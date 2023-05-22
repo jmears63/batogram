@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Callable
 
 from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, FONT_SIZE, MIN_F_RANGE, MIN_T_RANGE
 from . import layouts
@@ -29,6 +29,213 @@ from .frames import GraphFrame, DrawableFrame
 from .spectrogrammouseservice import SpectrogramMouseService, CursorMode
 from .rendering import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
+
+
+class TimeMarker:
+    _DRAG_CURSOR = "sb_h_double_arrow"
+    _MARKER_COLOUR = "#808000"
+    _MARKER_DRAGGER_COLOUR = "#FFFF00"
+
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
+                 time_value: Optional[float], tag_name: str):
+        self._pair = pair
+        self._sgf = sgf
+        self._time_value: Optional[float] = time_value
+        self._pixel_value: Optional[int] = None
+        self._tag_name: str = tag_name
+        self._canvas: "SpectrogramCanvas" = canvas
+        self._start_event = None
+        self._saved_cursor = None
+        self._polygon_id = None
+        self._line = None
+        self._moved: Optional[int] = None
+
+        canvas.tag_bind(self._tag_name, "<Enter>", lambda event: self.mouse_enters_dragger(event))
+        canvas.tag_bind(self._tag_name, "<Leave>", lambda event: self.mouse_leaves_dragger(event))
+        canvas.tag_bind(self._tag_name, "<Button-1>", lambda event: self._on_click(event))
+        canvas.tag_bind(self._tag_name, "<B1-Motion>", lambda event: self._on_move(event))
+        canvas.tag_bind(self._tag_name, "<ButtonRelease-1>", lambda event: self._on_release(event))
+
+    def get_pixel_value(self) -> Optional[int]:
+        return self._pixel_value
+
+    def draw(self, marker_rect: Tuple[int, int, int, int], data_rect: Tuple[int, int, int, int],
+             margin: int, axis_range: AxisRange) -> Tuple[Callable, int, int]:
+        """Draw the marker, and return the coordinates of the end of the connecting band."""
+
+        l, t, r, b = data_rect
+
+        # Draw the line:
+        x_pixels = int((self._time_value - axis_range.min) / (axis_range.max - axis_range.min) * (r - l) + l)
+        self._line = self._canvas.create_line(x_pixels, b, x_pixels, t, fill=self._MARKER_COLOUR, width=1, dash=(2, 2))
+
+        # Draw the dragger:
+        l, t, r, b = marker_rect
+        h = int(margin / 2)
+        tan60: float = 1.73
+        w = int(h / tan60)
+        self._pixel_value = x_pixels
+
+        # The caller will call this closure to actually draw the marker:
+        def drawer():
+            self._polygon_id = self._canvas.create_polygon(x_pixels, b, x_pixels + w, b - h, x_pixels - w, b - h,
+                                                           fill=self._MARKER_DRAGGER_COLOUR,
+                                                           outline=self._MARKER_DRAGGER_COLOUR,
+                                                           tags=[self._tag_name])
+            return self._polygon_id
+
+        return drawer, b, b - h
+
+    def mouse_enters_dragger(self, _):
+        # Only if we aren't currently dragging - avoids cursor flicker during the drag.
+        if self._start_event is None:
+            self._saved_cursor = self._canvas.config('cursor')[-1]
+            self._canvas.config(cursor=self._DRAG_CURSOR)
+
+    def mouse_leaves_dragger(self, _):
+        # Only if we aren't currently dragging - avoids cursor flicker during the drag.
+        if self._start_event is None and self._saved_cursor is not None:
+            self._canvas.config(cursor=self._saved_cursor)
+            self._saved_cursor = None
+
+    def _on_click(self, event):
+        # print("_on_click: {}".format(event))
+        self._start_event = event
+        self._moved = self._pixel_value
+
+        # # Ask the line (which knows about the other dragger) what our allowed positions are:
+        # self._allowed_x_range = self._line.get_allowed_range(self._which)
+        # Set the cursor at the canvas level so it doesn't flicker during dragging:
+        self._canvas.config(cursor=self._DRAG_CURSOR)
+
+        # Take control of the mouse away from the canvas:
+        self._canvas.preempt_mouse(True)
+
+    def _on_move(self, event):
+        # print("TimeMarker._on_move: {}".format(event))
+
+        # This is a little more complex that you might hope as we have
+        # to convert between deltas and totals.
+        x_resulting = self._calc_dragged(event)
+        self.do_move(x_resulting)
+
+    def do_move(self, x: int):
+        # Move the dragger object in the canvas, using the intrinsic move method
+        # which presumably is the most efficient way:
+        x_last = self._moved
+        dx, dy = x - x_last, 0
+        self._canvas.move(self._polygon_id, dx, dy)
+        self._canvas.move(self._line, dx, dy)
+        self._moved = x
+
+    def _on_release(self, event):
+        # print("_on_release: {}".format(event))
+
+        # Move to the release point just in case we somehow didn't get a move event:
+        self._calc_dragged(event)
+
+        # Reset ready for another drag:
+        self._pos = self._moved
+        self._pixel_value = self._moved
+        self._allowed_x_range = None
+        self._start_event = None
+
+        # Return control of the mouse to the canvas:
+        self._canvas.preempt_mouse(False)
+
+    def _calc_dragged(self, event) -> int:
+        """Figure out by how far they have dragged, clipping that to the allowed range."""
+
+        # Note that the event x is not dragger position, it is where
+        # the user clicked in the dragger, so most likely off centre:
+        x, x0 = event.x, self._start_event.x
+
+        # How far have we dragged from the start?
+        x_dragged = x - x0
+        x_resulting = self._pixel_value + x_dragged
+        # x_min_allowed, x_max_allowed = self._allowed_x_range
+        # x_resulting = clip_to_range(x_resulting, x_min_allowed, x_max_allowed)
+
+        return x_resulting
+
+
+class LeftTimeMarker(TimeMarker):
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
+                 time_value: Optional[float]):
+        super().__init__(canvas, pair, sgf, time_value, "left_time_marker")
+
+    def do_move(self, x: int):
+        super().do_move(x)
+        # Notify the pair to redraw the band before we move the marker:
+        self._pair.do_move_left(x)
+
+
+class RightTimeMarker(TimeMarker):
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
+                 time_value: Optional[float]):
+        super().__init__(canvas, pair, sgf, time_value, "right_time_marker")
+
+    def do_move(self, x: int):
+        super().do_move(x)
+        # Notify the pair to redraw the band before we move the marker:
+        self._pair.do_move_right(x)
+
+
+class TimeMarkerPair:
+    _BAND_COLOUR = "#808000"
+    _tag_name = "band"
+
+    def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame", left_time: Optional[float],
+                 right_time: Optional[float]):
+        self._left_marker = LeftTimeMarker(canvas, self, sgf, left_time)
+        self._right_marker = RightTimeMarker(canvas, self, sgf, right_time)
+        self._sgf = sgf
+        self._canvas = canvas
+        self._band_rect: Optional[Tuple[int, int, int, int]] = None
+        self._band_id = None
+        self._left_id = self._right_id = None
+
+    def draw(self, marker_rect: Tuple[int, int, int, int], data_rect: Tuple[int, int, int, int],
+             margin: int, axis_range: AxisRange):
+        # Draw the markers:
+        left_drawer, bottom, top = self._left_marker.draw(marker_rect, data_rect, margin, axis_range)
+        right_drawer, _, _ = self._right_marker.draw(marker_rect, data_rect, margin, axis_range)
+
+        # Draw a connecting band between them:
+        self._band_rect = self._left_marker.get_pixel_value(), top, self._right_marker.get_pixel_value(), bottom
+        self._band_id = self._draw_band(*self._band_rect)
+
+        # Finally, draw the markers, so that they overlap the band on top of it:
+        self._left_id = left_drawer()
+        self._right_id = right_drawer()
+
+    def do_move_left(self, x: int):
+        if self._band_rect is not None:
+            l, t, r, b = self._band_rect
+            self._band_rect = x, t, r, b
+            self._redraw_band(*self._band_rect)
+
+    def do_move_right(self, x: int):
+        if self._band_rect is not None:
+            l, t, r, b = self._band_rect
+            self._band_rect = l, t, x, b
+            self._redraw_band(*self._band_rect)
+
+    def _draw_band(self, left, top, right, bottom):
+        return self._canvas.create_rectangle(left, top, right, bottom,
+                                             fill=self._BAND_COLOUR,
+                                             outline=self._BAND_COLOUR,
+                                             stipple='gray25',
+                                             tags=[self._tag_name])
+
+    def _redraw_band(self, left, top, right, bottom):
+        new_band_id = self._draw_band(left, top, right, bottom)
+
+        # Move it beneath any existing band, before we delete the existing one, to preserve layering order:
+        if self._band_id is not None:
+            self._canvas.tag_lower(new_band_id, self._band_id)
+            self._canvas.delete(self._band_id)
+        self._band_id = new_band_id
 
 
 class SpectrogramCanvas(tk.Canvas):
@@ -44,6 +251,9 @@ class SpectrogramCanvas(tk.Canvas):
 
     def notify_draw_complete(self):
         self._mouse_service.notify_draw_complete()
+
+    def preempt_mouse(self, preempt: bool):
+        self._mouse_service.preempt_mouse(preempt)
 
 
 class SpectrogramGraphFrame(GraphFrame):
@@ -66,6 +276,9 @@ class SpectrogramGraphFrame(GraphFrame):
         self._scroller_f = None
 
         self._parent = parent
+
+        # Optional time marker pair, depends whether the user has enable time markers or not:
+        self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.3333, 2.6666)
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(MAIN_SPECTROGAM_COMPLETER_EVENT, self._do_completer)
@@ -123,9 +336,10 @@ class SpectrogramGraphFrame(GraphFrame):
         self.update_idletasks()
 
         width, height = self.get_canvas_size()
-        self._layout = layouts.SpectrogramLayout(FONT_SIZE, width, height)
+        self._layout = layouts.SpectrogramLayout(FONT_SIZE, width, height, self._time_marker_pair)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
-        graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range, self._settings.show_grid,
+        graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range,
+                                                       self._settings.show_grid,
                                                        self._settings.zero_based_time)
 
         if afs_data:
@@ -137,7 +351,8 @@ class SpectrogramGraphFrame(GraphFrame):
                 # this thread.
                 self._completer = graph_completer
                 screen_factors = self._parent.get_screen_factors()
-                request = self._get_pipeline_request(self._is_reference, afs_data, data_area, time_range, frequency_range, screen_factors,
+                request = self._get_pipeline_request(self._is_reference, afs_data, data_area, time_range,
+                                                     frequency_range, screen_factors,
                                                      self._dc.get_afs())
                 self._pipeline.submit(request,
                                       lambda: self.event_generate(MAIN_SPECTROGAM_COMPLETER_EVENT),
@@ -169,9 +384,11 @@ class SpectrogramGraphFrame(GraphFrame):
         self._canvas.set_cursor_mode(mode)
 
     @staticmethod
-    def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range, screen_factors: tuple[float, float],
+    def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range,
+                              screen_factors: tuple[float, float],
                               raw_data_reader: RawDataReader):
-        request = SpectrogramPipelineRequest(is_reference, data_area, data, time_range, frequency_range, screen_factors, raw_data_reader)
+        request = SpectrogramPipelineRequest(is_reference, data_area, data, time_range, frequency_range, screen_factors,
+                                             raw_data_reader)
         return request
 
     def _do_completer(self, _):
@@ -247,9 +464,10 @@ class SpectrogramGraphFrame(GraphFrame):
         if position:
             position_t_v, position_f_v = self._layout.canvas_to_axis(position)
             time_range, frequency_range = self._layout.get_data_ranges()
-            centre_t_v, centre_f_v = (time_range.min + time_range.max) / 2, (frequency_range.min + frequency_range.max) / 2
+            centre_t_v, centre_f_v = (time_range.min + time_range.max) / 2, (
+                    frequency_range.min + frequency_range.max) / 2
             offset_t_v, offset_f_v = centre_t_v - position_t_v, centre_f_v - position_f_v
-            axis_ranges = AxisRange(time_range.min - offset_t_v, time_range.max - offset_t_v),\
+            axis_ranges = AxisRange(time_range.min - offset_t_v, time_range.max - offset_t_v), \
                 AxisRange(frequency_range.min - offset_f_v, frequency_range.max - offset_f_v)
         else:
             axis_ranges = self._layout.get_data_ranges()
@@ -263,7 +481,7 @@ class SpectrogramGraphFrame(GraphFrame):
             # Allow them to zoom back out again, to avoid getting stuck.
             if factor < 1.0:
                 print("Ignoring insane zoom in.")
-                return False    # Insane zoom requested, ignore it.
+                return False  # Insane zoom requested, ignore it.
 
         # Offset to the centre of the axis ranges:
         centre_t_v, centre_f_v = (l + r) / 2, (t + b) / 2

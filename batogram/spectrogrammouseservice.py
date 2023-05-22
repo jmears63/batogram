@@ -72,6 +72,7 @@ class SpectrogramMouseService:
         self._canvas_height: Optional[int] = None
         self._canvas_width: Optional[int] = None
         self._last_drag_mode: Optional[DragMode] = None
+        self._preempted: bool = False
 
         # Left mouse button:
         canvas.bind('<ButtonPress-1>', self._on_button1_press)
@@ -101,32 +102,48 @@ class SpectrogramMouseService:
         # Mouse wheel:
         self._bind_wheel()
 
+    def preempt_mouse(self, preempt: bool):
+        """Call this to take mouse control from this service, and to return it."""
+        self._preempted = preempt
+
     def _on_button1_press(self, event):
         # print("1+")
+        if self._preempted:
+            return
+
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
             self._on_zoom_press(event)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_press(event)
 
     def _on_button1_move(self, event):
+        # print("SpectrogramMouseService._on_button1_move")
+        if self._preempted:
+            return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
             self._on_zoom_move(event, is_shift=False)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_move(event, is_shift=False)
 
     def _on_shift_button1_move(self, event):
+        if self._preempted:
+            return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
             self._on_zoom_move(event, is_shift=True)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_move(event, is_shift=True)
 
     def _on_button1_release(self, event):
+        if self._preempted:
+            return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
             self._on_zoom_release(event, is_shift=False)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_release(event, is_shift=False)
 
     def _on_shift_button1_release(self, event):
+        if self._preempted:
+            return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
             self._on_zoom_release(event, is_shift=True)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
