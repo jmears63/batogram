@@ -19,25 +19,28 @@
 # SOFTWARE.
 
 import tkinter as tk
+from abc import ABC, abstractmethod
 from typing import Tuple, Optional, Callable
 
 from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, FONT_SIZE, MIN_F_RANGE, MIN_T_RANGE
 from . import layouts
 from .audiofileservice import RawDataReader, AudioFileService
-from .common import AxisRange
+from .common import AxisRange, clip_to_range
 from .frames import GraphFrame, DrawableFrame
 from .spectrogrammouseservice import SpectrogramMouseService, CursorMode
 from .rendering import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
 
 
-class TimeMarker:
+class TimeMarker(ABC):
     _DRAG_CURSOR = "sb_h_double_arrow"
     _MARKER_COLOUR = "#808000"
     _MARKER_DRAGGER_COLOUR = "#FFFF00"
 
+    _CLEARANCE_PIXELS = 15
+
     def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
-                 time_value: Optional[float], tag_name: str):
+                 time_value: Optional[float], tag_name: str, get_other: Callable):
         self._pair = pair
         self._sgf = sgf
         self._time_value: Optional[float] = time_value
@@ -49,6 +52,7 @@ class TimeMarker:
         self._polygon_id = None
         self._line = None
         self._moved: Optional[int] = None
+        self._get_other = get_other
 
         canvas.tag_bind(self._tag_name, "<Enter>", lambda event: self.mouse_enters_dragger(event))
         canvas.tag_bind(self._tag_name, "<Leave>", lambda event: self.mouse_leaves_dragger(event))
@@ -103,10 +107,11 @@ class TimeMarker:
         self._start_event = event
         self._moved = self._pixel_value
 
-        # # Ask the line (which knows about the other dragger) what our allowed positions are:
-        # self._allowed_x_range = self._line.get_allowed_range(self._which)
         # Set the cursor at the canvas level so it doesn't flicker during dragging:
         self._canvas.config(cursor=self._DRAG_CURSOR)
+
+        # Ask the other marker how much space we have to drag in:
+        self._allowed_range = self._get_other().get_allowed_for_other()
 
         # Take control of the mouse away from the canvas:
         self._canvas.preempt_mouse(True)
@@ -117,6 +122,7 @@ class TimeMarker:
         # This is a little more complex that you might hope as we have
         # to convert between deltas and totals.
         x_resulting = self._calc_dragged(event)
+
         self.do_move(x_resulting)
 
     def do_move(self, x: int):
@@ -135,9 +141,8 @@ class TimeMarker:
         self._calc_dragged(event)
 
         # Reset ready for another drag:
-        self._pos = self._moved
         self._pixel_value = self._moved
-        self._allowed_x_range = None
+        self._allowed_range = None
         self._start_event = None
 
         # Return control of the mouse to the canvas:
@@ -153,50 +158,82 @@ class TimeMarker:
         # How far have we dragged from the start?
         x_dragged = x - x0
         x_resulting = self._pixel_value + x_dragged
-        # x_min_allowed, x_max_allowed = self._allowed_x_range
-        # x_resulting = clip_to_range(x_resulting, x_min_allowed, x_max_allowed)
+
+        # Avoid colliding with the other marker:
+        r_min, r_max = self._allowed_range
+        if r_min is not None and x_resulting < r_min:
+            x_resulting = r_min
+        if r_max is not None and x_resulting > r_max:
+            x_resulting = r_max
+
+        # Confine to the pixel range of the axis:
+        x_resulting = self._pair.clip_to_pixel_range(x_resulting)
 
         return x_resulting
+
+    @abstractmethod
+    def get_allowed_for_other(self) -> Tuple[Optional[int], Optional[int]]:
+        raise NotImplementedError
 
 
 class LeftTimeMarker(TimeMarker):
     def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
-                 time_value: Optional[float]):
-        super().__init__(canvas, pair, sgf, time_value, "left_time_marker")
+                 time_value: Optional[float], get_other: Callable):
+        super().__init__(canvas, pair, sgf, time_value, "left_time_marker", get_other)
 
     def do_move(self, x: int):
         super().do_move(x)
         # Notify the pair to redraw the band before we move the marker:
         self._pair.do_move_left(x)
 
+    def get_allowed_for_other(self) -> Tuple[Optional[int], Optional[int]]:
+        # The other marker needs to be to our right.
+        return self.get_pixel_value() + self._CLEARANCE_PIXELS, None
+
 
 class RightTimeMarker(TimeMarker):
     def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
-                 time_value: Optional[float]):
-        super().__init__(canvas, pair, sgf, time_value, "right_time_marker")
+                 time_value: Optional[float], get_other: Callable):
+        super().__init__(canvas, pair, sgf, time_value, "right_time_marker", get_other)
 
     def do_move(self, x: int):
         super().do_move(x)
         # Notify the pair to redraw the band before we move the marker:
         self._pair.do_move_right(x)
 
+    def get_allowed_for_other(self) -> Tuple[Optional[int], Optional[int]]:
+        # The other marker needs to be to our left.
+        return None, self.get_pixel_value() - self._CLEARANCE_PIXELS
+
 
 class TimeMarkerPair:
     _BAND_COLOUR = "#808000"
     _tag_name = "band"
 
-    def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame", left_time: Optional[float],
-                 right_time: Optional[float]):
-        self._left_marker = LeftTimeMarker(canvas, self, sgf, left_time)
-        self._right_marker = RightTimeMarker(canvas, self, sgf, right_time)
+    def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",
+                 left_time: Optional[float], right_time: Optional[float]):
+        self._left_marker = LeftTimeMarker(canvas, self, sgf, left_time, self.get_right_marker)
+        self._right_marker = RightTimeMarker(canvas, self, sgf, right_time, self.get_left_marker)
         self._sgf = sgf
         self._canvas = canvas
         self._band_rect: Optional[Tuple[int, int, int, int]] = None
         self._band_id = None
         self._left_id = self._right_id = None
+        self._pixel_range: Tuple[int, int] = None
+
+    def get_left_marker(self) -> TimeMarker:
+        return self._left_marker
+
+    def get_right_marker(self) -> TimeMarker:
+        return self._right_marker
 
     def draw(self, marker_rect: Tuple[int, int, int, int], data_rect: Tuple[int, int, int, int],
              margin: int, axis_range: AxisRange):
+
+        # Note the allowed pixel range for markers for later:
+        l, t, r, b = data_rect
+        self._pixel_range = l, r
+
         # Draw the markers:
         left_drawer, bottom, top = self._left_marker.draw(marker_rect, data_rect, margin, axis_range)
         right_drawer, _, _ = self._right_marker.draw(marker_rect, data_rect, margin, axis_range)
@@ -236,6 +273,9 @@ class TimeMarkerPair:
             self._canvas.tag_lower(new_band_id, self._band_id)
             self._canvas.delete(self._band_id)
         self._band_id = new_band_id
+
+    def clip_to_pixel_range(self, v: int):
+        return clip_to_range(v, *self._pixel_range)
 
 
 class SpectrogramCanvas(tk.Canvas):
