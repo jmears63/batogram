@@ -30,6 +30,7 @@ from PIL import ImageTk, Image, ImageOps
 
 from . import colourmap
 from .common import AxisRange
+from .constants import AXIS_FONT_NAME
 
 AXIS_BG_COLOUR = "#404040"
 AXIS_FG_COLOUR = "white"
@@ -257,7 +258,7 @@ class AxisLayout(Layout):
         self._orientation = orientation
         self._title = title
         self._hide_text = hide_text
-        self._font_name = "helvetica"
+        self._font_name = AXIS_FONT_NAME
         self._layout()
         self._min_pixel = None
         self._max_pixel = None

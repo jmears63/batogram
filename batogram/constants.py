@@ -24,10 +24,11 @@ DATA_CHANGE_REF_EVENT = "<<OnDataChangeRef>>"  # Underlying data has change: for
 MAIN_SPECTROGAM_COMPLETER_EVENT = "<<MainSpectrogramCompleter>>"
 MAIN_AMPLITUDE_COMPLETER_EVENT = "<<MainAmplitudeCompleter>>"
 MAIN_PROFILE_COMPLETER_EVENT = "<<MainProfileCompleter>>"
-FONT_SIZE = 12
 ZOOM_ORDER = 2  # This will move into settings. 0-2 is a useful range.
 COLOUR_MAPS_PATH = "colour_maps"
 ASSETS_PATH = "assets"
+AXIS_FONT_NAME = "helvetica"
+AXIS_FONT_HEIGHT = 12           # Pixels
 
 # Limit how far they can zoom in:
 MIN_F_RANGE: float = 500

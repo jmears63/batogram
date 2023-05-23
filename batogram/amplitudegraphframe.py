@@ -20,7 +20,7 @@
 
 import tkinter as tk
 
-from .constants import MAIN_AMPLITUDE_COMPLETER_EVENT, FONT_SIZE
+from .constants import MAIN_AMPLITUDE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import AudioFileService, RawDataReader
 from .common import AxisRange
@@ -61,7 +61,7 @@ class AmplitudeGraphFrame(GraphFrame):
         self.update_idletasks()
 
         width, height = self._canvas.winfo_width(), self._canvas.winfo_height()
-        layout = layouts.AmplitudeLayout(FONT_SIZE, width, height, is_reference=self._is_reference)
+        layout = layouts.AmplitudeLayout(AXIS_FONT_HEIGHT, width, height, is_reference=self._is_reference)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
         graph_completer, data_area = layout.draw(self._canvas, time_range, amplitude_range, self._settings.show_grid)
 

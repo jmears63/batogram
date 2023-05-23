@@ -20,7 +20,7 @@
 
 import tkinter as tk
 
-from .constants import MAIN_PROFILE_COMPLETER_EVENT, FONT_SIZE
+from .constants import MAIN_PROFILE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import RawDataReader
 from .common import AxisRange
@@ -63,7 +63,7 @@ class ProfileGraphFrame(GraphFrame):
         self.update_idletasks()
 
         width, height = self._canvas.winfo_width(), self._canvas.winfo_height()
-        layout = layouts.ProfileLayout(FONT_SIZE, width, height)
+        layout = layouts.ProfileLayout(AXIS_FONT_HEIGHT, width, height)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
         graph_completer, data_area = layout.draw(self._canvas, profile_range, frequency_range,
                                                  self._settings.show_grid, self._settings.zero_based_time)

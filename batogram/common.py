@@ -23,6 +23,8 @@ from typing import Tuple, TypeVar
 
 AreaTuple = Tuple[int, int, int, int]
 
+FontName = "helvetica"
+
 
 @dataclass
 class AxisRange:
