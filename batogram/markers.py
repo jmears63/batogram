@@ -5,12 +5,16 @@ from typing import Tuple, Optional, Callable
 from .constants import AXIS_FONT_NAME, AXIS_FONT_HEIGHT
 from .common import AxisRange, clip_to_range
 
+MARKER_COLOUR = "#808000"
+MARKER_DRAGGER_COLOUR = "#FFFF00"
+BAND_COLOUR = "#606000"
+MARKER_TEXT_COLOUR = "#FFFF00"
+
+TAN60: float = 1.73  # tan(60)
+
 
 class TimeMarker(ABC):
     _DRAG_CURSOR = "sb_h_double_arrow"
-    _MARKER_COLOUR = "#808000"
-    _MARKER_DRAGGER_COLOUR = "#FFFF00"
-
     _CLEARANCE_PIXELS = 15
 
     def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
@@ -26,7 +30,8 @@ class TimeMarker(ABC):
         self._polygon_id = None
         self._line = None
         self._get_other = get_other
-        self._data_rect: Optional[Tuple[int, int, int, int]] = None
+        self._pixel_range: Optional[Tuple[int, int]] = None
+        self._line_span: Optional[Tuple[int, int]] = None
         self._axis_range: Optional[AxisRange] = None
 
         canvas.tag_bind(self._tag_name, "<Enter>", lambda event: self.mouse_enters_dragger(event))
@@ -46,30 +51,41 @@ class TimeMarker(ABC):
         """Draw the marker, and return the coordinates of the end of the connecting band."""
 
         # Note some things for use during dragging:
-        self._data_rect = data_rect
+        l, t, r, b = data_rect
+
+        self._pixel_range = l, r
+        self._line_span = t, b
         self._axis_range = axis_range
 
-        # Draw the line:
-        _, t, _, b = data_rect
         x_pixels = self._value_to_pixel(self._axis_value)
-        self._line = self._canvas.create_line(x_pixels, b, x_pixels, t, fill=self._MARKER_COLOUR, width=1, dash=(2, 2))
-
-        # Draw the dragger:
-        l, t, r, b = marker_rect
-        h = int(margin / 2)
-        tan60: float = 1.73
-        w = int(h / tan60)
         self._pixel_value = x_pixels
 
-        # The caller will call this closure to actually draw the marker:
-        def drawer():
-            self._polygon_id = self._canvas.create_polygon(x_pixels, b, x_pixels + w, b - h, x_pixels - w, b - h,
-                                                           fill=self._MARKER_DRAGGER_COLOUR,
-                                                           outline=self._MARKER_DRAGGER_COLOUR,
-                                                           tags=[self._tag_name])
-            return self._polygon_id
+        line_lower, line_upper = self._line_span
+        marker_l, marker_t, marker_r, marker_b = marker_rect
+        dragger_height = int(abs(marker_t - marker_b) / 2)
 
-        return drawer, b, b - h
+        # Create a closure to actually draw the marker:
+        def drawer() -> int:
+            lower, upper = self._pixel_range
+            if lower < x_pixels < upper:
+                self._line = self._canvas.create_line(x_pixels, line_lower, x_pixels, line_upper,
+                                                      fill=MARKER_COLOUR, width=1, dash=(2, 2))
+
+                # Draw the dragger:
+                self._polygon_id = None
+                w = int(dragger_height / TAN60)
+                if lower < x_pixels < upper:
+                    self._polygon_id = self._canvas.create_polygon(
+                        x_pixels, marker_b, x_pixels + w, marker_b - dragger_height,
+                        x_pixels - w, marker_b - dragger_height,
+                        fill=MARKER_DRAGGER_COLOUR,
+                        outline=MARKER_DRAGGER_COLOUR,
+                        tags=[self._tag_name])
+
+                return self._polygon_id
+
+        # Return tuple: closure for drawing, bottom and top of marker for joining the band to.
+        return drawer, marker_b, marker_b - dragger_height
 
     def mouse_enters_dragger(self, _):
         # Only if we aren't currently dragging - avoids cursor flicker during the drag.
@@ -158,13 +174,13 @@ class TimeMarker(ABC):
         raise NotImplementedError
 
     def _value_to_pixel(self, v: float) -> int:
-        l, _, r, _ = self._data_rect
-        p = int((v - self._axis_range.min) / (self._axis_range.max - self._axis_range.min) * (r - l) + l)
+        lower, upper = self._pixel_range
+        p = int((v - self._axis_range.min) / (self._axis_range.max - self._axis_range.min) * (upper - lower) + lower)
         return p
 
     def _pixel_to_value(self, p: int) -> float:
-        l, _, r, _ = self._data_rect
-        v = (p - l) / (r - l) * (self._axis_range.max - self._axis_range.min) + self._axis_range.min
+        lower, upper = self._pixel_range
+        v = (p - lower) / (upper - lower) * (self._axis_range.max - self._axis_range.min) + self._axis_range.min
         return v
 
 
@@ -199,8 +215,6 @@ class UpperMarker(TimeMarker):
 
 
 class TimeMarkerPair:
-    _BAND_COLOUR = "#606000"
-    _MARKER_TEXT_COLOUR = "#FFFF00"
     _tag_name = "band"
 
     def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",
@@ -212,6 +226,7 @@ class TimeMarkerPair:
         self._band_rect: Optional[Tuple[int, int, int, int]] = None
         self._band_id = self._text_id = None
         self._left_id = self._right_id = None
+        self._left_overflow_id = self._right_overflow_id = None
         self._axis_range: Optional[AxisRange] = None
         self._pixel_range: Optional[Tuple[int, int]] = None
         self._axis_font = AXIS_FONT_NAME, -AXIS_FONT_HEIGHT
@@ -231,7 +246,7 @@ class TimeMarkerPair:
         l, t, r, b = data_rect
         self._pixel_range = l, r
 
-        # Draw the markers:
+        # Draw the markers step 1: returns closures for actually drawing them further down:
         left_drawer, bottom, top = self._left_marker.draw(marker_rect, data_rect, margin, axis_range)
         right_drawer, _, _ = self._right_marker.draw(marker_rect, data_rect, margin, axis_range)
 
@@ -241,9 +256,20 @@ class TimeMarkerPair:
         # Some text to display:
         text = self._get_text()
 
-        # Draw a connecting band between them:
-        self._band_rect = self._left_marker.get_pixel_value(), top, self._right_marker.get_pixel_value(), bottom
+        # Draw a connecting band between them, clipping to the width of the data area:
+        l_pixel, r_pixel = self._left_marker.get_pixel_value(), self._right_marker.get_pixel_value()
+        self._band_rect = max(l_pixel, l), top, min(r_pixel, r), bottom
         self._band_id, self._text_id = self._draw_band(*self._band_rect, text)
+        if l_pixel < l:
+            self._left_overflow_id = self._canvas.create_polygon(
+                l, bottom, l - abs(bottom - top) / 1.3, int((bottom + top) / 2), l, top,
+                fill=MARKER_DRAGGER_COLOUR,
+                outline=MARKER_DRAGGER_COLOUR)
+        if r_pixel > r:
+            self._right_overflow_id = self._canvas.create_polygon(
+                r, bottom, r + abs(bottom - top) / 1.3, int((bottom + top) / 2), r, top,
+                fill=MARKER_DRAGGER_COLOUR,
+                outline=MARKER_DRAGGER_COLOUR)
 
         # Finally, draw the markers, so that they overlap the band on top of it:
         self._left_id = left_drawer()
@@ -262,26 +288,39 @@ class TimeMarkerPair:
             self._redraw_band(*self._band_rect, self._get_text())
 
     def _draw_band(self, left: int, top: int, right: int, bottom: int, text: str) -> Tuple[int, int]:
+        band_id = None
+
+        # Make sure there is always something to draw. Redrawn bands are placed below
+        # the existing one, so there must always be an existing one.
+        if left >= right:
+            left = right - 1
+
         band_id = self._canvas.create_rectangle(left, top, right, bottom,
-                                                fill=self._BAND_COLOUR,
-                                                outline=self._BAND_COLOUR,
+                                                fill=BAND_COLOUR,
+                                                outline=BAND_COLOUR,
                                                 stipple='gray25',
                                                 tags=[self._tag_name])
-        # Annotation. +2 to get the text inside the band.
-        text_id = self._canvas.create_text((left + right) / 2, bottom + 2, text=text,
-                                           fill=self._MARKER_TEXT_COLOUR, font=self._axis_font, anchor=tk.S)
+
+        text_id = None
+        if right - left > 60:
+            # Annotation. +2 to get the text inside the band.
+            text_id = self._canvas.create_text((left + right) / 2, bottom + 2, text=text,
+                                               fill=MARKER_TEXT_COLOUR, font=self._axis_font, anchor=tk.S)
 
         return band_id, text_id
 
     def _redraw_band(self, left: int, top: int, right: int, bottom: int, text: str):
         new_band_id, new_text_id = self._draw_band(left, top, right, bottom, text)
 
+        to_delete = [self._band_id, self._text_id, self._left_overflow_id, self._right_overflow_id]
+
         # Move it beneath any existing band, before we delete the existing one, to preserve layering order:
-        if self._band_id is not None:
+        if self._band_id is not None and new_band_id is not None:
             self._canvas.tag_lower(new_band_id, self._band_id)
-            self._canvas.delete(self._band_id)
-        if self._text_id is not None:
-            self._canvas.delete(self._text_id)
+
+        # Delete all the old things:
+        [self._canvas.delete(item) for item in to_delete if item is not None]
+
         self._band_id = new_band_id
         self._text_id = new_text_id
 
@@ -299,5 +338,3 @@ class TimeMarkerPair:
             text = "{0:.3f} s".format(v_span)
 
         return text
-
-

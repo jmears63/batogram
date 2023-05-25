@@ -73,7 +73,7 @@ class SpectrogramGraphFrame(GraphFrame):
         self._parent = parent
 
         # Optional time marker pair, depends whether the user has enable time markers or not:
-        self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.3333, 2.6666)
+        self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.2, 0.2)
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(MAIN_SPECTROGAM_COMPLETER_EVENT, self._do_completer)
