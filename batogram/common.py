@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Tuple, TypeVar
 
 AreaTuple = Tuple[int, int, int, int]
+RangeTuple = Tuple[int, int]
 
 FontName = "helvetica"
 
