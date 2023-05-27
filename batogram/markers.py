@@ -12,20 +12,26 @@ MARKER_TEXT_COLOUR = "#FFFF00"
 
 TAN60: float = 1.73  # tan(60), used for drawing triangles.
 AXIS_FONT = AXIS_FONT_NAME, -AXIS_FONT_HEIGHT
+DRAG_CURSOR = "sb_h_double_arrow"
 
 
-class Helper(ABC):
+class AbstractHelper(ABC):
     """Instances of this classes contain all knowledge about whether a marker is being
     drawn for a vertical or horizontal axis."""
 
-    def __init__(self):
+    def __init__(self, tag_name: str):
         self._band_id: Optional[int] = None
         self._band_text_id: Optional[int] = None
         self._lower_overflow_id: Optional[int] = None
         self._upper_overflow_id: Optional[int] = None
+        self._tag_name: str = tag_name
 
     @abstractmethod
     def get_pixel_range(self, rect: AreaTuple) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_line_span(self, rect: AreaTuple) -> RangeTuple:
         raise NotImplementedError()
 
     @abstractmethod
@@ -81,19 +87,23 @@ class Helper(ABC):
     def _draw_band_impl(self, canvas: "SpectrogramCanvas", band_rect: AreaTuple) -> RangeTuple:
 
         band_id = canvas.create_rectangle(*band_rect, fill=BAND_COLOUR, outline=BAND_COLOUR,
-                                          stipple='gray25', tags=[self._BAND_TAG_NAME])
+                                          stipple='gray25', tags=[self._tag_name])
         return band_id
 
 
-class TimeHelper(Helper):
-    _BAND_TAG_NAME: str = "time_band"
+class TimeHelper(AbstractHelper):
+    _TIME_BAND_TAG_NAME: str = "time_band"
 
     def __init__(self):
-        super().__init__()
+        super().__init__(self._TIME_BAND_TAG_NAME)
 
     def get_pixel_range(self, rect: AreaTuple) -> RangeTuple:
         """Get the range of pixel values corresponding to axis range."""
         return rect[0], rect[2]
+
+    def get_line_span(self, rect: AreaTuple) -> RangeTuple:
+        """Get the range of pixel values corresponding to the line we well draw.."""
+        return rect[1], rect[3]
 
     def make_band_rect(self, band_pixel_width: RangeTuple, lower: int, upper: int) -> AreaTuple:
         return lower, band_pixel_width[1], upper, band_pixel_width[0]
@@ -142,32 +152,12 @@ class TimeHelper(Helper):
         self._band_text_id = new_text_id
 
 
-class Marker(ABC):
-    def __init__(self, initial_axis_value: Optional[float]):
-        # TODO factor out stuff from subclasses to here.
+class AbstractMarker(ABC):
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+                 initial_axis_value: Optional[float], tag_name: str, get_other: Callable,
+                 helper: Type[AbstractHelper]):
         self._axis_value: Optional[float] = initial_axis_value
         self._pixel_value: Optional[int] = None
-
-    def get_pixel_value(self) -> Optional[int]:
-        return self._pixel_value
-
-    def get_axis_value(self) -> Optional[float]:
-        return self._axis_value
-
-    @abstractmethod
-    def draw(self, marker_rect: AreaTuple, data_rect: AreaTuple,
-             margin: int, axis_range: AxisRange) -> Tuple[Callable, RangeTuple]:
-        raise NotImplementedError()
-
-
-class TimeMarker(Marker, ABC):
-    _DRAG_CURSOR = "sb_h_double_arrow"
-    _CLEARANCE_PIXELS = 15
-
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
-                 initial_axis_value: Optional[float], tag_name: str, get_other: Callable):
-        super().__init__(initial_axis_value)
-
         self._pair = pair
         self._sgf = sgf
         self._tag_name: str = tag_name
@@ -178,63 +168,60 @@ class TimeMarker(Marker, ABC):
         self._line = None
         self._get_other = get_other
         self._pixel_range: Optional[RangeTuple] = None
-        self._line_span: Optional[RangeTuple] = None
         self._axis_range: Optional[AxisRange] = None
+        self._helper: Type[AbstractHelper] = helper
 
-        canvas.tag_bind(self._tag_name, "<Enter>", lambda event: self.mouse_enters_dragger(event))
-        canvas.tag_bind(self._tag_name, "<Leave>", lambda event: self.mouse_leaves_dragger(event))
+        canvas.tag_bind(self._tag_name, "<Enter>", lambda event: self._mouse_enters_dragger(event))
+        canvas.tag_bind(self._tag_name, "<Leave>", lambda event: self._mouse_leaves_dragger(event))
         canvas.tag_bind(self._tag_name, "<Button-1>", lambda event: self._on_click(event))
         canvas.tag_bind(self._tag_name, "<B1-Motion>", lambda event: self._on_move(event))
         canvas.tag_bind(self._tag_name, "<ButtonRelease-1>", lambda event: self._on_release(event))
 
+    @abstractmethod
+    def create_drawer(self, marker_rect: AreaTuple, pixel_value: int, line_span: RangeTuple)\
+            -> Tuple[Callable, RangeTuple]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_allowed_for_other(self) -> Tuple[Optional[int], Optional[int]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def do_move(self, pixel_current: int):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_pixels_dragged(self, event, start_event):
+        raise NotImplementedError()
+
     def draw(self, marker_rect: AreaTuple, data_rect: AreaTuple,
-             margin: int, axis_range: AxisRange) -> Tuple[Callable, int, int]:
+             margin: int, axis_range: AxisRange) -> Tuple[Callable, RangeTuple]:
         """Draw the marker, and return the coordinates of the end of the connecting band."""
 
         # Note some things for use during dragging:
-        l, t, r, b = data_rect
 
-        self._pixel_range = l, r
-        self._line_span = t, b
+        self._pixel_range = self._helper.get_pixel_range(data_rect)
+        line_span: RangeTuple = self._helper.get_line_span(data_rect)
         self._axis_range = axis_range
 
-        x_pixels = self._value_to_pixel(self._axis_value)
-        self._pixel_value = x_pixels
+        pixel_value = self._value_to_pixel(self._axis_value)
+        self._pixel_value = pixel_value
 
-        line_lower, line_upper = self._line_span
-        marker_l, marker_t, marker_r, marker_b = marker_rect
-        dragger_height = int(abs(marker_t - marker_b) / 2)
+        return self.create_drawer(marker_rect, pixel_value, line_span)
 
-        # Create a closure to actually draw the marker:
-        def drawer() -> int:
-            lower, upper = self._pixel_range
-            if lower < x_pixels < upper:
-                self._line = self._canvas.create_line(x_pixels, line_lower, x_pixels, line_upper,
-                                                      fill=MARKER_COLOUR, width=1, dash=(2, 2))
+    def get_pixel_value(self) -> Optional[int]:
+        return self._pixel_value
 
-                # Draw the dragger:
-                self._polygon_id = None
-                w = int(dragger_height / TAN60)
-                if lower < x_pixels < upper:
-                    self._polygon_id = self._canvas.create_polygon(
-                        x_pixels, marker_b, x_pixels + w, marker_b - dragger_height,
-                                            x_pixels - w, marker_b - dragger_height,
-                        fill=MARKER_DRAGGER_COLOUR,
-                        outline=MARKER_DRAGGER_COLOUR,
-                        tags=[self._tag_name])
+    def get_axis_value(self) -> Optional[float]:
+        return self._axis_value
 
-                return self._polygon_id
-
-        # Return tuple: closure for drawing, bottom and top of marker for joining the band to.
-        return drawer, (marker_b, marker_b - dragger_height)
-
-    def mouse_enters_dragger(self, _):
+    def _mouse_enters_dragger(self, _):
         # Only if we aren't currently dragging - avoids cursor flicker during the drag.
         if self._start_event is None:
             self._saved_cursor = self._canvas.config('cursor')[-1]
-            self._canvas.config(cursor=self._DRAG_CURSOR)
+            self._canvas.config(cursor=DRAG_CURSOR)
 
-    def mouse_leaves_dragger(self, _):
+    def _mouse_leaves_dragger(self, _):
         # Only if we aren't currently dragging - avoids cursor flicker during the drag.
         if self._start_event is None and self._saved_cursor is not None:
             self._canvas.config(cursor=self._saved_cursor)
@@ -246,7 +233,7 @@ class TimeMarker(Marker, ABC):
         self._start_pixel_value = self._pixel_value
 
         # Set the cursor at the canvas level so it doesn't flicker during dragging:
-        self._canvas.config(cursor=self._DRAG_CURSOR)
+        self._canvas.config(cursor=DRAG_CURSOR)
 
         # Ask the other marker how much space we have to drag in:
         self._allowed_range = self._get_other().get_allowed_for_other()
@@ -259,20 +246,10 @@ class TimeMarker(Marker, ABC):
 
         # Event contains the coordinate of the current mouse position, not a delta.
 
-        x_resulting = self._calc_dragged(event)
-        # print("x_resulting = {}".format(x_resulting))
+        pixel_resulting = self._calc_dragged(event)
+        # print("pixel_resulting = {}".format(x_resulting))
 
-        self.do_move(x_resulting)
-
-    def do_move(self, x_current: int):
-        # Move the dragger object in the canvas, using the intrinsic move method
-        # which presumably is the most efficient way:
-        x_previous = self._pixel_value
-        dx = x_current - x_previous
-        self._canvas.move(self._polygon_id, dx, 0)
-        self._canvas.move(self._line, dx, 0)
-        self._pixel_value = x_current
-        self._axis_value = self._pixel_to_value(x_current)
+        self.do_move(pixel_resulting)
 
     def _on_release(self, event):
         # print("_on_release: {}".format(event))
@@ -291,28 +268,24 @@ class TimeMarker(Marker, ABC):
         """Figure out by how far they have dragged, clipping that to the allowed range."""
 
         # How far have we dragged since the start?
-        x_dragged = event.x - self._start_event.x
+        pixels_dragged = self.get_pixels_dragged(event, self._start_event)
 
         # Note that the event x is not the exact dragger position, it is where
         # the user clicked in the dragger, so most likely off centre. So, we apply the
         # delta to our start position:
-        x_resulting = self._start_pixel_value + x_dragged
+        pixels_resulting = self._start_pixel_value + pixels_dragged
 
         # Avoid colliding with the other marker:
         r_min, r_max = self._allowed_range
-        if r_min is not None and x_resulting < r_min:
-            x_resulting = r_min
-        if r_max is not None and x_resulting > r_max:
-            x_resulting = r_max
+        if r_min is not None and pixels_resulting < r_min:
+            pixels_resulting = r_min
+        if r_max is not None and pixels_resulting > r_max:
+            pixels_resulting = r_max
 
         # Confine to the pixel range of the axis:
-        x_resulting = self._pair.clip_to_pixel_range(x_resulting)
+        pixels_resulting = self._pair.clip_to_pixel_range(v=pixels_resulting)
 
-        return x_resulting
-
-    @abstractmethod
-    def get_allowed_for_other(self) -> Tuple[Optional[int], Optional[int]]:
-        raise NotImplementedError
+        return pixels_resulting
 
     def _value_to_pixel(self, v: float) -> int:
         lower, upper = self._pixel_range
@@ -325,10 +298,62 @@ class TimeMarker(Marker, ABC):
         return v
 
 
+class TimeMarker(AbstractMarker, ABC):
+    _CLEARANCE_PIXELS = 15
+
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+                 initial_axis_value: Optional[float], tag_name: str, get_other: Callable,
+                 helper: Type[AbstractHelper]):
+        super().__init__(canvas, pair, sgf, initial_axis_value, tag_name, get_other, helper)
+
+    def create_drawer(self, marker_rect: AreaTuple, pixel_value: int, line_span: RangeTuple)\
+            -> Tuple[Callable, RangeTuple]:
+
+        marker_l, marker_t, marker_r, marker_b = marker_rect
+        dragger_height = int(abs(marker_t - marker_b) / 2)
+        line_lower, line_upper = line_span
+
+        # Create a closure to actually draw the marker:
+        def drawer() -> int:
+            lower, upper = self._pixel_range
+            if lower < pixel_value < upper:
+                self._line = self._canvas.create_line(pixel_value, line_lower, pixel_value, line_upper,
+                                                      fill=MARKER_COLOUR, width=1, dash=(2, 2))
+
+                # Draw the dragger:
+                self._polygon_id = None
+                w = int(dragger_height / TAN60)
+                if lower < pixel_value < upper:
+                    self._polygon_id = self._canvas.create_polygon(
+                        pixel_value, marker_b,
+                        pixel_value + w, marker_b - dragger_height,
+                        pixel_value - w, marker_b - dragger_height,
+                        fill=MARKER_DRAGGER_COLOUR,
+                        outline=MARKER_DRAGGER_COLOUR,
+                        tags=[self._tag_name])
+
+                return self._polygon_id
+
+        return drawer, (marker_b, marker_b - dragger_height)
+
+    def do_move(self, x_current: int):
+        # Move the dragger object in the canvas, using the intrinsic move method
+        # which presumably is the most efficient way:
+        x_previous = self._pixel_value
+        dx = x_current - x_previous
+        self._canvas.move(self._polygon_id, dx, 0)
+        self._canvas.move(self._line, dx, 0)
+        self._pixel_value = x_current
+        self._axis_value = self._pixel_to_value(x_current)
+
+    def get_pixels_dragged(self, event, start_event):
+        return event.x - start_event.x
+
+
 class LowerTimeMarker(TimeMarker):
     def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
-                 axis_value: Optional[float], get_other: Callable):
-        super().__init__(canvas, pair, sgf, axis_value, "lower_marker", get_other)
+                 axis_value: Optional[float], get_other: Callable, helper: Type[AbstractHelper]):
+        super().__init__(canvas, pair, sgf, axis_value, "lower_marker", get_other, helper)
 
     def do_move(self, x: int):
         super().do_move(x)
@@ -341,9 +366,9 @@ class LowerTimeMarker(TimeMarker):
 
 
 class UpperTimeMarker(TimeMarker):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "TimeMarkerPair", sgf: "SpectrogramGraphFrame",
-                 axis_value: Optional[float], get_other: Callable):
-        super().__init__(canvas, pair, sgf, axis_value, "upper_marker", get_other)
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+                 axis_value: Optional[float], get_other: Callable, helper: Type[AbstractHelper]):
+        super().__init__(canvas, pair, sgf, axis_value, "upper_marker", get_other, helper)
 
     def do_move(self, x: int):
         super().do_move(x)
@@ -357,23 +382,24 @@ class UpperTimeMarker(TimeMarker):
 
 class MarkerPair(ABC):
     """Generic MarkerPair that doesn't know if it is vertical or horizontal."""
+
     def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",
-                 lower_marker: Marker, upper_marker: Marker, helper: Type[Helper]):
-        self._lower_marker: Marker = lower_marker
-        self._upper_marker: Marker = upper_marker
+                 lower_marker: AbstractMarker, upper_marker: AbstractMarker, helper: Type[AbstractHelper]):
+        self._lower_marker: AbstractMarker = lower_marker
+        self._upper_marker: AbstractMarker = upper_marker
         self._sgf = sgf
         self._canvas = canvas
         self._lower_id = self._upper_id = None
         self._lower_overflow_id = self._upper_overflow_id = None
         self._axis_range: Optional[AxisRange] = None
         self._axis_pixel_range: Optional[RangeTuple] = None
-        self._helper: Type[Helper] = helper
+        self._helper: Type[AbstractHelper] = helper
         self._band_rect: Optional[AreaTuple] = None
 
-    def get_lower_marker(self) -> Marker:
+    def get_lower_marker(self) -> AbstractMarker:
         return self._lower_marker
 
-    def get_upper_marker(self) -> Marker:
+    def get_upper_marker(self) -> AbstractMarker:
         return self._upper_marker
 
     def clip_to_pixel_range(self, v: int):
@@ -421,10 +447,11 @@ class TimeMarkerPair(MarkerPair):
 
     def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",
                  lower_value: Optional[float], upper_value: Optional[float]):
+        helper: Type[AbstractHelper] = TimeHelper()
         super().__init__(canvas, sgf,
-                         LowerTimeMarker(canvas, self, sgf, lower_value, self.get_upper_marker),
-                         UpperTimeMarker(canvas, self, sgf, upper_value, self.get_lower_marker),
-                         TimeHelper())
+                         LowerTimeMarker(canvas, self, sgf, lower_value, self.get_upper_marker, helper),
+                         UpperTimeMarker(canvas, self, sgf, upper_value, self.get_lower_marker, helper),
+                         helper)
 
     def do_move_lower(self, x: int):
         if self._band_rect is not None:
