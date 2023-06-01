@@ -433,9 +433,11 @@ class SpectrogramLayout(GraphLayout):
                     ]
     _y_axis_unit = [AxisUnit(scaler=1000.0, units="kHz")]
 
-    def __init__(self, font_height, canvas_width, canvas_height, time_marker_pair: Optional["TimeMarkerPair"]):
+    def __init__(self, font_height, canvas_width, canvas_height,
+                 time_marker_pair: Optional["TimeMarkerPair"], frequency_marker_pair: Optional["FrequencyMarkerPair"]):
         super().__init__(font_height, canvas_width, canvas_height)
         self._time_marker_pair: Optional["TimeMarkerPair"] = time_marker_pair
+        self._frequency_marker_pair: Optional["FrequencyMarkerPair"] = frequency_marker_pair
         self._x_axis = AxisLayout(AxisLayout.ORIENT_HORIZONTAL, font_height, "time", canvas_width,
                                   canvas_height, self._x_axis_unit)
         self._y_axis = AxisLayout(AxisLayout.ORIENT_VERTICAL, font_height, "frequency", canvas_width,
@@ -508,6 +510,13 @@ class SpectrogramLayout(GraphLayout):
                 ar -= self._margin
                 marker_rect = al, at, ar, ab
                 self._time_marker_pair.draw(marker_rect, self._data_area, self._margin, self._x_axis.get_axis_range())
+
+            if self._frequency_marker_pair is not None:
+                al, at, ar, ab = self._get_right_margin()
+                ab -= self._x_axis_height
+                at += self._margin
+                marker_rect = al, at, ar, ab
+                self._frequency_marker_pair.draw(marker_rect, self._data_area, self._margin, self._y_axis.get_axis_range())
 
         return draw_completer, self._data_area
 

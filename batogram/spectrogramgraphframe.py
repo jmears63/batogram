@@ -27,7 +27,7 @@ from . import layouts
 from .audiofileservice import RawDataReader, AudioFileService
 from .common import AxisRange, clip_to_range
 from .frames import GraphFrame, DrawableFrame
-from .markers import TimeMarkerPair
+from .markers import TimeMarkerPair, FrequencyMarkerPair
 from .spectrogrammouseservice import SpectrogramMouseService, CursorMode
 from .rendering import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
@@ -74,6 +74,7 @@ class SpectrogramGraphFrame(GraphFrame):
 
         # Optional time marker pair, depends whether the user has enable time markers or not:
         self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.2, 0.4)
+        self._frequency_marker_pair: Optional[FrequencyMarkerPair] = FrequencyMarkerPair(self._canvas, self, 20000, 50000)
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(MAIN_SPECTROGAM_COMPLETER_EVENT, self._do_completer)
@@ -118,6 +119,7 @@ class SpectrogramGraphFrame(GraphFrame):
             self._scroll_delta_frequency(delta, size)
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
+        # print("SpectrogramGraphFrame.draw()")
         super().draw(draw_scope)
 
         if not draw_scope & DrawableFrame.DRAW_SPECTROGRAM:
@@ -131,7 +133,8 @@ class SpectrogramGraphFrame(GraphFrame):
         self.update_idletasks()
 
         width, height = self.get_canvas_size()
-        self._layout = layouts.SpectrogramLayout(AXIS_FONT_HEIGHT, width, height, self._time_marker_pair)
+        self._layout = layouts.SpectrogramLayout(AXIS_FONT_HEIGHT, width, height,
+                                                 self._time_marker_pair, self._frequency_marker_pair)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
         graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range,
                                                        self._settings.show_grid,
@@ -164,7 +167,7 @@ class SpectrogramGraphFrame(GraphFrame):
             graph_completer()
 
         # Allow the screen update to happen:
-        self.update()
+        self.update_idletasks()
 
         self._canvas.notify_draw_complete()
 
