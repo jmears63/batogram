@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
+from typing import Tuple
 
 from .constants import MAIN_AMPLITUDE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
@@ -84,7 +85,7 @@ class AmplitudeGraphFrame(GraphFrame):
 
     @staticmethod
     def _get_pipeline_request(data, data_area, time_range: AxisRange, frequency_range: AxisRange,
-                              amplitude_range: AxisRange, screen_factors: tuple[float, float], rdr: RawDataReader):
+                              amplitude_range: AxisRange, screen_factors: Tuple[float, float], rdr: RawDataReader):
 
         request = AmplitudePipelineRequest(data_area, data, time_range, frequency_range,
                                            amplitude_range, screen_factors, rdr)

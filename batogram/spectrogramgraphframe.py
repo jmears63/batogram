@@ -209,7 +209,7 @@ class SpectrogramGraphFrame(GraphFrame):
 
     @staticmethod
     def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range,
-                              screen_factors: tuple[float, float],
+                              screen_factors: Tuple[float, float],
                               raw_data_reader: RawDataReader):
         request = SpectrogramPipelineRequest(is_reference, data_area, data, time_range, frequency_range, screen_factors,
                                              raw_data_reader)
@@ -477,7 +477,7 @@ class SpectrogramGraphFrame(GraphFrame):
     def get_canvas_size(self):
         return self._canvas.winfo_width(), self._canvas.winfo_height()
 
-    def calculate_screen_factors(self) -> tuple[float, float]:
+    def calculate_screen_factors(self) -> Tuple[float, float]:
         """
         Calculate:
          * the screen aspect factor in s/Hz that will be used for adaptive window

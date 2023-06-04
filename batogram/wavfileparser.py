@@ -207,7 +207,7 @@ class WavFileParser:
                                   data_range=(min_value, max_value),
                                   data_byte_count=data_byte_count)
 
-    def read_data(self, index_range: tuple[int, int]) -> tuple[Optional[np.ndarray], int]:
+    def read_data(self, index_range: Tuple[int, int]) -> Tuple[Optional[np.ndarray], int]:
         """Read the request range of data (half open), and return the data and actual count read."""
 
         dt = None

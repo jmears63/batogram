@@ -137,7 +137,7 @@ class TimeHelper(AbstractHelper):
         return (lower, band_pixel_width[1], upper, band_pixel_width[0]), (lower_clipped, upper_clipped)
 
     def draw_text_impl(self, canvas: "SpectrogramCanvas", band_rect: AreaTuple,
-                       text: list[str], is_clipped: Tuple[bool, bool]) -> List[int]:
+                       text: List[str], is_clipped: Tuple[bool, bool]) -> List[int]:
         l, t, r, b = band_rect
         text_id = None
         if len(text) > 0 and not is_clipped[0] and not is_clipped[1]:

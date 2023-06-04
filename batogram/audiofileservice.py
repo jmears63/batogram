@@ -20,7 +20,7 @@
 
 import os
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -39,7 +39,7 @@ class RawDataReader(ABC):
         pass
 
     @abstractmethod
-    def read_raw_data(self, index_range: tuple[int, int]) -> ndarray:
+    def read_raw_data(self, index_range: Tuple[int, int]) -> ndarray:
         """Read raw file data for the half open range provided."""
         raise NotImplementedError()
 
@@ -176,7 +176,7 @@ class AudioFileService(RawDataReader):
     def get_guano_data(self):
         return self._guano_data
 
-    def read_raw_data(self, index_range: tuple[int, int]) -> tuple[ndarray, int]:
+    def read_raw_data(self, index_range: Tuple[int, int]) -> Tuple[ndarray, int]:
         """
         Read raw file data for the half open range provided.
         Truncate the data to the actual range available from the file.

@@ -25,7 +25,7 @@ import tkinter.messagebox
 
 from itertools import chain
 from timeit import default_timer as timer
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Tuple
 from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
 from .appsettings import COLOUR_MAPS
@@ -346,7 +346,7 @@ class PanelFrame(tk.Frame):
         centred_time_range = AxisRange(existing_centre - new_half_span, existing_centre + new_half_span)
         self.on_rescale_handler(centred_time_range, frequency_range, add_breadcrumb=True)
 
-    def get_screen_factors(self) -> tuple[float, float]:
+    def get_screen_factors(self) -> Tuple[float, float]:
         # Calculate the screen aspect factor based on the spectrogram graph,
         # that will be used in adaptive window length calculations.
         return self._spectrogram_frame.calculate_screen_factors()

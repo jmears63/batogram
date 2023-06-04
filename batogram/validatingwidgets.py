@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 from abc import ABC, abstractmethod
-from typing import Any, Tuple, List, Callable
+from typing import Any, Tuple, List, Callable, Dict
 
 import numpy as np
 import tkinter as tk
@@ -336,9 +336,9 @@ class ValidatingFloatOptionMenu(ValidatingOptionMenu):
 
 class ValidatingMapOptionMenu(ValidatingOptionMenu):
     def __init__(self, parent: tk.Widget, controlling_frame: tk.Widget, container: tk.Widget,
-                 dictionary: dict[Any, str], value_validator=None):
+                 dictionary: Dict[Any, str], value_validator=None):
         self._dictionary = dictionary
-        keys: list[Any] = [k for k in dictionary.keys()]
+        keys: List[Any] = [k for k in dictionary.keys()]
         keys.sort()
         values = [dictionary[k] for k in keys]
         super().__init__(parent, controlling_frame, container, tuple(values), value_validator)

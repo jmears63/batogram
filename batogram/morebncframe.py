@@ -163,7 +163,7 @@ class ScaleCanvas(tk.Canvas):
     def __init__(self, parent):
         super().__init__(parent, bg="black", height=15, width=CANVAS_WIDTH)
 
-    def set_scale_pixels(self, prange: Optional[tuple[int, int]]):
+    def set_scale_pixels(self, prange: Optional[Tuple[int, int]]):
         """Draw a colour mapped scale."""
         width, height = self.winfo_width(), self.winfo_height()
 
@@ -198,14 +198,14 @@ class Dragger:
         self._which = which  # Which dragger are we? Maybe a subclass would be cleaner, but hey ho.
         self._rectangle: Optional[int] = None  # The rectangle drawn on the canvas, if any.
         # _pos is the position we were originally drawn at:
-        self._pos: Optional[tuple[int, int]] = None
+        self._pos: Optional[Tuple[int, int]] = None
         # _moved is the position have been moved to, updated during a drag:
-        self._moved: Optional[tuple[int, int]] = None
+        self._moved: Optional[Tuple[int, int]] = None
 
         self._start_event: Optional[Any] = None  # If this is non None, we know we are currently dragging.
         self._width: Optional[int] = None
         self._height: Optional[int] = None
-        self._allowed_x_range: Optional[tuple[int, int]] = None
+        self._allowed_x_range: Optional[Tuple[int, int]] = None
 
         canvas.tag_bind(self._tag_name, "<Enter>", lambda event: self.mouse_enters_dragger(event))
         canvas.tag_bind(self._tag_name, "<Leave>", lambda event: self.mouse_leaves_dragger(event))
@@ -213,10 +213,10 @@ class Dragger:
         canvas.tag_bind(self._tag_name, "<B1-Motion>", lambda event: self._on_move(event))
         canvas.tag_bind(self._tag_name, "<ButtonRelease-1>", lambda event: self._on_release(event))
 
-    def get_pos(self) -> tuple[int, int]:
+    def get_pos(self) -> Tuple[int, int]:
         return self._pos
 
-    def show(self, pos: tuple[int, int]):
+    def show(self, pos: Tuple[int, int]):
         self._width, self._height = self._canvas.winfo_width(), self._canvas.winfo_height()
         # Get rid of any dragger we have previously drawn:
         self._canvas.delete(self._tag_name)
@@ -323,12 +323,12 @@ class BnCLine:
         self._draggers: List[Dragger] = [self._min_dragger, self._max_dragger]
 
         self._line: Optional[int] = None       # The line object in the canvas.
-        self._prange: Optional[tuple[int, int]] = None     # The x pixel range spanned by the line.
+        self._prange: Optional[Tuple[int, int]] = None     # The x pixel range spanned by the line.
 
         self._width: Optional[int] = None      # Cache the canvas size for convenience.
         self._height: Optional[int] = None
 
-    def show(self, prange: tuple[int, int], with_draggers: bool):
+    def show(self, prange: Tuple[int, int], with_draggers: bool):
         """
         Draw or remove the BnC line, with or without draggers according to mode.
         """
@@ -348,7 +348,7 @@ class BnCLine:
         else:
             self._hide_draggers()
 
-    def _draw_line(self, prange: tuple[int, int]):
+    def _draw_line(self, prange: Tuple[int, int]):
         pmin, pmax = prange
         # Delete any existing line:
         if self._line is not None:
@@ -413,7 +413,7 @@ class BnCLine:
         # Tell the canvas about the change:
         self._histogram_canvas.on_bnc_interactive_change((min_x, max_x))
 
-    def get_allowed_range(self, which_asking: int) -> tuple[int, int]:
+    def get_allowed_range(self, which_asking: int) -> Tuple[int, int]:
         """A dragger calls this method to get the range of x values which we will
         allow it to have."""
         min_spacing = 5
@@ -483,7 +483,7 @@ class HistogramCanvas(tk.Canvas):
 
         self._reset_histogram()
 
-    def on_bnc_interactive_change(self, prange: tuple[int, int]):
+    def on_bnc_interactive_change(self, prange: Tuple[int, int]):
         # Scale the pixels to values:
         vrange: Optional[Tuple[float, float]] = self._pixels_to_values(prange)
         if vrange is not None:
@@ -548,7 +548,7 @@ class HistogramCanvas(tk.Canvas):
         # Convert the value range provided to a pixel range. Pixels
         # correspond to bin edges:
         vrange = self._settings.bnc_manual_min, self._settings.bnc_manual_max
-        prange: Optional[tuple[int, int]] = self._values_to_pixels(vrange)
+        prange: Optional[Tuple[int, int]] = self._values_to_pixels(vrange)
         interactive_mode: bool = self._settings.bnc_adjust_type == BNC_INTERACTIVE_MODE
         self._is_interactive_mode = interactive_mode
         if prange is not None:
@@ -577,7 +577,7 @@ class HistogramCanvas(tk.Canvas):
             else:
                 self._bnc_line.on_wheel_move(-self._WHEEL_DELTA)
 
-    def _values_to_pixels(self, vrange: tuple[float, float]) -> Optional[Tuple[int, int]]:
+    def _values_to_pixels(self, vrange: Tuple[float, float]) -> Optional[Tuple[int, int]]:
         prange: Optional[Tuple[int, int]] = None
         if self._bin_edges is not None:
             vmin, vmax = vrange
@@ -634,7 +634,7 @@ class HistogramFrame(tk.Frame, HistogramInterface):
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=0)
 
-    def on_bnc_interactive_change(self, vrange: tuple[float, float]):
+    def on_bnc_interactive_change(self, vrange: Tuple[float, float]):
         """Respond to a manual change to BnC from the histogram: dragging or mouse wheel."""
         self._settings.bnc_manual_min, self._settings.bnc_manual_max = vrange
         # Tell whomever it may concern that new settings values are available,

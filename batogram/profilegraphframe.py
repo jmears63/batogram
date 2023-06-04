@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
+from typing import Tuple
 
 from .constants import MAIN_PROFILE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
@@ -82,7 +83,7 @@ class ProfileGraphFrame(GraphFrame):
             graph_completer()
 
     @staticmethod
-    def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range, screen_factors: tuple[float, float], rdr: RawDataReader):
+    def _get_pipeline_request(is_reference: bool, data, data_area, time_range, frequency_range, screen_factors: Tuple[float, float], rdr: RawDataReader):
         request = ProfilePipelineRequest(is_reference, data_area, data, time_range, frequency_range, screen_factors, rdr)
         return request
 

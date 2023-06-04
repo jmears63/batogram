@@ -226,7 +226,7 @@ class PipelineStep:
 
 class SpectrogramPipelineRequest(RenderingRequest):
     def __init__(self, is_reference: bool, data_area, file_data: AudioFileService.RenderingData, time_range: AxisRange,
-                 frequency_range: AxisRange, screen_factors: tuple[float, float],
+                 frequency_range: AxisRange, screen_factors: Tuple[float, float],
                  raw_data_reader: RawDataReader):
         super().__init__(data_area, file_data)
         self.axis_time_range: AxisRange = time_range
@@ -297,7 +297,7 @@ class SpectrogramCalcData:
     step_count: int
 
     def __init__(self, settings: GraphSettings, axis_time_range: AxisRange, axis_frequency_range: AxisRange,
-                 file_data: AudioFileService.RenderingData, screen_factors: tuple[float, float],
+                 file_data: AudioFileService.RenderingData, screen_factors: Tuple[float, float],
                  canvas_width: int, canvas_height: int):
         """
             Do all the scale and offset calculations we will need to render a spectrogram.
@@ -453,7 +453,7 @@ class SpectrogramCalcData:
         self.freq_offset_pixels: int = int((freq_axis_min - self.actual_freq_axis_min) * pixels_per_hz + 0.5)
 
     @staticmethod
-    def _calculate_auto_fft_samples(sample_rate: int, screen_factors: tuple[float, float]) -> int:
+    def _calculate_auto_fft_samples(sample_rate: int, screen_factors: Tuple[float, float]) -> int:
         """Select a number of FFT samples that roughly results in square image elements on the screen."""
 
         # Overlapping of windows increases the resultant sample rate:
@@ -553,7 +553,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         self._apply_colour_map_step = SpectrogramApplyColourMapStep(settings)
 
         # Remember info about the last histogram data, so we know if there is any change to it:
-        self._last_histogram_data_details: tuple[int, int] | None = None
+        self._last_histogram_data_details: Tuple[int, int] | None = None
 
     def get_completion_data(self):
         return self._completion_data
@@ -984,7 +984,7 @@ class SpectrogramApplyColourMapStep(PipelineStep):
 class AmplitudePipelineRequest(RenderingRequest):
     def __init__(self, data_area, file_data: AudioFileService.RenderingData, time_range: AxisRange,
                  frequency_range: AxisRange,
-                 amplitude_range: AxisRange, screen_factors: tuple[float, float], rdr: RawDataReader):
+                 amplitude_range: AxisRange, screen_factors: Tuple[float, float], rdr: RawDataReader):
         super().__init__(data_area, file_data)
         self.time_range: AxisRange = time_range
         self.amplitude_range: AxisRange = amplitude_range
