@@ -228,7 +228,7 @@ class SettingsNotebook(ttk.Notebook, HistogramInterface):
         self.add(self._guano_frame, text="GUANO Metadata")
 
         self._axis_frame = ScaleFrame(self, button_frame, settings, pad)
-        self.add(self._axis_frame, text="Scaling")
+        self.add(self._axis_frame, text="Scale")
 
         self._bnc_frame = BrightnessContrastFrame(self, button_frame, settings, pad)
         self.add(self._bnc_frame, text="Brightness/Contrast")

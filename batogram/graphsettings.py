@@ -79,6 +79,8 @@ class GraphSettings:
     bnc_background_threshold_percent: float
     bnc_manual_min: float  # bnc manual min and max are percentages of the data range.
     bnc_manual_max: float
+    show_time_markers: bool
+    show_frequency_markers: bool
 
     def __init__(self,
                  on_app_modified_settings: Callable[[int], NoReturn],
@@ -99,6 +101,8 @@ class GraphSettings:
         self.bnc_adjust_type = BNC_ADAPTIVE_MODE
         self.bnc_background_threshold_percent = 80.0
         self.bnc_manual_min, self.bnc_manual_max = 0.0, 1.0
+        self.show_time_markers = False
+        self.show_frequency_markers = False
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""
@@ -112,3 +116,7 @@ class GraphSettings:
         # Always start with auto BnC, so that the manual range
         # gets initialized to something sensible:
         self.bnc_adjust_type = BNC_ADAPTIVE_MODE
+        # Always start with markers disabled: any existing marker positions may be outside
+        # the range of view:
+        self.show_time_markers = False
+        self.show_frequency_markers = False

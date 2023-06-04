@@ -72,9 +72,11 @@ class SpectrogramGraphFrame(GraphFrame):
 
         self._parent = parent
 
-        # Optional time marker pair, depends whether the user has enable time markers or not:
-        self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.2, 0.4)
-        self._frequency_marker_pair: Optional[FrequencyMarkerPair] = FrequencyMarkerPair(self._canvas, self, 20000, 50000)
+        # Optional time marker pair, depends whether the user has enabled time markers or not:
+        self._time_marker_pair: Optional[TimeMarkerPair] = None
+        self._frequency_marker_pair: Optional[FrequencyMarkerPair] = None
+        # self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.2, 0.4)
+        # self._frequency_marker_pair: Optional[FrequencyMarkerPair] = FrequencyMarkerPair(self._canvas, self, 20000, 50000)
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(MAIN_SPECTROGAM_COMPLETER_EVENT, self._do_completer)
@@ -129,12 +131,15 @@ class SpectrogramGraphFrame(GraphFrame):
         afs_data = self._dc.get_afs_data()
 
         # Allow the canvas to catch up with any pending resizes so that we get the right
-        # size below:        self._parent = parent
+        # size below:
         self.update_idletasks()
+
+        self._show_hide_markers(time_range, frequency_range)
 
         width, height = self.get_canvas_size()
         self._layout = layouts.SpectrogramLayout(AXIS_FONT_HEIGHT, width, height,
                                                  self._time_marker_pair, self._frequency_marker_pair)
+
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
         graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range,
                                                        self._settings.show_grid,
@@ -170,6 +175,27 @@ class SpectrogramGraphFrame(GraphFrame):
         self.update_idletasks()
 
         self._canvas.notify_draw_complete()
+
+    def _show_hide_markers(self, time_range: AxisRange, frequency_range: AxisRange):
+        """Create or destory markers depending on the settings."""
+
+        if self._settings.show_time_markers:
+            if self._time_marker_pair is None:
+                # Create a marker pair that is visible in the current time scale:
+                delta = time_range.max - time_range.min
+                self._time_marker_pair = TimeMarkerPair(self._canvas, self,
+                                                        time_range.min + delta / 3, time_range.max - delta / 3)
+        else:
+            self._time_marker_pair = None
+
+        if self._settings.show_frequency_markers:
+            if self._frequency_marker_pair is None:
+                # Create a marker pair that is visible in the current frequency scale:
+                delta = frequency_range.max - frequency_range.min
+                self._frequency_marker_pair = FrequencyMarkerPair(self._canvas, self,
+                                                                  frequency_range.min + delta / 3, frequency_range.max - delta / 3)
+        else:
+            self._frequency_marker_pair = None
 
     def set_cursor_mode(self, mode):
         if mode == CursorMode.CURSOR_ZOOM:

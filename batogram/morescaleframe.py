@@ -78,14 +78,20 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
                                             scaler=self._FREQUENCY_SCALER, value_validator=f_max_validator)
         self._f_max.grid(row=2, column=2, padx=pad)
 
-        self._show_grid_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, "Show grid")
-        self._show_grid_checkbutton.grid(row=1, column=4, padx=pad, sticky="W")
+        self._show_time_markers_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, "Show markers")
+        self._show_time_markers_checkbutton.grid(row=1, column=4, padx=pad, sticky="W")
+
+        self._show_frequency_markers_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, "Show markers")
+        self._show_frequency_markers_checkbutton.grid(row=2, column=4, padx=pad, sticky="W")
 
         self._zero_based_time_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, "Zero based time")
         self._zero_based_time_checkbutton.grid(row=1, column=5, padx=pad, sticky="W")
 
+        self._show_grid_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, "Show grid")
+        self._show_grid_checkbutton.grid(row=3, column=1, padx=pad, sticky="W")
+
         self._show_profile_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, text="Show profile")
-        self._show_profile_checkbutton.grid(row=2, column=4, padx=pad, sticky="W")
+        self._show_profile_checkbutton.grid(row=3, column=2, padx=pad, sticky="W")
 
         self.copy_settings_to_widgets()
 
@@ -98,6 +104,8 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
         self._show_grid_checkbutton.set_value(self._settings.show_grid)
         self._zero_based_time_checkbutton.set_value(self._settings.zero_based_time)
         self._show_profile_checkbutton.set_value(self._settings.show_profile)
+        self._show_time_markers_checkbutton.set_value(self._settings.show_time_markers)
+        self._show_frequency_markers_checkbutton.set_value(self._settings.show_frequency_markers)
 
     def copy_widgets_to_settings(self):
         # Update the settings values from the UI:
@@ -108,3 +116,5 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
         self._settings.show_grid = self._show_grid_checkbutton.get_value()
         self._settings.zero_based_time = self._zero_based_time_checkbutton.get_value()
         self._settings.show_profile = self._show_profile_checkbutton.get_value()
+        self._settings.show_time_markers = self._show_time_markers_checkbutton.get_value()
+        self._settings.show_frequency_markers = self._show_frequency_markers_checkbutton.get_value()
