@@ -79,6 +79,12 @@ up screen rendering somewhat.
 If you check "zero based time", the time axis will always start from zero, however you pan or zoom
 the spectrogram. This is makes the time axis a little easier to read, but is a matter of taste.
 
+You may enable time or frequency markers to allow values and ranges to be conveniently read off a graph,
+as shown below. Draw the yellow markers to move the datum lines.
+
+![img.png](markers.png)
+
+
 ## Brightness and Contrast
 
 The Brightness/Contrast tab allows you to determine how spectral power is mapped to
