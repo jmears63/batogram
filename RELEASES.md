@@ -1,4 +1,4 @@
-### Release 1.0.8
+### Release 1.0.9
 * Added support for manually placed time and frequency markers to read spans off the graph.
 * Resizing of main window is now more responsive, especially on Windows.
 
