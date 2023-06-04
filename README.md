@@ -10,6 +10,7 @@ Some capabilities and features:
 * Auto selection of many parameters for simple operation.
 * Efficient rendering with graceful handling of larger data files.
 * Pan and scale using the mouse, keys or by manual selection.
+* Graphical markers allow time and frequency ranges to be conveniently read.
 * Handling of multichannel data files, including stereo.
 * Ability to correct for microphone frequency response.
 * Basic side by side comparison of two spectrograms.

@@ -1,3 +1,7 @@
+### Release 1.0.8
+* Added support for manually placed time and frequency markers to read spans off the graph.
+* Resizing of main window is now more responsive, especially on Windows.
+
 ### Release 1.0.7
 Various minor improvements and fixes:
 * Microphone frequency response can corrected by providing a CSV calibration file.   
