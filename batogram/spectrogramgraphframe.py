@@ -51,6 +51,38 @@ class SpectrogramCanvas(tk.Canvas):
         self._mouse_service.preempt_mouse(preempt)
 
 
+class RightMouseMenu(tk.Menu):
+    def __init__(self, parent: "SpectrogramGraphFrame", screen_pos: Tuple[int, int], canvas_pos: Tuple[int, int],
+                 settings: "GraphSettings"):
+        super().__init__(parent, tearoff=0)
+
+        self._screen_pos = screen_pos
+
+        is_region: bool = False
+        region_option_state = tk.ACTIVE if is_region else tk.DISABLED
+        position_option_state = tk.DISABLED if is_region else tk.ACTIVE
+
+        # Adding Menu Items
+        self.add_command(label="Place left marker", state=position_option_state,
+                         command=lambda: parent.on_place_left_marker(canvas_pos))
+        self.add_command(label="Place right marker", state=position_option_state,
+                         command=lambda: parent.on_place_right_marker(canvas_pos))
+        self.add_command(label="Hide markers",
+                         state=tk.ACTIVE if (settings.show_time_markers or settings.show_frequency_markers) and not is_region else tk.DISABLED,
+                         command=lambda: parent.on_hide_markers())
+        self.add_command(label="Zoom to region", state=region_option_state)
+        self.add_command(label="Place markers around region", state=region_option_state)
+        self.add_command(label="Cancel")
+
+    def show(self):
+        try:
+            # Locate relative to the entire screen:
+            self.tk_popup(*self._screen_pos , 0)     # Locate menu entry zero at the point provided.
+        finally:
+            # Release the grab
+            self.grab_release()
+
+
 class SpectrogramGraphFrame(GraphFrame):
     """A graph frame containing a spectrogram."""
 
@@ -496,3 +528,20 @@ class SpectrogramGraphFrame(GraphFrame):
         pixels_per_second = width / dt
 
         return window_factor, pixels_per_second
+
+    def on_button3_click(self, pos: Tuple[int, int]):
+        screen_pos = self._canvas.winfo_rootx() + pos[0], self._canvas.winfo_rooty() + pos[1]
+        menu = RightMouseMenu(self, screen_pos, pos, self._settings)
+        menu.show()
+
+    def on_place_left_marker(self, pos: Tuple[int, int]):
+        pass
+
+    def on_place_right_marker(self, pos: Tuple[int, int]):
+        pass
+
+    def on_hide_markers(self):
+        self._settings.show_time_markers = False
+        self._settings.show_frequency_markers = False
+        self._settings.on_app_modified_settings()
+        self.draw()

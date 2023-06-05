@@ -57,9 +57,9 @@ class SpectrogramMouseService:
     # to be part of the same zoom operation, and only recentre initially.
     _WHEEL_TIMEOUT = 1.0
 
-    def __init__(self, canvas: tk.Canvas, initial_cursor_mode, graph_frame):
+    def __init__(self, canvas: tk.Canvas, initial_cursor_mode, graph_frame: "SpectrogramGraphFrame"):
         self._cursor_mode = initial_cursor_mode
-        self._graph_frame = graph_frame
+        self._graph_frame: "SpectrogramGraphFrame" = graph_frame
         self._canvas = canvas
 
         self._state: MouseState = MouseState.START
@@ -171,12 +171,15 @@ class SpectrogramMouseService:
 
     def _on_button3_press(self, _):
         # print("3+")
+        # Button three can cancel a button 1 drag. But this is quite hard to do, so probably
+        # not worth preserving.
         if self._state == MouseState.LEFT_DRAGGING:
             self._reset()
 
     def _on_button3_release(self, event):
         # print("3-")
-        pass
+        pos = event.x, event.y
+        self._graph_frame.on_button3_click(pos)
 
     def _on_button3_move(self, event):
         pass
