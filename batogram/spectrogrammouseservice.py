@@ -43,7 +43,7 @@ class DragMode(Enum):
 
 class MouseState(Enum):
     START = 1
-    LEFT_DRAGGING = 2
+    LEFTRIGHT_DRAGGING = 2
     MIDDLE_DRAGGING = 3
 
 
@@ -92,8 +92,11 @@ class SpectrogramMouseService:
 
         # Right mouse button:
         canvas.bind('<ButtonPress-3>', self._on_button3_press)
+        canvas.bind('<Shift-ButtonPress-3>', self._on_button3_press)
         canvas.bind('<ButtonRelease-3>', self._on_button3_release)
+        canvas.bind('<Shift-ButtonRelease-3>', self._on_shift_button3_release)
         canvas.bind('<B3-Motion>', self._on_button3_move)
+        canvas.bind('<Shift-B3-Motion>', self._on_shift_button3_move)
 
         # Any mouse motion:
         canvas.bind('<Motion>', self._on_move)
@@ -112,7 +115,7 @@ class SpectrogramMouseService:
             return
 
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_press(event)
+            self._on_select_press(event)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_press(event)
 
@@ -121,7 +124,7 @@ class SpectrogramMouseService:
         if self._preempted:
             return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_move(event, is_shift=False)
+            self._on_select_move(event, is_shift=False)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_move(event, is_shift=False)
 
@@ -129,7 +132,7 @@ class SpectrogramMouseService:
         if self._preempted:
             return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_move(event, is_shift=True)
+            self._on_select_move(event, is_shift=True)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_move(event, is_shift=True)
 
@@ -137,7 +140,7 @@ class SpectrogramMouseService:
         if self._preempted:
             return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_release(event, is_shift=False)
+            self._on_select_release(event, is_shift=False, is_button1=True)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_release(event, is_shift=False)
 
@@ -145,9 +148,38 @@ class SpectrogramMouseService:
         if self._preempted:
             return
         if self._cursor_mode == CursorMode.CURSOR_ZOOM:
-            self._on_zoom_release(event, is_shift=True)
+            self._on_select_release(event, is_shift=True)
         elif self._cursor_mode == CursorMode.CURSOR_PAN:
             self._on_pan_release(event, is_shift=True)
+
+    def _on_button3_press(self, event):
+        # print("3+")
+        if self._preempted:
+            return
+
+        self._on_select_press(event)
+
+    def _on_button3_move(self, event):
+        # print("SpectrogramMouseService._on_button3_move")
+        if self._preempted:
+            return
+        self._on_select_move(event, is_shift=False)
+
+    def _on_shift_button3_move(self, event):
+        if self._preempted:
+            return
+        self._on_select_move(event, is_shift=True)
+
+    def _on_button3_release(self, event):
+        # print("3-")
+        pos = event.x, event.y
+        self._on_select_release(event, is_shift=False, is_button1=False)
+
+    def _on_shift_button3_release(self, event):
+        # print("SpectrogramMouseService._on_shift_button3_release")
+        if self._preempted:
+            return
+        self._on_select_release(event, is_shift=True)
 
     def _on_button2_press(self, event):
         # print("2+")
@@ -168,21 +200,6 @@ class SpectrogramMouseService:
     def _on_shift_button2_move(self, event):
         # print("B2 move")
         self._on_pan_move(event, is_shift=True)
-
-    def _on_button3_press(self, _):
-        # print("3+")
-        # Button three can cancel a button 1 drag. But this is quite hard to do, so probably
-        # not worth preserving.
-        if self._state == MouseState.LEFT_DRAGGING:
-            self._reset()
-
-    def _on_button3_release(self, event):
-        # print("3-")
-        pos = event.x, event.y
-        self._graph_frame.on_button3_click(pos)
-
-    def _on_button3_move(self, event):
-        pass
 
     def _on_wheel(self, event):
         # print("wheel {}".format(event))
@@ -239,7 +256,8 @@ class SpectrogramMouseService:
         self._canvas.bind("<MouseWheel>", self._on_wheel)
         self._canvas.bind("<Shift-MouseWheel>", self._on_shift_wheel)
 
-    def _on_zoom_drag_complete(self, start: Tuple[int, int], end: Tuple[int, int], mode: DragMode):
+    def _on_select_drag_complete(self, start: Tuple[int, int], end: Tuple[int, int],
+                                 mode: DragMode, is_button1: bool):
         """
         * Coordinates provided are relative to the top left corner of the canvas.
         * "start" and "end" are not in any particular order.
@@ -261,8 +279,15 @@ class SpectrogramMouseService:
         elif mode == DragMode.DRAG_RECTANGLE:
             pass
 
-    # Notify whoever it concerns that they need to rescale to the area selected:
-        self._graph_frame.on_zoom_to_rect((l, t, r, b))
+        if is_button1:
+            # If a significant area was selected:
+            if mode:
+                # Notify whoever it concerns that they need to rescale to the area selected:
+                self._graph_frame.on_zoom_to_rect((l, t, r, b))
+        else:
+            # Display a menu of options:
+            self._graph_frame.do_mouse_menu(end, mode)
+            pass
 
     def _reset(self):
         self._state = MouseState.START
@@ -270,15 +295,15 @@ class SpectrogramMouseService:
         self._last_drag_mode = None
         self._delete_canvas_items()
 
-    def _on_zoom_press(self, event):
+    def _on_select_press(self, event):
         self._reset()
         self._canvas_height = self._canvas.winfo_height()
         self._canvas_width = self._canvas.winfo_width()
-        self._state = MouseState.LEFT_DRAGGING
+        self._state = MouseState.LEFTRIGHT_DRAGGING
         self._start_position = event.x, event.y
 
-    def _on_zoom_move(self, event, is_shift: bool):
-        if self._state == MouseState.LEFT_DRAGGING:
+    def _on_select_move(self, event, is_shift: bool):
+        if self._state == MouseState.LEFTRIGHT_DRAGGING:
             # If this is not the first move event, we need to delete the previous rectangle we drew:
             self._delete_canvas_items()
             mode: DragMode = self._get_drag_mode(event, is_shift)
@@ -301,15 +326,13 @@ class SpectrogramMouseService:
                     self._rect = self._canvas.create_rectangle(*self._start_position, event.x, event.y,
                                                                outline=DRAG_RECTANGLE_COLOUR)
 
-    def _on_zoom_release(self, event, is_shift: bool):
+    def _on_select_release(self, event, is_shift: bool, is_button1: bool):
         self._delete_canvas_items()
-        if self._state == MouseState.LEFT_DRAGGING:
+        if self._state == MouseState.LEFTRIGHT_DRAGGING:
             self._state = MouseState.START
             end = event.x, event.y
-            if self._start_position != end:
-                mode = self._get_drag_mode(event, is_shift)
-                if mode is not None:
-                    self._on_zoom_drag_complete(self._start_position, end, mode)
+            mode = self._get_drag_mode(event, is_shift)
+            self._on_select_drag_complete(self._start_position, end, mode, is_button1)
 
             self._start_position = None
 

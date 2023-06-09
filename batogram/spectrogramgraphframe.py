@@ -28,7 +28,7 @@ from .audiofileservice import RawDataReader, AudioFileService
 from .common import AxisRange, clip_to_range
 from .frames import GraphFrame, DrawableFrame
 from .markers import TimeMarkerPair, FrequencyMarkerPair
-from .spectrogrammouseservice import SpectrogramMouseService, CursorMode
+from .spectrogrammouseservice import SpectrogramMouseService, CursorMode, DragMode
 from .rendering import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
 
@@ -53,25 +53,31 @@ class SpectrogramCanvas(tk.Canvas):
 
 class RightMouseMenu(tk.Menu):
     def __init__(self, parent: "SpectrogramGraphFrame", screen_pos: Tuple[int, int], canvas_pos: Tuple[int, int],
-                 settings: "GraphSettings"):
+                 settings: "GraphSettings", drag_mode: DragMode):
         super().__init__(parent, tearoff=0)
 
         self._screen_pos = screen_pos
 
-        is_region: bool = False
+        # If drag mode is undefined, a point was clicked:
+        is_region: bool = True if drag_mode else False
+
         region_option_state = tk.ACTIVE if is_region else tk.DISABLED
         position_option_state = tk.DISABLED if is_region else tk.ACTIVE
 
         # Adding Menu Items
+        self.add_command(label="Zoom to region", state=region_option_state)
+        self.add_command(label="Place markers around region", state=region_option_state)
         self.add_command(label="Place left marker", state=position_option_state,
                          command=lambda: parent.on_place_left_marker(canvas_pos))
+        self.add_command(label="Place top marker", state=position_option_state,
+                         command=lambda: parent.on_place_right_marker(canvas_pos))
         self.add_command(label="Place right marker", state=position_option_state,
                          command=lambda: parent.on_place_right_marker(canvas_pos))
+        self.add_command(label="Place bottom marker", state=position_option_state,
+                         command=lambda: parent.on_place_bottom_marker(canvas_pos))
         self.add_command(label="Hide markers",
                          state=tk.ACTIVE if (settings.show_time_markers or settings.show_frequency_markers) and not is_region else tk.DISABLED,
                          command=lambda: parent.on_hide_markers())
-        self.add_command(label="Zoom to region", state=region_option_state)
-        self.add_command(label="Place markers around region", state=region_option_state)
         self.add_command(label="Cancel")
 
     def show(self):
@@ -529,15 +535,21 @@ class SpectrogramGraphFrame(GraphFrame):
 
         return window_factor, pixels_per_second
 
-    def on_button3_click(self, pos: Tuple[int, int]):
+    def do_mouse_menu(self, pos: Tuple[int, int], drag_mode: DragMode):
         screen_pos = self._canvas.winfo_rootx() + pos[0], self._canvas.winfo_rooty() + pos[1]
-        menu = RightMouseMenu(self, screen_pos, pos, self._settings)
+        menu = RightMouseMenu(self, screen_pos, pos, self._settings, drag_mode)
         menu.show()
 
     def on_place_left_marker(self, pos: Tuple[int, int]):
         pass
 
+    def on_place_top_marker(self, pos: Tuple[int, int]):
+        pass
+
     def on_place_right_marker(self, pos: Tuple[int, int]):
+        pass
+
+    def on_place_bottom_marker(self, pos: Tuple[int, int]):
         pass
 
     def on_hide_markers(self):
