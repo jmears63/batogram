@@ -25,7 +25,6 @@ from dataclasses import dataclass
 from typing import List, Callable, Any, Tuple, Optional
 from .external.guano import GuanoFile
 
-
 class WavFileError(Exception):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, *kwargs)
@@ -159,6 +158,9 @@ class WavFileParser:
             print("Discarding {} excess bytes from the end of fmt".format(excess_data))
             self._f.read(excess_data)
 
+        if self._is_odd(chunk_size):
+            self._read_int8("padding")      # Allow for padding 0 byte if the chunk is an odd length. Actually, it isn't.
+
         return WavFileParser.Header(num_channels=num_channels, sample_rate_hz=sample_rate_hz,
                                     bits_per_sample=bits_per_sample)
 
@@ -200,8 +202,10 @@ class WavFileParser:
         actual_sample_count: int = samples_read
 
         # We have been seeking around in the file to read data, so we need
-        # to seek to the end of data chunk now to not confused the caller:
+        # to seek to the end of data chunk now to not confuse the caller:
         self._f.seek(self._start_of_data + data_byte_count)
+        if self._is_odd(data_byte_count):
+            self._read_int8("padding")      # Allow for padding 0 byte if the chunk is an odd length.
 
         return WavFileParser.Data(actual_sample_count=actual_sample_count,
                                   data_range=(min_value, max_value),
@@ -246,6 +250,9 @@ class WavFileParser:
             actual_samples_read = int(actual_values_read / self._fmt_header.num_channels)
             data = data.reshape((actual_samples_read, self._fmt_header.num_channels))
 
+        if self._is_odd(actual_samples_read * bytes_per_sample):
+            self._read_int8("padding")      # Allow for padding 0 byte if the chunk is an odd length.
+
         return data, actual_samples_read
 
     def _read_guan(self) -> Optional[GuanoFile]:
@@ -259,13 +266,18 @@ class WavFileParser:
         # for key, value in gf.items():
         #    print('{}: {}'.format(key, value))
 
+        if self._is_odd(chunk_size_bytes):
+            self._read_int8("padding")      # Allow for padding 0 byte if the chunk is an odd length.
+
         return gf
 
     def _skip_chunk(self):
         """Consume and ignore an entire chunk, assuming the chunk id has already been read."""
-        chunk_size = self._read_int32("ChunkSize")
+        bytes_to_skip = self._read_int32("ChunkSize")
+        if self._is_odd(bytes_to_skip):
+            bytes_to_skip += 1      # Allow for padding 0 byte if the chunk is an odd length.
         t = self._f.tell()
-        self._f.seek(t + chunk_size)
+        self._f.seek(t + bytes_to_skip)
 
     def _check_value(self, fieldname: str, value, check: Callable, text: str):
         if not check(value):
@@ -288,6 +300,14 @@ class WavFileParser:
                                .format(fieldname, self._filepath, n, expected))
         return n
 
+    def _read_int8(self, fieldname: str, expected: Optional[int] = None) -> int:
+        b = self._f.read(1)
+        n = int.from_bytes(b, byteorder='little')
+        if expected is not None and n != expected:
+            raise WavFileError("Unexpected value for {} in {}: found {}, expected {}"
+                               .format(fieldname, self._filepath, n, expected))
+        return n
+
     def _read_text_bytes(self, length, fieldname, expected: Optional[bytes] = None) -> List[bytes]:
         b = self._f.read(length)
         if expected is not None and b != expected:
@@ -295,3 +315,7 @@ class WavFileParser:
                                .format(fieldname, self._filepath, b, expected))
 
         return b
+
+    @staticmethod
+    def _is_odd(i: int) -> bool:
+        return i & 1

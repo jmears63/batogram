@@ -114,8 +114,8 @@ class AudioFileService(RawDataReader):
         guano_key = 'Samplerate'
         if guanodata is not None and guano_key in guanodata:
             self._sample_rate = guanodata[guano_key]
-
-        self._sample_rate = sample_rate
+        else:
+            self._sample_rate = sample_rate
         self._sample_count = sample_count
         self._time_range = AxisRange(0, sample_count / self._sample_rate)
         self._frequency_range = AxisRange(0, self._sample_rate / 2.0)
