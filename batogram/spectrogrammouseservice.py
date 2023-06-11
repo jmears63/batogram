@@ -279,6 +279,8 @@ class SpectrogramMouseService:
         elif mode == DragMode.DRAG_RECTANGLE:
             pass
 
+        region = l, t, r, b
+
         if is_button1:
             # If a significant area was selected:
             if mode:
@@ -286,7 +288,7 @@ class SpectrogramMouseService:
                 self._graph_frame.on_zoom_to_rect((l, t, r, b))
         else:
             # Display a menu of options:
-            self._graph_frame.do_mouse_menu(end, mode)
+            self._graph_frame.do_mouse_menu(end, region, mode)
             pass
 
     def _reset(self):

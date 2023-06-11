@@ -155,7 +155,6 @@ class GraphLayout(Layout):
 
         l, t, r, b = pixel_rect
         if self._x_axis and self._y_axis:
-            # if clamp:
             vl = self._x_axis.canvas_to_axis(l)
             vr = self._x_axis.canvas_to_axis(r)
             vt = self._y_axis.canvas_to_axis(t)
@@ -164,7 +163,7 @@ class GraphLayout(Layout):
         else:
             return None
 
-    def canvas_to_axis(self, p_canvas):
+    def canvas_to_axis(self, p_canvas: Tuple[int, int]) -> Optional[Tuple[float, float]]:
         """Scale the pixel position relative to the canvas origin to real axis values."""
 
         t_canvas, f_canvas = p_canvas

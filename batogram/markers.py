@@ -254,7 +254,7 @@ class FrequencyHelper(AbstractHelper):
 
 
 class AbstractMarker(ABC):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  initial_axis_value: Optional[float], tag_name: str, get_other: Callable,
                  helper: Type[AbstractHelper], drag_curser: str):
         self._axis_value: Optional[float] = initial_axis_value
@@ -336,6 +336,9 @@ class AbstractMarker(ABC):
             self._canvas.config(cursor=self._saved_cursor)
             self._saved_cursor = None
 
+    def set_position(self, value: float):
+        self._axis_value = value
+
     def _on_click(self, event):
         # print("_on_click: {}".format(event))
         self._start_event = event
@@ -410,7 +413,7 @@ class AbstractMarker(ABC):
 
 
 class TimeMarker(AbstractMarker, ABC):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  initial_axis_value: Optional[float], tag_name: str, get_other: Callable,
                  helper: Type[AbstractHelper]):
         super().__init__(canvas, pair, sgf, initial_axis_value, tag_name, get_other, helper, LR_DRAG_CURSOR)
@@ -458,7 +461,7 @@ class TimeMarker(AbstractMarker, ABC):
 
 
 class LowerTimeMarker(TimeMarker):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  axis_value: Optional[float], get_other: Callable, helper: Type[AbstractHelper]):
         super().__init__(canvas, pair, sgf, axis_value, "lower_marker", get_other, helper)
 
@@ -473,7 +476,7 @@ class LowerTimeMarker(TimeMarker):
 
 
 class UpperTimeMarker(TimeMarker):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  axis_value: Optional[float], get_other: Callable, helper: Type[AbstractHelper]):
         super().__init__(canvas, pair, sgf, axis_value, "upper_marker", get_other, helper)
 
@@ -489,7 +492,7 @@ class UpperTimeMarker(TimeMarker):
 
 class FrequencyMarker(AbstractMarker, ABC):
 
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  initial_axis_value: Optional[float], tag_name: str, get_other: Callable,
                  helper: Type[AbstractHelper]):
         super().__init__(canvas, pair, sgf, initial_axis_value, tag_name, get_other, helper, UD_DRAG_CURSOR)
@@ -537,7 +540,7 @@ class FrequencyMarker(AbstractMarker, ABC):
 
 
 class LowerFrequencyMarker(FrequencyMarker):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  axis_value: Optional[float], get_other: Callable, helper: Type[AbstractHelper]):
         super().__init__(canvas, pair, sgf, axis_value, "lower_frequency_marker", get_other, helper)
 
@@ -552,7 +555,7 @@ class LowerFrequencyMarker(FrequencyMarker):
 
 
 class UpperFrequencyMarker(FrequencyMarker):
-    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[MarkerPair]", sgf: "SpectrogramGraphFrame",
+    def __init__(self, canvas: "SpectrogramCanvas", pair: "Type[AbstractMarkerPair]", sgf: "SpectrogramGraphFrame",
                  axis_value: Optional[float], get_other: Callable, helper: Type[AbstractHelper]):
         super().__init__(canvas, pair, sgf, axis_value, "upper_frequency_marker", get_other, helper)
 
@@ -566,7 +569,7 @@ class UpperFrequencyMarker(FrequencyMarker):
         return self.get_pixel_value() + CLEARANCE_PIXELS, None
 
 
-class MarkerPair(ABC):
+class AbstractMarkerPair(ABC):
     """Abstract MarkerPair that doesn't know if it is vertical or horizontal."""
 
     def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",
@@ -582,6 +585,16 @@ class MarkerPair(ABC):
         self._helper: Type[AbstractHelper] = helper
         self._band_rect: Optional[AreaTuple] = None
         self._is_clipped: Tuple[bool, bool] = False, False
+
+    def set_positions(self, positions: Tuple[Optional[float], Optional[float]]):
+        v_lower, v_upper = positions
+        if v_lower is not None:
+            self._lower_marker.set_position(v_lower)
+        if v_upper is not None:
+            self._upper_marker.set_position(v_upper)
+
+    def get_positions(self) -> Tuple[float, float]:
+        return self._lower_marker.get_axis_value(), self._upper_marker.get_axis_value()
 
     def get_lower_marker(self) -> AbstractMarker:
         return self._lower_marker
@@ -632,7 +645,7 @@ class MarkerPair(ABC):
         self._upper_id = upper_drawer()
 
 
-class TimeMarkerPair(MarkerPair):
+class TimeMarkerPair(AbstractMarkerPair):
     _tag_name = "band"
 
     def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",
@@ -668,7 +681,7 @@ class TimeMarkerPair(MarkerPair):
         return [text]
 
 
-class FrequencyMarkerPair(MarkerPair):
+class FrequencyMarkerPair(AbstractMarkerPair):
     _tag_name = "frequency_band"
 
     def __init__(self, canvas: "SpectrogramCanvas", sgf: "SpectrogramGraphFrame",

@@ -21,13 +21,13 @@
 import tkinter as tk
 from typing import Tuple, Optional
 
-from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, AXIS_FONT_HEIGHT, MIN_F_RANGE, MIN_T_RANGE, \
+from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, MIN_F_RANGE, MIN_T_RANGE, \
     AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import RawDataReader, AudioFileService
-from .common import AxisRange, clip_to_range
+from .common import AxisRange
 from .frames import GraphFrame, DrawableFrame
-from .markers import TimeMarkerPair, FrequencyMarkerPair
+from .markers import TimeMarkerPair, FrequencyMarkerPair, AbstractMarkerPair
 from .spectrogrammouseservice import SpectrogramMouseService, CursorMode, DragMode
 from .rendering import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
@@ -52,11 +52,12 @@ class SpectrogramCanvas(tk.Canvas):
 
 
 class RightMouseMenu(tk.Menu):
-    def __init__(self, parent: "SpectrogramGraphFrame", screen_pos: Tuple[int, int], canvas_pos: Tuple[int, int],
+    def __init__(self, parent: "SpectrogramGraphFrame", screen_end_pos: Tuple[int, int],
+                 canvas_end_pos: Tuple[int, int], region: Tuple[int, int, int, int],
                  settings: "GraphSettings", drag_mode: DragMode):
         super().__init__(parent, tearoff=0)
 
-        self._screen_pos = screen_pos
+        self._screen_pos = screen_end_pos
 
         # If drag mode is undefined, a point was clicked:
         is_region: bool = True if drag_mode else False
@@ -64,26 +65,36 @@ class RightMouseMenu(tk.Menu):
         region_option_state = tk.ACTIVE if is_region else tk.DISABLED
         position_option_state = tk.DISABLED if is_region else tk.ACTIVE
 
+        # Submenu for placing markers:
+        placement_menu = tk.Menu(self, tearoff=0)
+
         # Adding Menu Items
-        self.add_command(label="Zoom to region", state=region_option_state)
-        self.add_command(label="Place markers around region", state=region_option_state)
-        self.add_command(label="Place left marker", state=position_option_state,
-                         command=lambda: parent.on_place_left_marker(canvas_pos))
-        self.add_command(label="Place top marker", state=position_option_state,
-                         command=lambda: parent.on_place_right_marker(canvas_pos))
-        self.add_command(label="Place right marker", state=position_option_state,
-                         command=lambda: parent.on_place_right_marker(canvas_pos))
-        self.add_command(label="Place bottom marker", state=position_option_state,
-                         command=lambda: parent.on_place_bottom_marker(canvas_pos))
+        self.add_command(label="Zoom to region", state=region_option_state,
+                         command=lambda: parent.on_zoom_to_rect(region))
+        self.add_command(label="Centre on position", state=position_option_state,
+                         # Centering is special case of zooming about centre:
+                         command=lambda: parent.on_zoom_about_centre(canvas_end_pos, 1.0, False))
+        self.add_command(label="Mark selected region", state=region_option_state,
+                         command=lambda: parent.mark_region(region, drag_mode))
+        self.add_cascade(label="Place...", menu=placement_menu)
+        placement_menu.add_command(label="left marker", state=position_option_state,
+                                   command=lambda: parent.on_place_left_marker(canvas_end_pos))
+        placement_menu.add_command(label="top marker", state=position_option_state,
+                                   command=lambda: parent.on_place_top_marker(canvas_end_pos))
+        placement_menu.add_command(label="right marker", state=position_option_state,
+                                   command=lambda: parent.on_place_right_marker(canvas_end_pos))
+        placement_menu.add_command(label="bottom marker", state=position_option_state,
+                                   command=lambda: parent.on_place_bottom_marker(canvas_end_pos))
         self.add_command(label="Hide markers",
-                         state=tk.ACTIVE if (settings.show_time_markers or settings.show_frequency_markers) and not is_region else tk.DISABLED,
+                         state=tk.ACTIVE if (
+                                                    settings.show_time_markers or settings.show_frequency_markers) and not is_region else tk.DISABLED,
                          command=lambda: parent.on_hide_markers())
-        self.add_command(label="Cancel")
+        self.add_command(label="Close menu")
 
     def show(self):
         try:
             # Locate relative to the entire screen:
-            self.tk_popup(*self._screen_pos , 0)     # Locate menu entry zero at the point provided.
+            self.tk_popup(*self._screen_pos, 0)  # Locate menu entry zero at the point provided.
         finally:
             # Release the grab
             self.grab_release()
@@ -113,8 +124,9 @@ class SpectrogramGraphFrame(GraphFrame):
         # Optional time marker pair, depends whether the user has enabled time markers or not:
         self._time_marker_pair: Optional[TimeMarkerPair] = None
         self._frequency_marker_pair: Optional[FrequencyMarkerPair] = None
-        # self._time_marker_pair: Optional[TimeMarkerPair] = TimeMarkerPair(self._canvas, self, 0.2, 0.4)
-        # self._frequency_marker_pair: Optional[FrequencyMarkerPair] = FrequencyMarkerPair(self._canvas, self, 20000, 50000)
+        # Any pending marker positions to be applied:
+        self._pending_time_marker_positions: Tuple[Optional[float], Optional[float]] = None, None
+        self._pending_frequency_marker_positions: Tuple[Optional[float], Optional[float]] = None, None
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(MAIN_SPECTROGAM_COMPLETER_EVENT, self._do_completer)
@@ -215,25 +227,71 @@ class SpectrogramGraphFrame(GraphFrame):
         self._canvas.notify_draw_complete()
 
     def _show_hide_markers(self, time_range: AxisRange, frequency_range: AxisRange):
-        """Create or destory markers depending on the settings."""
+        """Create or destroy markers depending on the settings."""
 
         if self._settings.show_time_markers:
-            if self._time_marker_pair is None:
-                # Create a marker pair that is visible in the current time scale:
-                delta = time_range.max - time_range.min
-                self._time_marker_pair = TimeMarkerPair(self._canvas, self,
-                                                        time_range.min + delta / 3, time_range.max - delta / 3)
+            self._time_marker_pair = self._create_or_update_marker(axis_range=time_range,
+                                                                   marker_pair=self._time_marker_pair,
+                                                                   pending_marker_positions=self._pending_time_marker_positions,
+                                                                   marker_class=TimeMarkerPair)
         else:
             self._time_marker_pair = None
+        self._pending_time_marker_positions = None, None  # We've consumed any pending values now.
 
         if self._settings.show_frequency_markers:
-            if self._frequency_marker_pair is None:
-                # Create a marker pair that is visible in the current frequency scale:
-                delta = frequency_range.max - frequency_range.min
-                self._frequency_marker_pair = FrequencyMarkerPair(self._canvas, self,
-                                                                  frequency_range.min + delta / 3, frequency_range.max - delta / 3)
+            self._frequency_marker_pair = self._create_or_update_marker(axis_range=frequency_range,
+                                                                        marker_pair=self._frequency_marker_pair,
+                                                                        pending_marker_positions=self._pending_frequency_marker_positions,
+                                                                        marker_class=FrequencyMarkerPair)
         else:
             self._frequency_marker_pair = None
+        self._pending_frequency_marker_positions = None, None  # We've consumed any pending values now.
+
+    def _create_or_update_marker(self, marker_pair: AbstractMarkerPair, axis_range: AxisRange,
+                                 pending_marker_positions: Tuple[Optional[float], Optional[float]],
+                                 marker_class) -> AbstractMarkerPair:
+        if marker_pair is None:
+            # Default positions are visible in the current scaling:
+            delta = axis_range.max - axis_range.min
+            # Handle the case where a marker is placed the wrong side of the other marker.
+            # We need to adjust the marker that is *not* currently being placed.
+            min_value, max_value = self._adjust_marker_range(
+                (axis_range.min + delta / 3, axis_range.max - delta / 3),
+                pending_marker_positions, axis_range)
+            marker_pair = marker_class(self._canvas, self, min_value, max_value)
+        else:
+            existing_min, existing_max = marker_pair.get_positions()
+            min_value, max_value = self._adjust_marker_range((
+                existing_min, existing_max),
+                pending_marker_positions, axis_range)
+            marker_pair.set_positions((min_value, max_value))
+
+        return marker_pair
+
+    @staticmethod
+    def _adjust_marker_range(existing_range: Tuple[float, float],
+                             pending_marker_positions: Tuple[Optional[float], Optional[float]],
+                             axis_range: AxisRange) -> Tuple[float, float]:
+        """Create a suitable range for markers, respecting:
+            * Update one marker, leaving the other at its existing position.
+            * However, if that leaves them in the wrong order, move the other marker.
+        """
+
+        resulting_min, resulting_max = existing_range
+        if pending_marker_positions[0] is not None:
+            # We are placing the lower marker.
+            resulting_min = pending_marker_positions[0]
+        if pending_marker_positions[1] is not None:
+            # We are placing the upper marker.
+            resulting_max = pending_marker_positions[1]
+
+        # Keep min and max in the right order:
+        if resulting_max <= resulting_min:
+            resulting_max = (resulting_min + axis_range.max) / 2
+        if resulting_min >= resulting_max:
+            resulting_min = (resulting_max + axis_range.min) / 2
+
+        return resulting_min, resulting_max
 
     def set_cursor_mode(self, mode):
         if mode == CursorMode.CURSOR_ZOOM:
@@ -535,25 +593,61 @@ class SpectrogramGraphFrame(GraphFrame):
 
         return window_factor, pixels_per_second
 
-    def do_mouse_menu(self, pos: Tuple[int, int], drag_mode: DragMode):
-        screen_pos = self._canvas.winfo_rootx() + pos[0], self._canvas.winfo_rooty() + pos[1]
-        menu = RightMouseMenu(self, screen_pos, pos, self._settings, drag_mode)
+    def do_mouse_menu(self, end_pos: Tuple[int, int],
+                      region: Tuple[int, int, int, int],
+                      drag_mode: DragMode):
+        end_screen_pos = self._canvas.winfo_rootx() + end_pos[0], self._canvas.winfo_rooty() + end_pos[1]
+        menu = RightMouseMenu(self, end_screen_pos, end_pos, region, self._settings, drag_mode)
         menu.show()
 
-    def on_place_left_marker(self, pos: Tuple[int, int]):
-        pass
+    def on_place_left_marker(self, canvas_pos: Tuple[int, int]):
+        self._settings.show_time_markers = True
+        self._settings.on_app_modified_settings()
+        axis_time, _ = self._layout.canvas_to_axis(canvas_pos)
+        self._pending_time_marker_positions = axis_time, None
+        self.draw()
 
-    def on_place_top_marker(self, pos: Tuple[int, int]):
-        pass
+    def on_place_right_marker(self, canvas_pos: Tuple[int, int]):
+        self._settings.show_time_markers = True
+        self._settings.on_app_modified_settings()
+        axis_time, _ = self._layout.canvas_to_axis(canvas_pos)
+        self._pending_time_marker_positions = None, axis_time
+        self.draw()
 
-    def on_place_right_marker(self, pos: Tuple[int, int]):
-        pass
+    def on_place_top_marker(self, canvas_pos: Tuple[int, int]):
+        self._settings.show_frequency_markers = True
+        self._settings.on_app_modified_settings()
+        _, axis_frequency = self._layout.canvas_to_axis(canvas_pos)
+        self._pending_frequency_marker_positions = None, axis_frequency
+        self.draw()
 
-    def on_place_bottom_marker(self, pos: Tuple[int, int]):
-        pass
+    def on_place_bottom_marker(self, canvas_pos: Tuple[int, int]):
+        self._settings.show_frequency_markers = True
+        self._settings.on_app_modified_settings()
+        _, axis_frequency = self._layout.canvas_to_axis(canvas_pos)
+        self._pending_frequency_marker_positions = axis_frequency, None
+        self.draw()
 
     def on_hide_markers(self):
         self._settings.show_time_markers = False
         self._settings.show_frequency_markers = False
+        self._settings.on_app_modified_settings()
+        self.draw()
+
+    def mark_region(self, region: Tuple[int, int, int, int], drag_mode: DragMode):
+        # Convert the drag region pixels to axis values:
+        top_left = region[0], region[1]
+        bottom_right = region[2], region[3]
+        t1, f1 = self._layout.canvas_to_axis(top_left)
+        t2, f2 = self._layout.canvas_to_axis(bottom_right)
+
+        if drag_mode == DragMode.DRAG_HORIZONTAL or drag_mode == DragMode.DRAG_RECTANGLE:
+            self._settings.show_time_markers = True
+            self._pending_time_marker_positions = t1, t2
+
+        if drag_mode == DragMode.DRAG_VERTICAL or drag_mode == DragMode.DRAG_RECTANGLE:
+            self._settings.show_frequency_markers = True
+            self._pending_frequency_marker_positions = f2, f1  # Axis value ordering is oppostie to pixel value ordering.
+
         self._settings.on_app_modified_settings()
         self.draw()
