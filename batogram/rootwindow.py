@@ -791,12 +791,16 @@ class RootWindow(tk.Tk):
         window.wait_window()
 
     def _show_settings(self):
-        modal = AppSettingsWindow(self, appsettings.instance, lambda: self._on_settings_ok())
+        previous_data_directory = appsettings.instance.data_directory
+        modal = AppSettingsWindow(self, appsettings.instance, lambda: self._on_settings_ok(previous_data_directory))
         modal.grab_set()
         modal.wait_window()
 
-    def _on_settings_ok(self):
+    def _on_settings_ok(self, previous_data_directory: str):
         # Refresh some things from the updated settings values:
+        if previous_data_directory != appsettings.instance.data_directory:
+            # Force the new data directory to be used when next opening the a file:
+            self._first_file_open = True
         self._apply_settings()
         self._main_pane.draw()
         self._ref_pane.draw()
