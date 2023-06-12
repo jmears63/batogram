@@ -29,6 +29,7 @@ from .graphsettings import GraphSettings
 from tkinter import scrolledtext
 from tkinter import messagebox, ttk, font
 from .morebncframe import HistogramInterface, BrightnessContrastFrame
+from .moreotherframe import OtherFrame
 from .morerenderingframe import RenderingFrame
 from .morescaleframe import ScaleFrame
 from .external.tooltip import ToolTip
@@ -236,6 +237,9 @@ class SettingsNotebook(ttk.Notebook, HistogramInterface):
 
         self._processing_frame = RenderingFrame(self, button_frame, settings, pad)
         self.add(self._processing_frame, text="Rendering")
+
+        self._processing_frame = OtherFrame(self, button_frame, settings, pad)
+        self.add(self._processing_frame, text="Other")
 
         # Tab key moves between tabs:
         self.enable_traversal()

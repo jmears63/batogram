@@ -48,30 +48,30 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
 
         width = 8
 
-        def t_min_validator(v): return self.double_value_validator(v, minimum_value=0,
-                                                                   message="The minimum time must be zero or positive.")
+        def t_min_validator(v): return self.generic_value_validator(v, minimum_value=0,
+                                                                    message="The minimum time must be zero or positive.")
 
         self._t_min = DoubleValidatingEntry(self, controlling_frame, self, width=width, decimal_places=self._TIME_DPS,
                                             value_validator=t_min_validator)
         self._t_min.grid(row=1, column=1, padx=pad)
 
-        def t_max_validator(v): return self.double_value_validator(v, minimum_entry=self._t_min,
-                                                                   message="The maximum time must be greater than the minimum.")
+        def t_max_validator(v): return self.generic_value_validator(v, minimum_entry=self._t_min,
+                                                                    message="The maximum time must be greater than the minimum.")
 
         self._t_max = DoubleValidatingEntry(self, controlling_frame, self, width=width, decimal_places=self._TIME_DPS,
                                             value_validator=t_max_validator)
         self._t_max.grid(row=1, column=2, padx=pad)
 
-        def f_min_validator(v): return self.double_value_validator(v, minimum_value=0,
-                                                                   message="The minimum frequency must be zero or postive.")
+        def f_min_validator(v): return self.generic_value_validator(v, minimum_value=0,
+                                                                    message="The minimum frequency must be zero or postive.")
 
         self._f_min = DoubleValidatingEntry(self, controlling_frame, self, width=width,
                                             decimal_places=self._FREQUENCY_DPS,
                                             scaler=self._FREQUENCY_SCALER, value_validator=f_min_validator)
         self._f_min.grid(row=2, column=1, padx=pad)
 
-        def f_max_validator(v): return self.double_value_validator(v, minimum_entry=self._f_min,
-                                                                   message="The maximum frequency must be greater than the minimum.")
+        def f_max_validator(v): return self.generic_value_validator(v, minimum_entry=self._f_min,
+                                                                    message="The maximum frequency must be greater than the minimum.")
 
         self._f_max = DoubleValidatingEntry(self, controlling_frame, self, width=width,
                                             decimal_places=self._FREQUENCY_DPS,

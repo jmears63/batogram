@@ -26,17 +26,10 @@ from abc import abstractmethod, ABC
 from typing import Any, List, Tuple, Optional
 from .common import clip_to_range
 from .frames import DrawableFrame
-from .validatingwidgets import ValidatingMapOptionMenu, ValidatingFrameHelper, ValidatingRadiobutton, \
+from .validatingwidgets import ValidatingFrameHelper, ValidatingRadiobutton, \
     DoubleValidatingEntry
-from .graphsettings import GraphSettings, BNC_MODES, borderwidth, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, \
+from .graphsettings import GraphSettings, borderwidth, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, \
     BNC_INTERACTIVE_MODE
-
-
-class BnCModeOptionMenu(ValidatingMapOptionMenu):
-    """A menu listing BnC modes."""
-
-    def __init__(self, parent, controlling_frame, container, value_validator=None):
-        super().__init__(parent, controlling_frame, container, BNC_MODES, value_validator)
 
 
 class ValidatingFrame(tk.Frame, ValidatingFrameHelper):
@@ -76,10 +69,10 @@ class BrightnessContrastFrame(tk.Frame, ValidatingFrameHelper):
 
         self._settings = settings
 
-        def threshold_validator(v): return self.double_value_validator(v, minimum_value=0.0, maximum_value=100.0,
-                                                                       message="The background threshold must bein the range 0 to 100.")
+        def threshold_validator(v): return self.generic_value_validator(v, minimum_value=0.0, maximum_value=100.0,
+                                                                        message="The background threshold must bein the range 0 to 100.")
 
-        self._mode_var = tk.IntVar(value=BNC_MODES)  # Note: can't be a local variable.
+        self._mode_var = tk.IntVar(value=BNC_ADAPTIVE_MODE)  # Note: can't be a local variable.
         self._auto_radiobutton = ValidatingRadiobutton(self, button_frame, self, "Auto",
                                                        self._mode_var, BNC_ADAPTIVE_MODE)
         self._auto_radiobutton.grid(row=0, column=0, sticky="W")
@@ -112,8 +105,8 @@ class BrightnessContrastFrame(tk.Frame, ValidatingFrameHelper):
         self._manual_min.grid(row=0, column=1, sticky="W")
         self._manual_label2 = tk.Label(manual_details_frame, text="to", anchor=tk.W)
         self._manual_label2.grid(row=0, column=2, sticky="W")
-        def db_max_validator(v): return self.double_value_validator(v, minimum_entry=self._manual_min,
-                                                                    message="The maximum must be greater than the minimum.")
+        def db_max_validator(v): return self.generic_value_validator(v, minimum_entry=self._manual_min,
+                                                                     message="The maximum must be greater than the minimum.")
 
         self._manual_max = DoubleValidatingEntry(manual_details_frame, button_frame, self, width=7, decimal_places=1,
                                                  value_validator=db_max_validator)

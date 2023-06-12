@@ -57,7 +57,10 @@ DEFAULT_WINDOW_TYPE = "hann"
 BNC_ADAPTIVE_MODE = 0
 BNC_MANUAL_MODE = 1
 BNC_INTERACTIVE_MODE = 2
-BNC_MODES = {BNC_ADAPTIVE_MODE: "Auto", BNC_MANUAL_MODE: "Manual", BNC_INTERACTIVE_MODE: "Interactive"}
+
+MULTICHANNEL_COMBINED_MODE = 0
+MULTICHANNEL_STEREO_MODE = 1
+MULTICHANNEL_SINGLE_MODE = 2
 
 
 @dataclass
@@ -81,6 +84,8 @@ class GraphSettings:
     bnc_manual_max: float
     show_time_markers: bool
     show_frequency_markers: bool
+    multichannel_mode: int
+    multichannel_channel: int
 
     def __init__(self,
                  on_app_modified_settings: Callable[[int], NoReturn],
@@ -103,6 +108,8 @@ class GraphSettings:
         self.bnc_manual_min, self.bnc_manual_max = 0.0, 1.0
         self.show_time_markers = False
         self.show_frequency_markers = False
+        self.multichannel_mode = MULTICHANNEL_COMBINED_MODE
+        self.multichannel_channel = 0
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""

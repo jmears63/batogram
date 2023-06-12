@@ -118,7 +118,7 @@ class AbstractValidatingWidgetMixin(ABC):
                 if error_msg:
                     result_msg = error_msg
         finally:
-            # As a side effect, highlight and focus the entruy:
+            # As a side effect, highlight and focus the entry:
             self._set_validity(result_msg is None)
             self.update_status()
             self.focus_set()
@@ -224,6 +224,21 @@ class DoubleValidatingEntry(AbstractValidatingEntry):
     def native_to_value(self, native):
         """This can throw ValueError, though won't if the field validation regex is right"""
         return float(native) * self._scaler
+
+
+class IntegerValidatingEntry(AbstractValidatingEntry):
+    """Oven ready validating entry for integer data"""
+    def __init__(self, parent, controlling_frame, container, width, value_validator=None):
+        AbstractValidatingEntry.__init__(self, parent, controlling_frame, container, width, validate='key',
+                                         validatecommand=(parent.validatecommand_integer, '%V', '%P'),
+                                         value_validator=value_validator)
+
+    def value_to_native(self, value):
+        return str(value)
+
+    def native_to_value(self, native):
+        """This can throw ValueError, though won't if the field validation regex is right"""
+        return int(native)
 
 
 class ValidatingCheckbutton(tk.Checkbutton, AbstractValidatingWidgetMixin):
@@ -358,18 +373,24 @@ class ValidatingMapOptionMenu(ValidatingOptionMenu):
 class ValidatingFrameHelper:
     """A handy helper for any frame containing validating widgets"""
     _RE_FLOAT = re.compile(r'[+-]?[0-9]*\.?[0-9]*')
+    _RE_INTEGER = re.compile(r'[0-9]*')
 
     def __init__(self, parent, settings):
         self._vfm_parent = parent
         self._vfm_settings = settings
         self.validatecommand_float = self.register(self.float_or_empty_entry_validator)
+        self.validatecommand_integer = self.register(self.integer_or_empty_entry_validator)
 
     def float_or_empty_entry_validator(self, action, p):
         result = self._RE_FLOAT.fullmatch(p)
         return True if result is not None else False
 
+    def integer_or_empty_entry_validator(self, action, p):
+        result = self._RE_INTEGER.fullmatch(p)
+        return True if result is not None else False
+
     @staticmethod
-    def double_value_validator(v: float, minimum_value=None, maximum_value=None, minimum_entry=None, message=None):
+    def generic_value_validator(v: Any, minimum_value=None, maximum_value=None, minimum_entry=None, message=None):
         if minimum_value is not None:
             if v < minimum_value:
                 return message if message is not None else "Value must be greater than {}".format(minimum_value)
