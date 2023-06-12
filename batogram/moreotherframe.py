@@ -21,7 +21,7 @@
 import tkinter as tk
 
 from .graphsettings import GraphSettings, borderwidth, MULTICHANNEL_COMBINED_MODE, \
-    MULTICHANNEL_STEREO_MODE, MULTICHANNEL_SINGLE_MODE
+    MULTICHANNEL_SINGLE_MODE
 from .morebncframe import ValidatingFrame
 from .validatingwidgets import ValidatingFrameHelper, DoubleValidatingEntry, ValidatingCheckbutton, \
     ValidatingRadiobutton, IntegerValidatingEntry
@@ -38,15 +38,15 @@ class OtherFrame(tk.Frame, ValidatingFrameHelper):
         multichannel_frame = tk.LabelFrame(self, text="Multichannel data")
 
         self._multichannel_mode_var = tk.IntVar(value=MULTICHANNEL_COMBINED_MODE)  # Note: can't be a local variable.
-        self._combined_channel_radiobutton = ValidatingRadiobutton(multichannel_frame, button_frame, self, "Combined",
+        self._combined_channel_radiobutton = ValidatingRadiobutton(multichannel_frame, button_frame, self, "Combine all",
                                                                    self._multichannel_mode_var, MULTICHANNEL_COMBINED_MODE)
         self._combined_channel_radiobutton.grid(row=0, column=0, sticky="W", padx=pad)
 
-        self._stereo_channel_radiobutton = ValidatingRadiobutton(multichannel_frame, button_frame, self, "Stereo",
-                                                                 self._multichannel_mode_var, MULTICHANNEL_STEREO_MODE)
-        self._stereo_channel_radiobutton.grid(row=1, column=0, sticky="W", padx=pad)
+        # self._stereo_channel_radiobutton = ValidatingRadiobutton(multichannel_frame, button_frame, self, "Stereo",
+        #                                                          self._multichannel_mode_var, MULTICHANNEL_STEREO_MODE)
+        # self._stereo_channel_radiobutton.grid(row=1, column=0, sticky="W", padx=pad)
 
-        self._selected_channel_radiobutton = ValidatingRadiobutton(multichannel_frame, button_frame, self, "Selected",
+        self._selected_channel_radiobutton = ValidatingRadiobutton(multichannel_frame, button_frame, self, "Select one",
                                                                    self._multichannel_mode_var, MULTICHANNEL_SINGLE_MODE)
         self._selected_channel_radiobutton.grid(row=2, column=0, sticky="W", padx=pad)
 
@@ -75,7 +75,7 @@ class OtherFrame(tk.Frame, ValidatingFrameHelper):
         # Update the entry values from settings:
         self._combined_channel_radiobutton.set_value(self._settings.multichannel_mode)
         self._selected_channel_radiobutton.set_value(self._settings.multichannel_mode)
-        self._stereo_channel_radiobutton.set_value(self._settings.multichannel_mode)
+        # self._stereo_channel_radiobutton.set_value(self._settings.multichannel_mode)
         self._channel.set_value(self._settings.multichannel_channel)
         pass
 

@@ -117,7 +117,7 @@ class RenderingPipeline(Thread):
                 self._pending_request_tuple = None
 
             if self._shutting_down:
-                print("Exiting from pipeline thread.")
+                # print("Exiting from pipeline thread.")
                 return
 
             if pending_request_tuple is None:  # I suppose this might happen if there is a race I haven't thought of.
@@ -692,11 +692,15 @@ class SpectrogramFftStep(PipelineStep):
         fft_samples: int
         fft_overlap: int
         window_type: str
+        multichannel_mode: int
+        multichannel_channel: int
 
         def __init__(self, settings: GraphSettings):
             self.fft_samples = settings.fft_samples
             self.fft_overlap = settings.fft_overlap
             self.window_type = settings.window_type
+            self.multichannel_mode = settings.multichannel_mode
+            self.multichannel_channel = settings.multichannel_channel
 
     def get_relevant_settings(self) -> RelevantSettings:
         """Get the settings subset that is relevant to this step. We will use this as a basis
@@ -722,7 +726,7 @@ class SpectrogramFftStep(PipelineStep):
         # print("calculating spectrogram: {}: {}", params, inputdata.shape)
 
         frequencies, combined_spectrogram = self._do_spectrogram(data_read, sample_rate, rs.window_type,
-                                                                 actual_fft_samples, actual_fft_overlap_samples)
+                                                                 actual_fft_samples, actual_fft_overlap_samples, rs)
 
         # print("delta_t = {}".format(delta_t))
 
@@ -769,8 +773,8 @@ class SpectrogramFftStep(PipelineStep):
         return interpolated
 
     @staticmethod
-    def _do_spectrogram(data: np.ndarray, sample_rate: int, window_type, actual_fft_samples: int, overlap: int) \
-            -> Tuple[np.ndarray, np.ndarray]:
+    def _do_spectrogram(data: np.ndarray, sample_rate: int, window_type, actual_fft_samples: int,
+                        overlap: int, rs: RelevantSettings) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the spectrogram that is the scalar sum of powers from all channels - ie,
         ignoring phase.
@@ -809,13 +813,13 @@ class SpectrogramFftStep(PipelineStep):
         #            print("data faffing time: {}".format(t2 - t1))
 
         # Create a combined spectrogram by summing the power amplitudes. ndarray earns its keep here:
-        # the alternative of doing this by looping dumbly is quite slow.
+        # the alternative of doing this by looping dumbly is very slow.
         # This results in the same data type as in the input array:
 
         _, n_segments = spectrograms[0].shape
 
         # Do the sum in chunks, as ndarray.sum inexplicably assigns lots of memory.
-        chunk_size: int = 10000  # TODO
+        chunk_size: int = 10000  # TODO arbitrary - optimize this
         samples_done = 0
         while samples_done < n_segments:
             # Create a sub-range of all the ndarrays in the python array:
@@ -826,8 +830,6 @@ class SpectrogramFftStep(PipelineStep):
             chunk_data_target = spectrograms[0][:, samples_done:samples_done + to_sum]
             np.sum(sub_spectrograms, axis=0, out=chunk_data_target)
             samples_done += to_sum
-
-        # np.sum(spectrograms, axis=0, out=combined_spectrogram)  # Sum across all axes. Hungry on memory.
 
         # return combined_spectrogram
         return frequencies, spectrograms[0]
