@@ -138,7 +138,7 @@ class GraphPipelines(NamedTuple):
 class PanelFrame(tk.Frame):
     """This is a Frame which contains the set of graphs relating to the main or the reference data."""
 
-    def __init__(self, parent, root, pipelines, data_context, settings, settings_frame, pad, is_reference):
+    def __init__(self, parent, root, pipelines: GraphPipelines, data_context, settings, settings_frame, pad, is_reference):
         super().__init__(parent)
 
         self._pipelines = pipelines

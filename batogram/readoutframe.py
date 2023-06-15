@@ -80,8 +80,16 @@ class ReadoutFrame(DrawableFrame):
         self._coords_variable.set(text)
 
     def update_graph_parameters(self, params: GraphParams):
-        self._parameters_variable.set("{} {}, {}% overlap".format(
-            WINDOW_TYPE_OPTIONS[params.window_type], params.fft_samples, params.fft_overlap))
+        if params.specific_channel is None:
+            if params.num_channels == 1:
+                channel_text = "1 channel"
+            else:
+                channel_text = "{} channels combined".format(params.num_channels)
+        else:
+            channel_text = "channel {} only".format(params.specific_channel)
+
+        self._parameters_variable.set("{} {}, {}% overlap, {}".format(
+            WINDOW_TYPE_OPTIONS[params.window_type], params.fft_samples, params.fft_overlap, channel_text))
 
     def get_settings_button(self) -> SettingsButton:
         return self._settings_button

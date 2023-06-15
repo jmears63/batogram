@@ -51,7 +51,7 @@ DEFAULT_INTERPOLATION = 2       # Linear is fairly smooth and fairly fast,
 
 # Note: boxcar window blows up in the calculations involving infinity
 WINDOW_TYPE_OPTIONS = {"hann": "Hann", "hamming": "Hamming", "blackman": "Blackman", "tukey": "Tukey 0.5",
-                       "bartlett": "Bartlett", "flattop": "Flat top"}
+                       "bartlett": "Bartlett", "flattop": "Flat top", "boxcar": "Rectangular"}
 DEFAULT_WINDOW_TYPE = "hann"
 
 BNC_ADAPTIVE_MODE = 0

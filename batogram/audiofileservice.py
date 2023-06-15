@@ -122,9 +122,8 @@ class AudioFileService(RawDataReader):
         self._channels = channels
         self._bytes_per_value = int(chunks.header.bits_per_sample / 8)
 
-        # Force the amplitude range to be symmetrical:
-        adjusted_min = max(data.data_range[0], -32767)      # Avoid trying to negate -32678 which is impossible.
-        abs_a_max = max(-adjusted_min, data.data_range[1])
+        # Force the amplitude range to be symmetrical:z
+        abs_a_max = max(-data.data_range[0], data.data_range[1])
         self._amplitude_range = AxisRange(-abs_a_max, abs_a_max)
 
         # Construct a string that can be used to know if a new (or the same) file has been loaded:

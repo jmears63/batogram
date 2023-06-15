@@ -239,10 +239,10 @@ class FrequencyHelper(AbstractHelper):
             l, t, r, b = band_rect
             delta = 2  # Avoid crowding.
             if not is_clipped[0]:
-                text_ids.append(canvas.create_text(r - delta, t, text=text[0],
+                text_ids.append(canvas.create_text(l - delta, t, text=text[0],
                                                    fill=MARKER_TEXT_COLOUR, font=AXIS_FONT, anchor=tk.SE))
             if not is_clipped[1]:
-                text_ids.append(canvas.create_text(r - delta, b, text=text[1],
+                text_ids.append(canvas.create_text(l - delta, b, text=text[1],
                                                    fill=MARKER_TEXT_COLOUR, font=AXIS_FONT, anchor=tk.SE))
 
         return text_ids

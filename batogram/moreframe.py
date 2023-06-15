@@ -238,8 +238,8 @@ class SettingsNotebook(ttk.Notebook, HistogramInterface):
         self._processing_frame = RenderingFrame(self, button_frame, settings, pad)
         self.add(self._processing_frame, text="Rendering")
 
-        self._processing_frame = OtherFrame(self, button_frame, settings, pad)
-        self.add(self._processing_frame, text="Other")
+        self._other_frame = OtherFrame(self, button_frame, settings, pad)
+        self.add(self._other_frame, text="Other")
 
         # Tab key moves between tabs:
         self.enable_traversal()
@@ -249,6 +249,7 @@ class SettingsNotebook(ttk.Notebook, HistogramInterface):
         self._axis_frame.copy_settings_to_widgets()
         self._processing_frame.copy_settings_to_widgets()
         self._bnc_frame.copy_settings_to_widgets()
+        self._other_frame.copy_settings_to_widgets()
 
     def copy_widgets_to_settings(self):
         """Called by the controlling frame when the user has applied a new set of settings from
@@ -256,6 +257,7 @@ class SettingsNotebook(ttk.Notebook, HistogramInterface):
         self._axis_frame.copy_widgets_to_settings()
         self._processing_frame.copy_widgets_to_settings()
         self._bnc_frame.copy_widgets_to_settings()
+        self._other_frame.copy_widgets_to_settings()
 
     def set_guano_data(self, data: GuanoFile):
         self._guano_frame.set_guano_data(data)

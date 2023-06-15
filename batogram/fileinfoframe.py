@@ -20,13 +20,14 @@
 
 import tkinter as tk
 from .frames import DrawableFrame
+from .rendering import SpectrogramPipeline, GraphParams
 
 
 class FileInfoFrame(DrawableFrame):
     """A Frame that contains a short summary of info relating to the data file being
     displayed."""
 
-    def __init__(self, parent, data_context):
+    def __init__(self, parent, data_context: "DataContext"):
         super().__init__(parent)
         self._dc = data_context
 
@@ -36,12 +37,15 @@ class FileInfoFrame(DrawableFrame):
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         super().draw(draw_scope)
+        text = ""
         a = self._dc.afs
         if a is not None:
             md = a.get_metadata()
-            channel_text = "channels" if md.channels > 1 else "channel"
-            text = "{}: {:.1f} s at {:.1f} kHz, {} {}".format(
-                md.file_name, md.length_seconds,  md.sample_rate / 1000.0, md.channels, channel_text)
-        else:
-            text = ""
+            if md.channels == 1:
+                c = "1 channel"
+            else:
+                c = "{} channels".format(md.channels)
+            text = "{}: {:.1f} s at {:.1f} kHz, {}".format(
+                md.file_name, md.length_seconds,  md.sample_rate / 1000.0, c)
+
         self._label.config(text=text)

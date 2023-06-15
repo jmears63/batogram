@@ -36,7 +36,7 @@ from .audiofileservice import AudioFileService, RawDataReader
 from .chunky_spectrogram import chunky_spectrogram
 from .common import AxisRange, AreaTuple, clip_to_range
 from .graphsettings import GraphSettings, ADAPTIVE_FFT_SAMPLES, ADAPTIVE_FFT_OVERLAP_PERCENT, \
-    FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE
+    FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE, MULTICHANNEL_SINGLE_MODE
 
 
 class RenderingRequest:
@@ -246,6 +246,8 @@ class GraphParams:
     window_type: str
     fft_samples: int
     fft_overlap: float
+    num_channels: int                   # How many channels are in the input data.
+    specific_channel: Optional[int]     # None if we combined all channels, otherwise the single channel number we used.
 
 
 class BnCHelper:
@@ -544,7 +546,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         PipelineHelper.__init__(self)
 
         self._completion_data = None
-        self._graph_params = None
+        self._graph_params: GraphParams = None
         self._histogram_interface = None
         self._spectrogram_step = spectrogram_step
         self._data_reader_step = data_reader_step
@@ -621,7 +623,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
 
         del rawdata  # Allow the gc to reclaim this memory.
 
-        params = raw_data_serial, height, width, request.axis_time_range, request.axis_frequency_range, \
+        params = specdata_serial, height, width, request.axis_time_range, request.axis_frequency_range, \
             file_time_range, file_frequency_range, calc_data
         zoomed_specdata, zoomed_serial, _ = self._zoom_step.process_data(specdata, params)
 
@@ -725,8 +727,8 @@ class SpectrogramFftStep(PipelineStep):
 
         # print("calculating spectrogram: {}: {}", params, inputdata.shape)
 
-        frequencies, combined_spectrogram = self._do_spectrogram(data_read, sample_rate, rs.window_type,
-                                                                 actual_fft_samples, actual_fft_overlap_samples, rs)
+        frequencies, combined_spectrogram, channel_usage_tuple = self._do_spectrogram(
+            data_read, sample_rate, rs.window_type, actual_fft_samples, actual_fft_overlap_samples, rs)
 
         # print("delta_t = {}".format(delta_t))
 
@@ -751,9 +753,11 @@ class SpectrogramFftStep(PipelineStep):
             frequency_response = frequency_response.reshape(-1, 1)
             db_spectrogram -= frequency_response
 
+        num_channels, specific_channel = channel_usage_tuple
+
         return db_spectrogram, \
             GraphParams(fft_samples=actual_fft_samples, fft_overlap=actual_fft_overlap_percent,
-                        window_type=rs.window_type)
+                        window_type=rs.window_type, num_channels=num_channels, specific_channel=specific_channel)
 
     @staticmethod
     def _calculate_frequency_response(frequencies: np.ndarray, mic_response_data: Tuple[CubicSpline, float, float, float, float])\
@@ -774,16 +778,26 @@ class SpectrogramFftStep(PipelineStep):
 
     @staticmethod
     def _do_spectrogram(data: np.ndarray, sample_rate: int, window_type, actual_fft_samples: int,
-                        overlap: int, rs: RelevantSettings) -> Tuple[np.ndarray, np.ndarray]:
+                        overlap: int, rs: RelevantSettings) -> Tuple[np.ndarray, np.ndarray, Tuple]:
         """
         Calculate the spectrogram that is the scalar sum of powers from all channels - ie,
         ignoring phase.
         """
 
+        # Figure out which channels to process:
+        channels_available = data.shape[0]
+        channel_used: Optional[int] = None
+        if rs.multichannel_mode == MULTICHANNEL_SINGLE_MODE and 0 <= rs.multichannel_channel < channels_available:
+            channels_to_process = [rs.multichannel_channel]
+            channel_used = rs.multichannel_channel
+        else:
+            channels_to_process = [i for i in range(0, channels_available)]
+
         # Create a spectrogram for each channel:
         spectrograms = []
         frequencies = None
-        for d in data:
+        for channel in channels_to_process:
+            d = data[channel]
             # print("spectrogram of {} points".format(len(d)))
             # t1 = process_time()
             fbuckets, _, spectrum_data = chunky_spectrogram(
@@ -832,7 +846,7 @@ class SpectrogramFftStep(PipelineStep):
             samples_done += to_sum
 
         # return combined_spectrogram
-        return frequencies, spectrograms[0]
+        return frequencies, spectrograms[0], (channels_available, channel_used)
 
 
 class SpectrogramZoomStep(PipelineStep):
