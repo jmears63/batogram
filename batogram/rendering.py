@@ -795,13 +795,18 @@ class SpectrogramFftStep(PipelineStep):
 
         # Create a spectrogram for each channel:
         spectrograms = []
-        frequencies = None
+        nominal_frequencies = None
         for channel in channels_to_process:
-            d = data[channel]
+            # Slight hack: we discard a single data value so that the data and delayed data arrays
+            # are the same length:
+            channel_data = data[channel, 1:-1]
+            channel_data_delayed = data[channel, :-2]
+
             # print("spectrogram of {} points".format(len(d)))
             # t1 = process_time()
-            fbuckets, _, spectrum_data = chunky_spectrogram(
-                d, fs=sample_rate,
+            # TODO: DRY
+            fbuckets, _, stft = chunky_spectrogram(
+                channel_data, fs=sample_rate,
                 window=window_type,
                 nperseg=actual_fft_samples,
                 noverlap=overlap,
@@ -812,16 +817,42 @@ class SpectrogramFftStep(PipelineStep):
                 # So that power dB is independent of window size.
                 # Power per Hz.
                 axis=-1,
-                mode='psd')  # psd to square the data to get power.
+                mode='complex')  # psd to square the data to get power.
 
-            if frequencies is None:
-                frequencies = fbuckets
+            _, _, stft_delayed = chunky_spectrogram(
+                channel_data_delayed, fs=sample_rate,
+                window=window_type,
+                nperseg=actual_fft_samples,
+                noverlap=overlap,
+                nfft=None,
+                # detrend=False, # Defaults to constant.
+                return_onesided=True,
+                scaling='density',
+                # So that power dB is independent of window size.
+                # Power per Hz.
+                axis=-1,
+                mode='complex')  # psd to square the data to get power.
+
+            if nominal_frequencies is None:
+                nominal_frequencies = fbuckets
+
+            # Nelson's method:
+            cross_spectrum_matrix = stft * np.conjugate(stft_delayed)
+            k = sample_rate / (2 * np.pi)
+            # channelized_instantaneous_frequency:
+            cif = k * np.angle(cross_spectrum_matrix)
+
+            # Calculate power from complex value:
+            stft_power = np.abs(stft)
+
+            # Use the cif data to move the values into different frequency buckets:
+            SpectrogramFftStep._reassign(stft_power, cif, nominal_frequencies)
 
             # t2 = process_time()
             # print("chunked_spectrogram time: {}".format(t2 - t1))
             # t1 = process_time()
 
-            spectrograms.append(spectrum_data)
+            spectrograms.append(stft_power)
 
             # t2 = process_time()
         #            print("data faffing time: {}".format(t2 - t1))
@@ -846,7 +877,36 @@ class SpectrogramFftStep(PipelineStep):
             samples_done += to_sum
 
         # return combined_spectrogram
-        return frequencies, spectrograms[0], (channels_available, channel_used)
+        return nominal_frequencies, spectrograms[0], (channels_available, channel_used)
+
+    @staticmethod
+    def _reassign(data: np.ndarray, cif: np.ndarray, nominal_frequencies: np.ndarrary):
+        # Construct frequency bucket bin edges limits centred on each nominal freqency:
+        df = nominal_frequencies[1] - nominal_frequencies[0]
+        buckets = np.append(nominal_frequencies, nominal_frequencies[-1] + df)
+        buckets -= df / 2
+
+        # We will work one column at a time, so need to  transpose the data:
+        transposed_data = np.transpose(data)
+        transposed_cif = np.transpose(cif)
+
+        for t in range(transposed_data.shape[0]):
+            data_col = transposed_data[t]
+            cif_col = transposed_cif[t]
+
+            # TODO think about rounding:
+            # target_buckets = np.where(np.abs(cif_col - buckets[0:-1]) < 3, cif_col, 0)
+            target_buckets = cif_col
+
+            # Map the reassigned buckets to the nominal frequency buckets, weighted by
+            # the reassigned signal intensity:
+            reassigned_col, _ = np.histogram(target_buckets, bins=buckets, weights=data_col)
+
+            # Copy the reassigned column back to the original data array:
+            transposed_data[t, :] = reassigned_col
+
+        # Transpose back once we have finished:
+        data = np.transpose(transposed_data)
 
 
 class SpectrogramZoomStep(PipelineStep):

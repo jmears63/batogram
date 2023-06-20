@@ -87,7 +87,7 @@ def chunky_spectrogram(*args, **kwargs):
         if first_segment:
             all_freqs = freqs    # Note the frequencies from the first response. Subsequent ones are the same.
             all_times = np.zeros(total_segments, dtype=np.single)       # dtype is important for memory conservation.
-            all_spectra = np.zeros((len(freqs), total_segments), dtype=np.single)
+            all_spectra = np.zeros((len(freqs), total_segments), dtype=np.csingle)  # Complex data
             segments_to_skip = 0
             previous_time = 0
         else:
