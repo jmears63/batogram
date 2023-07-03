@@ -776,8 +776,7 @@ class SpectrogramFftStep(PipelineStep):
 
         return interpolated
 
-    @staticmethod
-    def _do_spectrogram(data: np.ndarray, sample_rate: int, window_type, actual_fft_samples: int,
+    def _do_spectrogram(self, data: np.ndarray, sample_rate: int, window_type: str, actual_fft_samples: int,
                         overlap: int, rs: RelevantSettings) -> Tuple[np.ndarray, np.ndarray, Tuple]:
         """
         Calculate the spectrogram that is the scalar sum of powers from all channels - ie,
@@ -798,80 +797,8 @@ class SpectrogramFftStep(PipelineStep):
         frequency_buckets = None
         time_buckets = None
         for channel in channels_to_process:
-            # Slight hack: we discard a single data value so that the data and delayed data arrays
-            # are the same length:
-            channel_data = data[channel, 1:-1]
-            channel_data_delayed = data[channel, :-2]
-
-            def spectrogram(d: np.ndarray):
-                """Handy function to avoid repeating the long argument list below."""
-                return chunky_spectrogram(
-                    d, fs=sample_rate,
-                    window=window_type,
-                    nperseg=actual_fft_samples,
-                    noverlap=overlap,
-                    nfft=None,
-                    # detrend=False, # Defaults to constant.
-                    return_onesided=True,
-                    scaling='density',
-                    # So that power dB is independent of window size.
-                    # Power per Hz.
-                    axis=-1,
-                    mode='complex')  # psd to square the data to get power.
-
-            # print("spectrogram of {} points".format(len(d)))
-            # t1 = process_time()
-            fbuckets, tbuckets, stft = spectrogram(channel_data)
-            _, _, stft_1 = spectrogram(channel_data_delayed)            # Intentionally generic variable name, we will repurpose it.
-
-            if frequency_buckets is None:
-                frequency_buckets = fbuckets
-            if time_buckets is None:
-                time_buckets = tbuckets
-
-            # Nelson's method of reassignment, used below, has fairly simple maths and avoids any need
-            # to do fiddly phase unwrapping.
-
-            # We use del to signal which data we are done with so the garbage collector can reused the
-            # storage as required.
-
-            window_width = actual_fft_samples / sample_rate
-            half_window_width = window_width / 2.0
-
-            # Calculate the channelized instantaneous frequency:
-            stft_1 = stft * np.conjugate(stft_1)        # In place. Cross spectrum matrix 1.
-            k1 = sample_rate / (2 * np.pi)
-            stft_1 = k1 * np.angle(stft_1)              # Hoping this is in place.
-            cif = stft_1.view()
-
-            # Calculate the local group delay. These are offset to be relative to the centre of the
-            # sfft window.
-            # Create a copy of the transform that is rotated up/to the right by one frequency:
-            stft_2 = np.roll(stft, 1, axis=0)                       # !!! storage allocation
-            stft_2 = stft * np.conjugate(stft_2)                    # In place. Cross spectrum matrix 2.
-            k2 = window_width / (2 * np.pi)
-            angle = np.angle(stft_2)                                # !!! storage allocation
-            del stft_2
-
-            # Change the range of the angle from -pi/+pi to 0/2pi, to avoid splitting the same signal
-            # into two parts:
-            angle[angle < 0] += 2 * np.pi                   # In place, no storage allocation.
-            # Time adjustment in seconds:
-            angle = half_window_width - k2 * angle          # In place
-            lgd = angle.view()
-            del angle
-
-            # Calculate power from complex value. Avoid the sqrt() that abs() would imply for performance.
-            stft = stft.real ** 2 + stft.imag ** 2      # In place.
-
-            # Use the cif and lgd data to move the values into different frequency buckets:
-            reassigned_stft_power = SpectrogramFftStep._reassign(stft, cif, lgd, frequency_buckets, time_buckets)
-            del stft
-
-            # t2 = process_time()
-            # print("chunked_spectrogram time: {}".format(t2 - t1))
-            # t1 = process_time()
-
+            reassigned_stft_power, frequency_buckets, time_buckets = self._do_reassignment_spectrogram(
+                data, channel, sample_rate, window_type, actual_fft_samples, overlap)
             spectrograms.append(reassigned_stft_power)
 
             # t2 = process_time()
@@ -898,6 +825,76 @@ class SpectrogramFftStep(PipelineStep):
 
         # return combined_spectrogram
         return frequency_buckets, spectrograms[0], (channels_available, channel_used)
+
+    @staticmethod
+    def _do_reassignment_spectrogram(data: np.ndarray, channel: int,
+                                     sample_rate: int, window_type: str, actual_fft_samples: int, overlap: int):
+        # Slight hack: we discard a single data value so that the data and delayed data arrays
+        # are the same length:
+        channel_data = data[channel, 1:-1]
+        channel_data_delayed = data[channel, :-2]
+
+        def spectrogram(d: np.ndarray):
+            """Handy function to avoid repeating the long argument list below."""
+            return chunky_spectrogram(
+                d, fs=sample_rate,
+                window=window_type,
+                nperseg=actual_fft_samples,
+                noverlap=overlap,
+                nfft=None,
+                # detrend=False, # Defaults to constant.
+                return_onesided=True,
+                scaling='density',
+                # So that power dB is independent of window size.
+                # Power per Hz.
+                axis=-1,
+                mode='complex')  # psd to square the data to get power.
+
+        # print("spectrogram of {} points".format(len(d)))
+        # t1 = process_time()
+        frequency_buckets, time_buckets, stft = spectrogram(channel_data)
+        _, _, stft_1 = spectrogram(channel_data_delayed)  # Intentionally generic variable name, we will repurpose it.
+
+        # Nelson's method of reassignment, used below, has fairly simple maths and avoids any need
+        # to do fiddly phase unwrapping.
+
+        # We use del to signal which data we are done with so the garbage collector can reused the
+        # storage as required.
+
+        window_width = actual_fft_samples / sample_rate
+        half_window_width = window_width / 2.0
+
+        # Calculate the channelized instantaneous frequency:
+        stft_1 = stft * np.conjugate(stft_1)  # In place. Cross spectrum matrix 1.
+        k1 = sample_rate / (2 * np.pi)
+        stft_1 = k1 * np.angle(stft_1)  # Hoping this is in place.
+        cif = stft_1.view()
+
+        # Calculate the local group delay. These are offset to be relative to the centre of the
+        # sfft window.
+        # Create a copy of the transform that is rotated up/to the right by one frequency:
+        stft_2 = np.roll(stft, 1, axis=0)  # !!! storage allocation
+        stft_2 = stft * np.conjugate(stft_2)  # In place. Cross spectrum matrix 2.
+        k2 = window_width / (2 * np.pi)
+        angle = np.angle(stft_2)  # !!! storage allocation
+        del stft_2
+
+        # Change the range of the angle from -pi/+pi to 0/2pi, to avoid splitting the same signal
+        # into two parts:
+        angle[angle < 0] += 2 * np.pi  # In place, no storage allocation.
+        # Time adjustment in seconds:
+        angle = half_window_width - k2 * angle  # In place
+        lgd = angle.view()
+        del angle
+
+        # Calculate power from complex value. Avoid the sqrt() that abs() would imply for performance.
+        stft = stft.real ** 2 + stft.imag ** 2  # In place.
+
+        # Use the cif and lgd data to move the values into different frequency buckets:
+        reassigned_stft_power = SpectrogramFftStep._reassign(stft, cif, lgd, frequency_buckets, time_buckets)
+        del stft
+
+        return reassigned_stft_power, frequency_buckets, time_buckets
 
     @staticmethod
     def _reassign(data: np.ndarray, cif: np.ndarray, lgd: np.ndarray,
