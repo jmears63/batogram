@@ -167,7 +167,7 @@ class GuanoFile(object):
 
     _coersion_rules = {
         'Filter HP': float, 'Length': float, 'Loc Elevation': float,
-        'Loc Accuracy': int, 'Samplerate': int,
+        'Loc Accuracy': float, 'Samplerate': int,
         'TE': lambda value: int(value) if value else 1,
         'Loc Position': lambda value: tuple(float(v) for v in value.split()),
         'Timestamp': parse_timestamp,

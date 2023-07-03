@@ -261,7 +261,7 @@ class WavFileParser:
 
         chunk_size_bytes = self._read_int32("ChunkSize")
         metadata = self._f.read(chunk_size_bytes)
-        gf = GuanoFile.from_string(metadata)
+        gf = GuanoFile.from_string(metadata, strict=False)
 
         # for key, value in gf.items():
         #    print('{}: {}'.format(key, value))
