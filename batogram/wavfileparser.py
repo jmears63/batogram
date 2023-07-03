@@ -261,7 +261,11 @@ class WavFileParser:
 
         chunk_size_bytes = self._read_int32("ChunkSize")
         metadata = self._f.read(chunk_size_bytes)
-        gf = GuanoFile.from_string(metadata, strict=False)
+        try:
+            gf = GuanoFile.from_string(metadata, strict=False)
+        except Exception as e:
+            # Fail open if the guano is bad:
+            print("Exception raised parsing guano data: {}".format(e))
 
         # for key, value in gf.items():
         #    print('{}: {}'.format(key, value))
