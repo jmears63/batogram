@@ -829,6 +829,8 @@ class SpectrogramFftStep(PipelineStep):
     @staticmethod
     def _do_reassignment_spectrogram(data: np.ndarray, channel: int,
                                      sample_rate: int, window_type: str, actual_fft_samples: int, overlap: int):
+        """Create a reassigned spectrum using Nelson's method: https://www.researchgate.net/publication/251405072_The_Reassigned_Spectrogram."""
+
         # Slight hack: we discard a single data value so that the data and delayed data arrays
         # are the same length:
         channel_data = data[channel, 1:-1]
@@ -850,10 +852,16 @@ class SpectrogramFftStep(PipelineStep):
                 axis=-1,
                 mode='complex')  # psd to square the data to get power.
 
+        prune_data: bool = False        # Disable PoC code.
+        stft_del, stft_freq_del = None, None
+
         # print("spectrogram of {} points".format(len(d)))
         # t1 = process_time()
         frequency_buckets, time_buckets, stft = spectrogram(channel_data)
-        _, _, stft_1 = spectrogram(channel_data_delayed)  # Intentionally generic variable name, we will repurpose it.
+        _, _, stft_1 = spectrogram(channel_data_delayed)  # stft_del. Intentionally generic variable name, we will repurpose it.
+
+        # TODO: handle case where the window is padded. In Nelson, win_size is padded to fftn, and they are the same
+        # if there is no padding.
 
         # Nelson's method of reassignment, used below, has fairly simple maths and avoids any need
         # to do fiddly phase unwrapping.
@@ -864,19 +872,25 @@ class SpectrogramFftStep(PipelineStep):
         window_width = actual_fft_samples / sample_rate
         half_window_width = window_width / 2.0
 
+        if prune_data:
+            stft_del = stft_1.copy()
+
         # Calculate the channelized instantaneous frequency:
-        stft_1 = stft * np.conjugate(stft_1)  # In place. Cross spectrum matrix 1.
+        # stft_1 is STFTDel at this point.
+        stft_1 = stft * np.conjugate(stft_1)    # In place. cross_spectrum_matrix_1, overwriting stft_del.
         k1 = sample_rate / (2 * np.pi)
-        stft_1 = k1 * np.angle(stft_1)  # Hoping this is in place.
+        stft_1 = k1 * np.angle(stft_1)          # In place, overwriting cross_spectrum_matrix_1.
         cif = stft_1.view()
 
         # Calculate the local group delay. These are offset to be relative to the centre of the
         # sfft window.
         # Create a copy of the transform that is rotated up/to the right by one frequency:
-        stft_2 = np.roll(stft, 1, axis=0)  # !!! storage allocation
-        stft_2 = stft * np.conjugate(stft_2)  # In place. Cross spectrum matrix 2.
+        stft_2 = np.roll(stft, 1, axis=0)       # !!! storage allocation. stft_freq_del.
+        if prune_data:
+            stft_freq_del = stft_2.copy()
+        stft_2 = stft * np.conjugate(stft_2)    # In place. Overwrite STFTfreqdel stft_freq_del cross_spectrum_matrix_1.
         k2 = window_width / (2 * np.pi)
-        angle = np.angle(stft_2)  # !!! storage allocation
+        angle = np.angle(stft_2)                # !!! storage allocation
         del stft_2
 
         # Change the range of the angle from -pi/+pi to 0/2pi, to avoid splitting the same signal
@@ -887,18 +901,33 @@ class SpectrogramFftStep(PipelineStep):
         lgd = angle.view()
         del angle
 
+        cif_deriv: Optional[np.ndarray] = None
+        if prune_data:
+            stft_freq_time_del = np.roll(stft_del, 1, axis=0)  # !!! storage allocation.
+            mix_cif = stft * np.conjugate(stft_del) * np.conjugate((stft_freq_del * np.conjugate(stft_freq_time_del)))
+            angle = np.angle(mix_cif)
+            # Remap the data angle range to 0 to 2 pi:
+            angle[angle < 0] += 2 * np.pi  # In place, no storage allocation.
+            k3 = sample_rate / (2 * np.pi)
+            cif_deriv = k3 * (angle ** 2)
+
         # Calculate power from complex value. Avoid the sqrt() that abs() would imply for performance.
-        stft = stft.real ** 2 + stft.imag ** 2  # In place.
+        stft = stft.real ** 2 + stft.imag ** 2  # In place: Overwright stft with its squared magnitude.
 
         # Use the cif and lgd data to move the values into different frequency buckets:
         reassigned_stft_power = SpectrogramFftStep._reassign(stft, cif, lgd, frequency_buckets, time_buckets)
         del stft
 
+        if cif_deriv is not None:
+            # Prune data values by setting them to zero depending on the coindexed value in the second derivative:
+            # print("min = {}, max = {}".format(cif_deriv.min(), cif_deriv.max()))
+            threshold: float = 10.0
+            reassigned_stft_power[cif_deriv > threshold] = 0     # Zero out the data we don't want.
+
         return reassigned_stft_power, frequency_buckets, time_buckets
 
     @staticmethod
-    def _reassign(data: np.ndarray, cif: np.ndarray, lgd: np.ndarray,
-                  frequency_buckets: np.ndarrary, time_buckets: np.ndarrary):
+    def _reassign(data: np.ndarray, cif: np.ndarray, lgd: np.ndarray, frequency_buckets: np.ndarrary, time_buckets: np.ndarrary):
 
         data_num_freqs, data_num_times = data.shape
 
