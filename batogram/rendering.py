@@ -738,7 +738,7 @@ class SpectrogramFftStep(PipelineStep):
         # Make sure there aren't any zero values that would make log10 below fail:
         if combined_spectrogram.min() == 0.0:
             # s = np.sort(combined_spectrogram)
-            arbitrary_small_number = 1E-20  # TODO review this arbitrary small number.
+            arbitrary_small_number = 1E-10  # TODO review this arbitrary small number.
             combined_spectrogram = np.where(combined_spectrogram <= 0, arbitrary_small_number, combined_spectrogram)
 
         # Convert the resulting spectrogram to dB.
@@ -795,7 +795,8 @@ class SpectrogramFftStep(PipelineStep):
 
         # Create a spectrogram for each channel:
         spectrograms = []
-        nominal_frequencies = None
+        frequency_buckets = None
+        time_buckets = None
         for channel in channels_to_process:
             # Slight hack: we discard a single data value so that the data and delayed data arrays
             # are the same length:
@@ -805,7 +806,7 @@ class SpectrogramFftStep(PipelineStep):
             # print("spectrogram of {} points".format(len(d)))
             # t1 = process_time()
             # TODO: DRY
-            fbuckets, _, stft = chunky_spectrogram(
+            fbuckets, tbuckets, stft = chunky_spectrogram(
                 channel_data, fs=sample_rate,
                 window=window_type,
                 nperseg=actual_fft_samples,
@@ -833,26 +834,44 @@ class SpectrogramFftStep(PipelineStep):
                 axis=-1,
                 mode='complex')  # psd to square the data to get power.
 
-            if nominal_frequencies is None:
-                nominal_frequencies = fbuckets
+            if frequency_buckets is None:
+                frequency_buckets = fbuckets
+            if time_buckets is None:
+                time_buckets = tbuckets
 
             # Nelson's method:
-            cross_spectrum_matrix = stft * np.conjugate(stft_delayed)
-            k = sample_rate / (2 * np.pi)
-            # channelized_instantaneous_frequency:
-            cif = k * np.angle(cross_spectrum_matrix)
+
+            # Create a copy of the transform that is rotated up/to the right by one frequency:
+            stft_frequency_delayed = np.roll(stft, 1, axis=0)
+
+            # Calculate the channelized instantaneous frequency:
+            cross_spectrum_matrix_1 = stft * np.conjugate(stft_delayed)
+            k1 = sample_rate / (2 * np.pi)
+            cif = k1 * np.angle(cross_spectrum_matrix_1)
+
+            # Calculate the local group delay. These are offset to be relative to the centre of the
+            # sfft window.
+            cross_spectrum_matrix_2 = stft * np.conjugate(stft_frequency_delayed)
+            window_width = actual_fft_samples / sample_rate
+            half_window_width = window_width / 2.0
+            k2 = window_width / (2 * np.pi)
+            angle = np.angle(cross_spectrum_matrix_2)
+            # Change the range of the angle from -pi/+pi to 0/2pi, to avoid splitting the same signal
+            # into two parts:
+            angle[angle < 0] += 2 * np.pi
+            lgd = half_window_width - k2 * angle            # Time adjustment in seconds.
 
             # Calculate power from complex value:
             stft_power = np.abs(stft)
 
-            # Use the cif data to move the values into different frequency buckets:
-            SpectrogramFftStep._reassign(stft_power, cif, nominal_frequencies)
+            # Use the cif and lgd data to move the values into different frequency buckets:
+            reassigned_stft_power = SpectrogramFftStep._reassign(stft_power, cif, lgd, frequency_buckets, time_buckets)
 
             # t2 = process_time()
             # print("chunked_spectrogram time: {}".format(t2 - t1))
             # t1 = process_time()
 
-            spectrograms.append(stft_power)
+            spectrograms.append(reassigned_stft_power)
 
             # t2 = process_time()
         #            print("data faffing time: {}".format(t2 - t1))
@@ -864,7 +883,7 @@ class SpectrogramFftStep(PipelineStep):
         _, n_segments = spectrograms[0].shape
 
         # Do the sum in chunks, as ndarray.sum inexplicably assigns lots of memory.
-        chunk_size: int = 10000  # TODO arbitrary - optimize this
+        chunk_size: int = 10000  # Arbitrary - optimize this
         samples_done = 0
         while samples_done < n_segments:
             # Create a sub-range of all the ndarrays in the python array:
@@ -877,16 +896,39 @@ class SpectrogramFftStep(PipelineStep):
             samples_done += to_sum
 
         # return combined_spectrogram
-        return nominal_frequencies, spectrograms[0], (channels_available, channel_used)
+        return frequency_buckets, spectrograms[0], (channels_available, channel_used)
 
     @staticmethod
-    def _reassign(data: np.ndarray, cif: np.ndarray, nominal_frequencies: np.ndarrary):
+    def _reassign(data: np.ndarray, cif: np.ndarray, lgd: np.ndarray,
+                  frequency_buckets: np.ndarrary, time_buckets: np.ndarrary):
+
+        data_num_freqs, data_num_times = data.shape
+
+        # Construct bucket bin edges limits centred on each nominal freqency or time:
+        df = frequency_buckets[1] - frequency_buckets[0]
+        frequency_bucket_edges = np.append(frequency_buckets, frequency_buckets[-1] + df) - df / 2
+        dt = time_buckets[2] - time_buckets[1]
+        time_bucket_edges = np.append(time_buckets, time_buckets[-1] + dt) - dt / 2
+
+        resultant_times = time_buckets.reshape((1, data_num_times))
+        resultant_times = np.repeat(resultant_times, data_num_freqs, 0)
+        resultant_times = resultant_times + lgd        # lgd is delta to apply to the nominal time.
+
+        shape = data.shape
+        reassigned_data, _, _ = np.histogram2d(
+            cif.flatten(), resultant_times.flatten(),           # Flatten the reassigned data into two vectors.
+            bins=(frequency_bucket_edges, time_bucket_edges),   # Corresponding bucket edges for each dimensions.
+            weights=data.flatten())                             # The data.
+        reassigned_data.reshape(shape)
+        return reassigned_data
+
+    @staticmethod
+    def _reassign_old(data: np.ndarray, cif: np.ndarray, nominal_frequencies: np.ndarrary):
         # Construct frequency bucket bin edges limits centred on each nominal freqency:
         df = nominal_frequencies[1] - nominal_frequencies[0]
-        buckets = np.append(nominal_frequencies, nominal_frequencies[-1] + df)
-        buckets -= df / 2
+        bucket_edges = np.append(nominal_frequencies, nominal_frequencies[-1] + df) - df / 2
 
-        # We will work one column at a time, so need to  transpose the data:
+        # We will work one column at a time, so need to transpose the data:
         transposed_data = np.transpose(data)
         transposed_cif = np.transpose(cif)
 
@@ -894,13 +936,17 @@ class SpectrogramFftStep(PipelineStep):
             data_col = transposed_data[t]
             cif_col = transposed_cif[t]
 
-            # TODO think about rounding:
-            # target_buckets = np.where(np.abs(cif_col - buckets[0:-1]) < 3, cif_col, 0)
-            target_buckets = cif_col
+            # Discard distant reassigments, these are likely to be noise.
+            max_reassignment = 5
+            target_buckets = np.where(np.abs(cif_col - nominal_frequencies) < df * max_reassignment, cif_col, 0)
+            # target_buckets = cif_col
 
             # Map the reassigned buckets to the nominal frequency buckets, weighted by
             # the reassigned signal intensity:
-            reassigned_col, _ = np.histogram(target_buckets, bins=buckets, weights=data_col)
+            reassigned_col, _ = np.histogram(target_buckets, bins=bucket_edges, weights=data_col)
+
+            # Hack - add in a fraction of the original signal+noise:
+            # reassigned_col = np.where(reassigned_col == 0.0, data_col / 10.0, reassigned_col)
 
             # Copy the reassigned column back to the original data array:
             transposed_data[t, :] = reassigned_col
