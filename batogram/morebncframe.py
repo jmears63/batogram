@@ -497,8 +497,11 @@ class HistogramCanvas(tk.Canvas):
         self._draw(width, height)
 
     def _draw(self, width: int, height: int):
+        # Slight hack: we ignore the lowest few percent of data to avoid artificial wide ranging values
+        # in reassignment spectrum:
+        vmin = np.percentile(self._data, 5)
         # density=False to avoid log10(0) error
-        self._histogram, self._bin_edges = np.histogram(self._data, width)
+        self._histogram, self._bin_edges = np.histogram(self._data[self._data > vmin], width)
         hmin, hmax = 0, self._histogram.max()  # Range to draw.
 
         # Don't try to draw the histogram if the canvas is very small - which happens when the canvas

@@ -22,7 +22,7 @@ import math
 import tkinter as tk
 
 from .graphsettings import FFT_SAMPLES_OPTIONS, FFT_OVERLAP_PERCENT_OPTIONS, INTERPOLATION_OPTIONS, WINDOW_TYPE_OPTIONS, \
-    borderwidth, GraphSettings
+    borderwidth, GraphSettings, SPECTROGRAM_TYPE_OPTIONS, FFT_WINDOW_PADDING_FACTOR
 from .validatingwidgets import ValidatingMapOptionMenu, ValidatingFrameHelper
 
 
@@ -52,6 +52,18 @@ class WindowTypeOptionMenu(ValidatingMapOptionMenu):
         super().__init__(parent, controlling_frame, container, WINDOW_TYPE_OPTIONS, value_validator)
 
 
+class SpectrogramTypeOptionMenu(ValidatingMapOptionMenu):
+    """A drop down menu listing available spectrogram types."""
+    def __init__(self, parent, controlling_frame, container, value_validator=None):
+        super().__init__(parent, controlling_frame, container, SPECTROGRAM_TYPE_OPTIONS, value_validator)
+
+
+class WindowPaddingOptionMenu(ValidatingMapOptionMenu):
+    """A drop down menu listing available FFT window types."""
+    def __init__(self, parent, controlling_frame, container, value_validator=None):
+        super().__init__(parent, controlling_frame, container, FFT_WINDOW_PADDING_FACTOR, value_validator)
+
+
 class RenderingFrame(tk.Frame, ValidatingFrameHelper):
     """A Frame containing settings relating to rendering the spectrogram."""
 
@@ -61,11 +73,6 @@ class RenderingFrame(tk.Frame, ValidatingFrameHelper):
 
         self._settings = settings
 
-        tk.Label(self, text="FFT samples:", anchor="e", padx=pad).grid(row=0, column=0, sticky="EW")
-        tk.Label(self, text="FFT overlap:", anchor="e", padx=pad).grid(row=1, column=0, sticky="EW")
-        tk.Label(self, text="Window type:", anchor="e", padx=pad).grid(row=0, column=3, sticky="EW")
-        tk.Label(self, text="Image interpolation:", anchor="e", padx=pad).grid(row=1, column=3, sticky="EW")
-
         tk.Label(self, text="%", anchor="e", padx=pad).grid(row=1, column=2, sticky="EW")
 
         def fft_samples_validator(v):
@@ -73,29 +80,45 @@ class RenderingFrame(tk.Frame, ValidatingFrameHelper):
             valid = log_v == int(log_v)
             return "FFT sample number must be a power of 2" if not valid else None
 
+        tk.Label(self, text="Window samples:", anchor="e", padx=pad).grid(row=0, column=0, sticky="EW")
         self._samples_listbox = FFTSamplesOptionMenu(self, controlling_frame, self,
                                                      value_validator=fft_samples_validator)
         self._samples_listbox.grid(row=0, column=1, sticky="EW")
 
+        tk.Label(self, text="Window overlap:", anchor="e", padx=pad).grid(row=1, column=0, sticky="EW")
         self._overlap_listbox = FFTOverlapOptionMenu(self, controlling_frame, self)
         self._overlap_listbox.grid(row=1, column=1, sticky="EW")
 
+        tk.Label(self, text="Spectrogram type:", anchor="e", padx=pad).grid(row=2, column=0, sticky="EW")
+        self._spectrogram_type_listbox = SpectrogramTypeOptionMenu(self, controlling_frame, self)
+        self._spectrogram_type_listbox.grid(row=2, column=1, sticky="EW")
+
+        tk.Label(self, text="Window type:", anchor="e", padx=pad).grid(row=0, column=3, sticky="EW")
         self._window_type_listbox = WindowTypeOptionMenu(self, controlling_frame, self)
         self._window_type_listbox.grid(row=0, column=4, sticky="EW")
 
+        tk.Label(self, text="Window padding factor:", anchor="e", padx=pad).grid(row=1, column=3, sticky="EW")
+        self._window_padding_listbox = WindowPaddingOptionMenu(self, controlling_frame, self)
+        self._window_padding_listbox.grid(row=1, column=4, sticky="EW")
+
+        tk.Label(self, text="Image interpolation:", anchor="e", padx=pad).grid(row=2, column=3, sticky="EW")
         self._interpolation_order_listbox = InterpolationOptionMenu(self, controlling_frame, self)
-        self._interpolation_order_listbox.grid(row=1, column=4, sticky="EW")
+        self._interpolation_order_listbox.grid(row=2, column=4, sticky="EW")
 
         self.copy_settings_to_widgets()
 
     def copy_settings_to_widgets(self):
-        self._samples_listbox.set_value(self._settings.fft_samples)
-        self._overlap_listbox.set_value(self._settings.fft_overlap)
+        self._samples_listbox.set_value(self._settings.window_samples)
+        self._overlap_listbox.set_value(self._settings.window_overlap)
         self._window_type_listbox.set_value(self._settings.window_type)
+        self._window_padding_listbox.set_value(self._settings.window_padding_factor)
         self._interpolation_order_listbox.set_value(self._settings.zoom_interpolation)
+        self._spectrogram_type_listbox.set_value(self._settings.spectrogram_type)
 
     def copy_widgets_to_settings(self):
-        self._settings.fft_samples = self._samples_listbox.get_value()
-        self._settings.fft_overlap = self._overlap_listbox.get_value()
+        self._settings.window_samples = self._samples_listbox.get_value()
+        self._settings.window_overlap = self._overlap_listbox.get_value()
         self._settings.window_type = self._window_type_listbox.get_value()
+        self._settings.window_padding_factor = self._window_padding_listbox.get_value()
         self._settings.zoom_interpolation = self._interpolation_order_listbox.get_value()
+        self._settings.spectrogram_type = self._spectrogram_type_listbox.get_value()

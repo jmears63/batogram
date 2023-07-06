@@ -24,7 +24,7 @@ from scipy.signal import spectrogram
 # from timeit import default_timer as timer
 
 
-def chunky_spectrogram(*args, **kwargs):
+def chunky_spectrogram(dtype, *args, **kwargs):
     """Scipy's spectrogram calculations uses quite a lot of memory. One reason is because creates *all* the
     segments that will be FFTed, which results in duplication of data depending on the overlap, then
     FFTs as a next step on all of them - rather than pipelining.
@@ -87,7 +87,7 @@ def chunky_spectrogram(*args, **kwargs):
         if first_segment:
             all_freqs = freqs    # Note the frequencies from the first response. Subsequent ones are the same.
             all_times = np.zeros(total_segments, dtype=np.single)       # dtype is important for memory conservation.
-            all_spectra = np.zeros((len(freqs), total_segments), dtype=np.csingle)  # Complex data
+            all_spectra = np.zeros((len(freqs), total_segments), dtype=dtype)  # Complex data
             segments_to_skip = 0
             previous_time = 0
         else:

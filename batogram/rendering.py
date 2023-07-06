@@ -36,7 +36,8 @@ from .audiofileservice import AudioFileService, RawDataReader
 from .chunky_spectrogram import chunky_spectrogram
 from .common import AxisRange, AreaTuple, clip_to_range
 from .graphsettings import GraphSettings, ADAPTIVE_FFT_SAMPLES, ADAPTIVE_FFT_OVERLAP_PERCENT, \
-    FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE, MULTICHANNEL_SINGLE_MODE
+    FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE, MULTICHANNEL_SINGLE_MODE, \
+    SPECTROGRAM_TYPE_REASSIGNMENT, SPECTROGRAM_TYPE_STANDARD, SPECTROGRAM_TYPE_ADAPTIVE
 
 
 class RenderingRequest:
@@ -244,10 +245,11 @@ class GraphParams:
     """Parameters for the graph that will be displayed in the UI."""
 
     window_type: str
-    fft_samples: int
-    fft_overlap: float
-    num_channels: int                   # How many channels are in the input data.
-    specific_channel: Optional[int]     # None if we combined all channels, otherwise the single channel number we used.
+    window_samples: int
+    window_overlap: float
+    window_padding_factor: int
+    num_channels: int  # How many channels are in the input data.
+    specific_channel: Optional[int]  # None if we combined all channels, otherwise the single channel number we used.
 
 
 class BnCHelper:
@@ -263,9 +265,14 @@ class BnCHelper:
         return vmax
 
     @staticmethod
-    def get_scalar_vmin(data, percent: float):
+    def get_scalar_vmin(data: np.ndarray, percent: float):
         try:
-            vmin = np.percentile(data, percent)
+            # Percentile corresponds to area of the image, which depends strongly on standard versus
+            # reassigned spectrogram. That means different percents needed. So, we do a simple
+            # percentage of the range instead.
+            # vmin = np.percentile(data, percent)
+
+            vmin = (data.max() - data.min()) * percent / 100.0 + data.min()
         except IndexError as e:
             vmin = 0.0
         return vmin
@@ -293,9 +300,9 @@ class SpectrogramCalcData:
     last_freq_index: int  # Half open
     actual_freq_axis_min: float
     actual_freq_axis_max: float
-    actual_fft_samples: int
-    actual_fft_overlap_percent: float
-    actual_fft_overlap_samples: int
+    actual_window_samples: int
+    actual_window_overlap_percent: float
+    actual_window_overlap_samples: int
     step_count: int
 
     def __init__(self, settings: GraphSettings, axis_time_range: AxisRange, axis_frequency_range: AxisRange,
@@ -304,7 +311,7 @@ class SpectrogramCalcData:
         """
             Do all the scale and offset calculations we will need to render a spectrogram.
 
-            Note: we choose t=0 axis time to be the middle of the first sfft segment. This
+            Note: we choose t=0 axis time to be the middle of the first padded window segment. This
             avoids the complication of the first segment offset being more than subsequent ones
             if we chose t=0 to be the left of the first segment. This results in possible negative
             time indexes, which client code clips to 0 and ignores.
@@ -320,26 +327,28 @@ class SpectrogramCalcData:
         # General preparation:
         sample_rate: int = file_data.sample_rate
 
-        if settings.fft_samples == ADAPTIVE_FFT_SAMPLES:
-            self.actual_fft_samples = self._calculate_auto_fft_samples(sample_rate, screen_factors)
+        if settings.window_samples == ADAPTIVE_FFT_SAMPLES:
+            self.actual_window_samples = self._calculate_auto_window_samples(sample_rate, screen_factors)
         else:
-            self.actual_fft_samples = settings.fft_samples
+            self.actual_window_samples = settings.window_samples
 
-        if settings.fft_overlap == ADAPTIVE_FFT_OVERLAP_PERCENT:
-            self.actual_fft_overlap_percent = self._calculate_auto_fft_overlap(
-                sample_rate, self.actual_fft_samples, screen_factors)
+        if settings.window_overlap == ADAPTIVE_FFT_OVERLAP_PERCENT:
+            self.actual_window_overlap_percent = self._calculate_auto_window_overlap(
+                sample_rate, self.actual_window_samples, screen_factors)
         else:
-            self.actual_fft_overlap_percent = settings.fft_overlap
+            self.actual_window_overlap_percent = settings.window_overlap
 
-        # print("fft_samples = {}, fft_overlap = {}".format(self.actual_fft_samples, self.actual_fft_overlap_percent))
-        self.actual_fft_overlap_samples = int(self.actual_fft_overlap_percent / 100.0 * self.actual_fft_samples)
-        self.step_count: int = int(self.actual_fft_samples - self.actual_fft_overlap_samples)
-        half_segment_offset: int = int(self.actual_fft_samples / 2)  # Ignore the rounding error, small.
-        step_time: float = (self.actual_fft_samples - self.actual_fft_overlap_samples) / sample_rate
+        # Note: window overlap samples may be different from the final segment overlap samples, because of padding:
+        self.actual_window_overlap_samples = int(self.actual_window_overlap_percent / 100.0 * self.actual_window_samples)
+        self.actual_window_overlap_samples = max(1, self.actual_window_overlap_samples)     # Sanity.
+        self.step_count: int = int(self.actual_window_samples - self.actual_window_overlap_samples)
+        step_time: float = self.step_count / sample_rate
+        self.nfft = self.actual_window_samples * settings.window_padding_factor
+        self.nfft_overlap_samples = self.nfft - self.step_count
+        half_nfft_offset: int = int(self.nfft / 2)  # Ignore the rounding error, small.
         time_points = file_data.sample_count
-        # max_segment_count: int = int((time_points - half_segment_offset) / self.step_count) + 1  # Ignore any leftover time points.
         max_segment_count: int = int(
-            (time_points - self.actual_fft_overlap_samples) / self.step_count)  # Ignore any leftover time points.
+            (time_points - self.nfft_overlap_samples) / self.step_count)  # Ignore any leftover time points.
         time_axis_min, time_axis_max = axis_time_range.get_tuple()
         freq_axis_min, freq_axis_max = axis_frequency_range.get_tuple()
 
@@ -353,20 +362,22 @@ class SpectrogramCalcData:
             return segment_index
 
         def segment_index_to_time(i: int) -> float:
-            """Get the axis time corresponding to a segment index - which is the time at the centre of the segment."""
-            t = i * step_time  # - step_time / 2
+            """Get the axis time corresponding to a segment index - which is the time at the centre of the
+            padded segment."""
+            t = i * step_time
             return t
 
         def segment_index_to_time_index(segment_index: int):
-            """Get the index of the FIRST time value that is part of the segment."""
-            # Offset for the spacing of centres - a negative time range index may result.
-            time_index = int(segment_index * self.step_count - half_segment_offset)
+            """Get the index of the FIRST time value that is part of the segment.
+            The result may be negative."""
+            # Offset for the spacing of centres - a negative time range index may result:
+            time_index = int(segment_index * self.step_count - half_nfft_offset)
             return time_index
 
         def time_to_time_index(t: float):
-            """Get the index of the time sample at the centre of the segment whose centre
+            """Get the index of the time sample at the centre of the padded segment whose centre
             is this axis time."""
-            time_index = int(t * sample_rate) + half_segment_offset
+            time_index = int(t * sample_rate)   # + half_nfft_offset
             return time_index
 
         # Convert the axis ranges supplied to data index ranges, rounding outwards.
@@ -383,18 +394,17 @@ class SpectrogramCalcData:
         self.first_segment_index -= margin
         self.last_segment_index += margin
 
-        # Limit the segment indexes to the possible range, last segment index is half open:
+        # Clip the segment indexes to the possible range, last segment index is half open:
         self.first_segment_index = max(0, self.first_segment_index)  # Shouldn't be needed.
         self.last_segment_index = min(max_segment_count, self.last_segment_index)
 
         # Convert the segment index range to a time index range. We know the time indexes are sane,
         # because we clipped the segment indexes above. These time index ranges are the range needed
-        # to calculate the segments - not the time range of the segments.
+        # to *calculate* the segments - not the time range of the segment centres.
         self.first_time_index_for_segs = segment_index_to_time_index(self.first_segment_index)
         # Note: (1) the last_segment_index is half open so - 1. (2) include the full index range for the previous
         # segment so that it can be calculated.
-        self.last_time_index_for_segs = segment_index_to_time_index(
-            self.last_segment_index - 1) + self.actual_fft_samples
+        self.last_time_index_for_segs = segment_index_to_time_index(self.last_segment_index - 1) + self.nfft
 
         # Reverse calculate to the time range we actually cover, which is the segment centres.
         self.actual_time_axis_min = segment_index_to_time(self.first_segment_index)
@@ -407,7 +417,9 @@ class SpectrogramCalcData:
         # ************** Calculations relating to the frequency axis **************
 
         file_fmin, file_fmax = file_data.frequency_range.get_tuple()
-        freq_points: int = int(self.actual_fft_samples / 2 + 1)  # Includes f=0 and f=nyquist, so +1.
+        # Zero padding the window by a factor makes it longer and increases frequency
+        # points in the same ratio:
+        freq_points: int = int(self.actual_window_samples * settings.window_padding_factor / 2 + 1)  # Includes f=0 and f=nyquist, so +1.
 
         def frequency_to_index(f: float) -> int:
             # Round to nearest index:
@@ -455,7 +467,7 @@ class SpectrogramCalcData:
         self.freq_offset_pixels: int = int((freq_axis_min - self.actual_freq_axis_min) * pixels_per_hz + 0.5)
 
     @staticmethod
-    def _calculate_auto_fft_samples(sample_rate: int, screen_factors: Tuple[float, float]) -> int:
+    def _calculate_auto_window_samples(sample_rate: int, screen_factors: Tuple[float, float]) -> int:
         """Select a number of FFT samples that roughly results in square image elements on the screen."""
 
         # Overlapping of windows increases the resultant sample rate:
@@ -472,19 +484,17 @@ class SpectrogramCalcData:
         fft_samples = int(scipy.sqrt(fft_samples_squared) + 0.5)
 
         # Round to the nearest factor of 2:
-        rounded_fft_samples = 2 ** int(scipy.log2(fft_samples) + 0.5)
-        rounded_fft_samples *= 2  # Subjectively, this looks better.
+        rounded_window_samples = 2 ** int(scipy.log2(fft_samples) + 0.5)
+        rounded_window_samples *= 2  # Subjectively, this looks better.
 
         # These limits need to make the range of samples that can be selected manually:
-        rounded_fft_samples = max(64, rounded_fft_samples)
-        rounded_fft_samples = min(4096, rounded_fft_samples)
+        rounded_window_samples = max(64, rounded_window_samples)
+        rounded_window_samples = min(4096, rounded_window_samples)
 
-        # print("calculated fft samples = {}".format(rounded_fft_samples))
-
-        return rounded_fft_samples
+        return rounded_window_samples
 
     @staticmethod
-    def _calculate_auto_fft_overlap(sample_rate, fft_samples, screen_factors) -> int:
+    def _calculate_auto_window_overlap(sample_rate, fft_samples, screen_factors) -> int:
 
         _, pixels_per_second = screen_factors  # Screen scaling.
         fft_window_time: float = fft_samples / sample_rate
@@ -520,7 +530,12 @@ class PipelineHelper:
     @staticmethod
     def _estimate_memory_needed(file_data: AudioFileService.RenderingData,
                                 calc_data: SpectrogramCalcData) -> Tuple[int, int]:
-        """Estimate the memory needed to render a spectrogram from file with the settings provided."""
+        """
+        Estimate the memory needed to render a spectrogram from file with the settings provided.
+        Note: this assumes a standard spectrogram. A reassignment spectrogram needs more,
+        because it stores phase and because it allocates more memory to calculate
+        cross products.
+        """
 
         # First, the memory needed to load the raw data from file:
         file_data_samples_needed: int = (calc_data.last_time_index_for_segs - calc_data.first_time_index_for_segs) \
@@ -528,8 +543,7 @@ class PipelineHelper:
         file_data_bytes_needed: int = file_data_samples_needed * file_data.bytes_per_value
 
         # Space needed to store the spectrum data. Divide by two because we discard the phase info.
-        overlap_factor: float = calc_data.actual_fft_samples / (
-                calc_data.actual_fft_samples - calc_data.actual_fft_overlap_samples)
+        overlap_factor: float = calc_data.nfft/ (calc_data.nfft - calc_data.nfft_overlap_samples)
         spectrum_data_bytes_needed: int = int(file_data_samples_needed * overlap_factor * np.float32(0).nbytes / 2)
 
         total_bytes_needed: int = spectrum_data_bytes_needed + file_data_bytes_needed
@@ -616,7 +630,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
 
         # Include the actual fft samples and overlap to force a cache miss when they change:
         params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
-            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent, \
+            calc_data.actual_window_samples, calc_data.actual_window_overlap_samples, calc_data.actual_window_overlap_percent, \
             request.is_reference
         (specdata, self._graph_params), specdata_serial, _ = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params)
@@ -694,15 +708,19 @@ class SpectrogramFftStep(PipelineStep):
         fft_samples: int
         fft_overlap: int
         window_type: str
+        window_padding_factor: int
         multichannel_mode: int
         multichannel_channel: int
+        spectrogram_type: int
 
         def __init__(self, settings: GraphSettings):
-            self.fft_samples = settings.fft_samples
-            self.fft_overlap = settings.fft_overlap
+            self.fft_samples = settings.window_samples
+            self.fft_overlap = settings.window_overlap
             self.window_type = settings.window_type
+            self.window_padding_factor = settings.window_padding_factor
             self.multichannel_mode = settings.multichannel_mode
             self.multichannel_channel = settings.multichannel_channel
+            self.spectrogram_type = settings.spectrogram_type
 
     def get_relevant_settings(self) -> RelevantSettings:
         """Get the settings subset that is relevant to this step. We will use this as a basis
@@ -710,8 +728,8 @@ class SpectrogramFftStep(PipelineStep):
         return SpectrogramFftStep.RelevantSettings(self._settings)
 
     def _implementation(self, inputdata, params):
-        previous_serial, sample_rate, file_data_samples, axis_time_range, actual_fft_samples, \
-            actual_fft_overlap_samples, actual_fft_overlap_percent, is_reference = params
+        previous_serial, sample_rate, file_data_samples, axis_time_range, actual_window_samples, \
+            actual_window_overlap_samples, actual_window_overlap_percent, is_reference = params
         rs = self.get_relevant_settings()
 
         # Input data is a subset of raw data from the input file, chosen to include
@@ -728,7 +746,7 @@ class SpectrogramFftStep(PipelineStep):
         # print("calculating spectrogram: {}: {}", params, inputdata.shape)
 
         frequencies, combined_spectrogram, channel_usage_tuple = self._do_spectrogram(
-            data_read, sample_rate, rs.window_type, actual_fft_samples, actual_fft_overlap_samples, rs)
+            data_read, sample_rate, rs.window_type, actual_window_samples, actual_window_overlap_samples, rs)
 
         # print("delta_t = {}".format(delta_t))
 
@@ -756,11 +774,13 @@ class SpectrogramFftStep(PipelineStep):
         num_channels, specific_channel = channel_usage_tuple
 
         return db_spectrogram, \
-            GraphParams(fft_samples=actual_fft_samples, fft_overlap=actual_fft_overlap_percent,
-                        window_type=rs.window_type, num_channels=num_channels, specific_channel=specific_channel)
+            GraphParams(window_samples=actual_window_samples, window_overlap=actual_window_overlap_percent,
+                        window_type=rs.window_type, num_channels=num_channels,
+                        window_padding_factor=rs.window_padding_factor, specific_channel=specific_channel)
 
     @staticmethod
-    def _calculate_frequency_response(frequencies: np.ndarray, mic_response_data: Tuple[CubicSpline, float, float, float, float])\
+    def _calculate_frequency_response(frequencies: np.ndarray,
+                                      mic_response_data: Tuple[CubicSpline, float, float, float, float]) \
             -> np.ndarray:
         """Interpolate/extrapolate the microphones response to match the frequency buckets suppled."""
 
@@ -776,7 +796,7 @@ class SpectrogramFftStep(PipelineStep):
 
         return interpolated
 
-    def _do_spectrogram(self, data: np.ndarray, sample_rate: int, window_type: str, actual_fft_samples: int,
+    def _do_spectrogram(self, data: np.ndarray, sample_rate: int, window_type: str, actual_window_samples: int,
                         overlap: int, rs: RelevantSettings) -> Tuple[np.ndarray, np.ndarray, Tuple]:
         """
         Calculate the spectrogram that is the scalar sum of powers from all channels - ie,
@@ -784,7 +804,7 @@ class SpectrogramFftStep(PipelineStep):
         """
 
         # Figure out which channels to process:
-        channels_available = data.shape[0]
+        channels_available, samples = data.shape
         channel_used: Optional[int] = None
         if rs.multichannel_mode == MULTICHANNEL_SINGLE_MODE and 0 <= rs.multichannel_channel < channels_available:
             channels_to_process = [rs.multichannel_channel]
@@ -792,17 +812,34 @@ class SpectrogramFftStep(PipelineStep):
         else:
             channels_to_process = [i for i in range(0, channels_available)]
 
+        # Create the window at this level so that we have most control over it.
+        # Take account of padding to calculate the actual fft samples:
+        nfft = actual_window_samples * rs.window_padding_factor
+        window_data = scipy.signal.get_window(window_type, actual_window_samples)
+        half_pad = int(((nfft - actual_window_samples) / 2))
+        padded_window_data = np.pad(window_data, (half_pad, half_pad))
+
+        # Calculate a corrresponding overlap taking into account the padding:
+        step = actual_window_samples - overlap      # Independet of window padding.
+        adjusted_overlap = nfft - step
+
         # Create a spectrogram for each channel:
         spectrograms = []
         frequency_buckets = None
-        time_buckets = None
         for channel in channels_to_process:
-            reassigned_stft_power, frequency_buckets, time_buckets = self._do_reassignment_spectrogram(
-                data, channel, sample_rate, window_type, actual_fft_samples, overlap)
-            spectrograms.append(reassigned_stft_power)
+            fn = self._do_standard_spectrogram
+            if rs.spectrogram_type == SPECTROGRAM_TYPE_REASSIGNMENT:
+                fn = self._do_reassignment_spectrogram
+            elif rs.spectrogram_type == SPECTROGRAM_TYPE_STANDARD:
+                fn = self._do_standard_spectrogram
+            elif rs.spectrogram_type == SPECTROGRAM_TYPE_ADAPTIVE:
+                time_span = samples / sample_rate
+                time_threshold = 0.1        # Reassigment spectrum if they zoom in this far.
+                fn = self._do_standard_spectrogram if time_span > time_threshold else self._do_reassignment_spectrogram
 
-            # t2 = process_time()
-        #            print("data faffing time: {}".format(t2 - t1))
+            stft_power, frequency_buckets, _ = fn(data, channel, sample_rate, padded_window_data, nfft, adjusted_overlap)
+
+            spectrograms.append(stft_power)
 
         # Create a combined spectrogram by summing the power amplitudes. ndarray earns its keep here:
         # the alternative of doing this by looping dumbly is very slow.
@@ -827,9 +864,46 @@ class SpectrogramFftStep(PipelineStep):
         return frequency_buckets, spectrograms[0], (channels_available, channel_used)
 
     @staticmethod
+    def _do_standard_spectrogram(data: np.ndarray, channel: int,
+                                 sample_rate: int, window_type: str, nfft: int, overlap: int,
+                                 prune_data: bool = False):
+        """
+        Create a standard windowed spectrogram.
+        """
+
+        channel_data = data[channel, :]
+        frequency_buckets, time_buckets, stft_power = chunky_spectrogram(
+            np.single,
+            channel_data, fs=sample_rate,
+            window=window_type,
+            nperseg=nfft,
+            noverlap=overlap,
+            nfft=None,
+            # detrend=False, # Defaults to constant.
+            return_onesided=True,
+            scaling='density',  # So that power dB is independent of window size. Power per Hz.
+            axis=-1,
+            mode='psd')  # psd to square the data to get power.
+
+        return stft_power, frequency_buckets, time_buckets
+
+    @staticmethod
     def _do_reassignment_spectrogram(data: np.ndarray, channel: int,
-                                     sample_rate: int, window_type: str, actual_fft_samples: int, overlap: int):
-        """Create a reassigned spectrum using Nelson's method: https://www.researchgate.net/publication/251405072_The_Reassigned_Spectrogram."""
+                                     sample_rate: int, window_type: str, nfft: int, nfft_overlap: int,
+                                     prune_data: bool = False):
+        """
+        Create a reassigned spectrum using Nelson's method, with optional pruning.
+
+        In fact the pruning is not useful - reducing the noise significantly would also eliminate FM
+        parts of bat chirps.
+
+        References:
+            Various methods with algorithms: http://www.acousticslab.org/learnmoresra/files/fulopfitz2006jasa119.pdf
+            When to use what window: https://download.ni.com/evaluation/pxi/Understanding%20FFTs%20and%20Windowing.pdf
+            Despeckling: http://www.acousticslab.org/learnmoresra/files/fitzfulop2006dsp.pdf
+            Someone's implementation of Nelson's method: https://github.com/bzamecnik/tfr/tree/master/tfr
+            Reference on Nelson's method, similar to the paper above: https://www.researchgate.net/publication/251405072_The_Reassigned_Spectrogram
+        """
 
         # Slight hack: we discard a single data value so that the data and delayed data arrays
         # are the same length:
@@ -839,10 +913,11 @@ class SpectrogramFftStep(PipelineStep):
         def spectrogram(d: np.ndarray):
             """Handy function to avoid repeating the long argument list below."""
             return chunky_spectrogram(
+                np.csingle,
                 d, fs=sample_rate,
                 window=window_type,
-                nperseg=actual_fft_samples,
-                noverlap=overlap,
+                nperseg=nfft,
+                noverlap=nfft_overlap,
                 nfft=None,
                 # detrend=False, # Defaults to constant.
                 return_onesided=True,
@@ -852,16 +927,17 @@ class SpectrogramFftStep(PipelineStep):
                 axis=-1,
                 mode='complex')  # psd to square the data to get power.
 
-        prune_data: bool = False        # Disable PoC code.
+        # Needed for pruning:
         stft_del, stft_freq_del = None, None
 
         # print("spectrogram of {} points".format(len(d)))
         # t1 = process_time()
         frequency_buckets, time_buckets, stft = spectrogram(channel_data)
-        _, _, stft_1 = spectrogram(channel_data_delayed)  # stft_del. Intentionally generic variable name, we will repurpose it.
+        _, _, stft_1 = spectrogram(
+            channel_data_delayed)  # stft_del. Intentionally generic variable name, we will repurpose it.
 
         # TODO: handle case where the window is padded. In Nelson, win_size is padded to fftn, and they are the same
-        # if there is no padding.
+        # if there is no padding. Some constants below need adjusting for the padded case.
 
         # Nelson's method of reassignment, used below, has fairly simple maths and avoids any need
         # to do fiddly phase unwrapping.
@@ -869,7 +945,7 @@ class SpectrogramFftStep(PipelineStep):
         # We use del to signal which data we are done with so the garbage collector can reused the
         # storage as required.
 
-        window_width = actual_fft_samples / sample_rate
+        window_width = nfft / sample_rate
         half_window_width = window_width / 2.0
 
         if prune_data:
@@ -877,20 +953,20 @@ class SpectrogramFftStep(PipelineStep):
 
         # Calculate the channelized instantaneous frequency:
         # stft_1 is STFTDel at this point.
-        stft_1 = stft * np.conjugate(stft_1)    # In place. cross_spectrum_matrix_1, overwriting stft_del.
+        stft_1 = stft * np.conjugate(stft_1)  # In place. cross_spectrum_matrix_1, overwriting stft_del.
         k1 = sample_rate / (2 * np.pi)
-        stft_1 = k1 * np.angle(stft_1)          # In place, overwriting cross_spectrum_matrix_1.
+        stft_1 = k1 * np.angle(stft_1)  # In place, overwriting cross_spectrum_matrix_1.
         cif = stft_1.view()
 
         # Calculate the local group delay. These are offset to be relative to the centre of the
         # sfft window.
         # Create a copy of the transform that is rotated up/to the right by one frequency:
-        stft_2 = np.roll(stft, 1, axis=0)       # !!! storage allocation. stft_freq_del.
+        stft_2 = np.roll(stft, 1, axis=0)  # !!! storage allocation. stft_freq_del.
         if prune_data:
             stft_freq_del = stft_2.copy()
-        stft_2 = stft * np.conjugate(stft_2)    # In place. Overwrite STFTfreqdel stft_freq_del cross_spectrum_matrix_1.
+        stft_2 = stft * np.conjugate(stft_2)  # In place. Overwrite STFTfreqdel stft_freq_del cross_spectrum_matrix_1.
         k2 = window_width / (2 * np.pi)
-        angle = np.angle(stft_2)                # !!! storage allocation
+        angle = np.angle(stft_2)  # !!! storage allocation
         del stft_2
 
         # Change the range of the angle from -pi/+pi to 0/2pi, to avoid splitting the same signal
@@ -922,12 +998,13 @@ class SpectrogramFftStep(PipelineStep):
             # Prune data values by setting them to zero depending on the coindexed value in the second derivative:
             # print("min = {}, max = {}".format(cif_deriv.min(), cif_deriv.max()))
             threshold: float = 10.0
-            reassigned_stft_power[cif_deriv > threshold] = 0     # Zero out the data we don't want.
+            reassigned_stft_power[cif_deriv > threshold] = 0  # Zero out the data we don't want.
 
         return reassigned_stft_power, frequency_buckets, time_buckets
 
     @staticmethod
-    def _reassign(data: np.ndarray, cif: np.ndarray, lgd: np.ndarray, frequency_buckets: np.ndarrary, time_buckets: np.ndarrary):
+    def _reassign(data: np.ndarray, cif: np.ndarray, lgd: np.ndarray, frequency_buckets: np.ndarrary,
+                  time_buckets: np.ndarrary):
 
         data_num_freqs, data_num_times = data.shape
 
@@ -939,13 +1016,13 @@ class SpectrogramFftStep(PipelineStep):
 
         resultant_times = time_buckets.reshape((1, data_num_times))
         resultant_times = np.repeat(resultant_times, data_num_freqs, 0)
-        resultant_times = resultant_times + lgd        # lgd is delta to apply to the nominal time.
+        resultant_times = resultant_times + lgd  # lgd is delta to apply to the nominal time.
 
         shape = data.shape
         reassigned_data, _, _ = np.histogram2d(
-            cif.flatten(), resultant_times.flatten(),           # Flatten the reassigned data into two vectors.
-            bins=(frequency_bucket_edges, time_bucket_edges),   # Corresponding bucket edges for each dimensions.
-            weights=data.flatten())                             # The data.
+            cif.flatten(), resultant_times.flatten(),  # Flatten the reassigned data into two vectors.
+            bins=(frequency_bucket_edges, time_bucket_edges),  # Corresponding bucket edges for each dimensions.
+            weights=data.flatten())  # The data.
         reassigned_data.reshape(shape)
         return reassigned_data
 
@@ -1387,7 +1464,7 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
             None, params)
 
         params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
-            calc_data.actual_fft_samples, calc_data.actual_fft_overlap_samples, calc_data.actual_fft_overlap_percent, \
+            calc_data.actual_window_samples, calc_data.actual_window_overlap_samples, calc_data.actual_window_overlap_percent, \
             request.is_reference
         (specdata, self._graph_params), specdata_serial, spectrogram_serial = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params)

@@ -59,7 +59,7 @@ class ReadoutFrame(DrawableFrame):
         self._settings_button.grid(row=0, column=0, sticky="ns", padx=(0, 10))
 
         self._parameters_variable = tk.StringVar(value="")
-        self._parameters_label = tk.Label(self, textvariable=self._parameters_variable, width=20, anchor=tk.W)
+        self._parameters_label = tk.Label(self, textvariable=self._parameters_variable, width=40, anchor=tk.W)
         self._parameters_label.grid(row=0, column=1, sticky="nsew")
 
         self._coords_variable = tk.StringVar(value="")
@@ -88,8 +88,9 @@ class ReadoutFrame(DrawableFrame):
         else:
             channel_text = "channel {} only".format(params.specific_channel)
 
-        self._parameters_variable.set("{} {}, {}% overlap, {}".format(
-            WINDOW_TYPE_OPTIONS[params.window_type], params.fft_samples, params.fft_overlap, channel_text))
+        self._parameters_variable.set("{} {}, {}% overlap, {}x window padding, {}".format(
+            WINDOW_TYPE_OPTIONS[params.window_type], params.window_samples, params.window_overlap,
+            params.window_padding_factor, channel_text))
 
     def get_settings_button(self) -> SettingsButton:
         return self._settings_button

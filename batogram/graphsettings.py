@@ -55,6 +55,17 @@ WINDOW_TYPE_OPTIONS = {"hann": "Hann", "hamming": "Hamming", "blackman": "Blackm
                         # ("kaiser", 3): "Kaiser" is recommended in a paper but results in lots of spread.
 DEFAULT_WINDOW_TYPE = "hann"
 
+SPECTROGRAM_TYPE_STANDARD = 0
+SPECTROGRAM_TYPE_REASSIGNMENT = 1
+SPECTROGRAM_TYPE_ADAPTIVE = 2
+SPECTROGRAM_TYPE_OPTIONS = {SPECTROGRAM_TYPE_STANDARD: "Standard",
+                            SPECTROGRAM_TYPE_REASSIGNMENT: "Reassignment",
+                            SPECTROGRAM_TYPE_ADAPTIVE: "Auto based on zoom"}
+DEFAULT_SPECTROGRAM_TYPE = SPECTROGRAM_TYPE_STANDARD
+
+DEFAULT_FFT_WINDOW_PADDING_FACTOR = 1
+FFT_WINDOW_PADDING_FACTOR = {DEFAULT_FFT_WINDOW_PADDING_FACTOR: "1", 2: "2", 4: "4", 8: "8"}
+
 BNC_ADAPTIVE_MODE = 0
 BNC_MANUAL_MODE = 1
 BNC_INTERACTIVE_MODE = 2
@@ -72,9 +83,10 @@ class GraphSettings:
     frequency_range: Optional[AxisRange]
     show_grid: bool
     show_profile: bool
-    fft_samples: int
-    fft_overlap: int
+    window_samples: int
+    window_overlap: int
     window_type: str
+    window_padding_factor: int
     zoom_interpolation: int
     colour_mapping_path: str
     colour_mapping_steps: int
@@ -87,6 +99,7 @@ class GraphSettings:
     show_frequency_markers: bool
     multichannel_mode: int
     multichannel_channel: int
+    spectrogram_type: int
 
     def __init__(self,
                  on_app_modified_settings: Callable[[int], NoReturn],
@@ -99,9 +112,10 @@ class GraphSettings:
         self._on_user_applied_settings: Callable[[int], NoReturn] = on_user_applied_settings  # Call this to signal that the application needs to refresh.
         self.show_grid = True
         self.show_profile = show_profile
-        self.fft_samples = DEFAULT_FFT_SAMPLES
-        self.fft_overlap = DEFAULT_FFT_OVERLAP_PERCENT
+        self.window_samples = DEFAULT_FFT_SAMPLES
+        self.window_overlap = DEFAULT_FFT_OVERLAP_PERCENT
         self.window_type = DEFAULT_WINDOW_TYPE
+        self.window_padding_factor = DEFAULT_FFT_WINDOW_PADDING_FACTOR
         self.zoom_interpolation = DEFAULT_INTERPOLATION
         self.do_histogram_normalization = False
         self.bnc_adjust_type = BNC_ADAPTIVE_MODE
@@ -111,6 +125,7 @@ class GraphSettings:
         self.show_frequency_markers = False
         self.multichannel_mode = MULTICHANNEL_COMBINED_MODE
         self.multichannel_channel = 0
+        self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""
@@ -128,3 +143,6 @@ class GraphSettings:
         # the range of view:
         self.show_time_markers = False
         self.show_frequency_markers = False
+
+        # Reset various things for the new file:
+        self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
