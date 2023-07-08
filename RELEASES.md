@@ -1,4 +1,4 @@
-### Release 1.0.10
+### Release 1.1.0
 * Added multichannel options.
 * Added support for reassignment spectrograms for increased resolution.
 * Added support for window padding for increase frequency resolution.
