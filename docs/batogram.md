@@ -101,16 +101,39 @@ a spectrogram:
 * FFT samples determines the window width for the Fourier Transform, allowing to trade
 off time and frequency resolution as you wish. Auto mode will select one for you automatically based on the
 screen aspect ratio.
-* FFT overlap determines the overlap of adjacent FFT windows, allowing you to trade off smoothness
-versus speed of rendering. Auto mode chooses a value for you based in screen resolution.
 * Various FFT window types are available. The default is Hann, which is a common general purpose
 window. Use Google to find out more about this. The window type makes little difference
 unless you are zoomed right on a CF section of call.
+* FFT overlap determines the overlap of adjacent FFT windows, allowing you to trade off smoothness
+versus speed of rendering. Auto mode chooses a value for you based in screen resolution.
+* The window padding factor allows you to pad the window with zeros. This increases freqeuency resolution.
+* Spectrogram type allows you to choose between a standard spectrogram and a higher resolution reassignment
+spectrogram. [Reassignment spectrograms](https://en.wikipedia.org/wiki/Reassignment_method) are slower to calculate
+and need more memory to process, so it is best to zoom in the region of interest before selecting this option.
+Reassignment spectrograms and are bested suited to data with high signal to noise ratio and with no overlapping
+calls, otherwise artifacts may result. Reassingment spectrograms are best viewed with Image Interpolation set to None
+and with Window Padding set to 4 or 8. You may also want to adjust the brightness/contrast settings. See the example
+below.
 * Image interpolation determines how FFT pixels are mapped to screen pixels,
 allowing you to trade off smoothness of image versus speed of rendering.
 
 To achieve fastest rendering at the price of lower image quality, zoom right into the region of
 interest, choose a small FFT window, low overlap, and no interpolation.
+
+Here is an example of a reassignment spectrogram compared with a standard spectrogram of the
+same raw data, illustraing the higher resolution of the reassigment spectrogram for data with high signal to
+noise ratio.
+
+![img.png](reassignment.png)
+
+### Other
+
+The Other tab includes miscellaneous options.
+
+* Multichannel data determines how data files with more with one channel of data will be handled.
+You can choose to combine them all or by selecting a specific channel. Channel combination
+is done by summing the spectrogram power amplitudes after phase is discarded to avoid interference effects.
+If you select a channel that is not present, any channels that are present will be summed instead. 
 
 Settings
 --------

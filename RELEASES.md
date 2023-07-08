@@ -1,3 +1,10 @@
+### Release 1.0.10
+* Added multichannel options.
+* Added support for reassignment spectrograms for increased resolution.
+* Added support for window padding for increase frequency resolution.
+* Made guano parsing more tolerant of unexpected data and types.
+* Fixed a regression so that the sampling rate in the guano metadata overrides the one in the .wav file header.
+
 ### Release 1.0.9
 * Added support for manually placed time and frequency markers to read spans off the graph.
 * Resizing of main window is now more responsive, especially on Windows.
