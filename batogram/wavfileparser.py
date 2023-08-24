@@ -116,21 +116,40 @@ class WavFileParser:
         return WavFileParser.Chunks(header=self._fmt_header, data=data, guanodata=guano)
 
     def _read_fmt(self) -> Header:
-        # For the moment we only support audio format 1 (PCM no compression).
-        # We *could* extend this to support WAVEFORMATEXTENSIBLE, and hence 24 and 32 bit data
-        # according to this: https://www.jensign.com/riffparse/
-        # It seems unlikely that bat data will ever be in that format. Wait and see.
-
         chunk_size = self._read_int32("fmt SubchunkSize")
-        required_chunk_size = 16        # More data may be supplied, we will ignore it.
-        self._check_value("fmt SubchunkSize", chunk_size,
-                          lambda v: v >= required_chunk_size, "must be >= {}".format(required_chunk_size))
-        self._read_int16("AudioFormat", expected=1)
-        num_channels = self._read_int16("NumChannels")
-        sample_rate_hz = self._read_int32("SampleRate")
-        byte_rate = self._read_int32("ByteRate")
-        block_align = self._read_int16("BlockAlign")
-        bits_per_sample = self._read_int16("BitsPerSample")
+        format_tag = self._read_int16("AudioFormat")
+
+        if format_tag == 1:         # PCM no compression.
+            required_chunk_size = 14 + 2        # More data may be supplied, we will ignore it.
+            self._check_value("fmt SubchunkSize", chunk_size,
+                              lambda v: v >= required_chunk_size, "must be >= {}".format(required_chunk_size))
+            num_channels = self._read_int16("NumChannels")
+            sample_rate_hz = self._read_int32("SampleRate")
+            byte_rate = self._read_int32("ByteRate")
+            block_align = self._read_int16("BlockAlign")
+            bits_per_sample = self._read_int16("BitsPerSample")
+        elif format_tag == 65534:     # WAVE_FORMAT_EXTENSIBLE
+            # This limited supprt is reverse engineered from sample files,
+            # and from https://www.jensign.com/riffparse/
+
+            required_chunk_size = 36         # More data may be supplied, we will ignore it.
+            self._check_value("fmt SubchunkSize", chunk_size,
+                              lambda v: v >= required_chunk_size, "must be >= {}".format(required_chunk_size))
+            num_channels = self._read_int16("NumChannels")
+            sample_rate_hz = self._read_int32("SampleRate")
+            byte_rate = self._read_int32("ByteRate")
+            block_align = self._read_int16("BlockAlign")
+            bits_per_sample = self._read_int16("BitsPerSample")
+            cb_size = self._read_int16("ExtraSize")
+            valid_bits_per_sample = self._read_int16("validBitsPerSample")
+            channel_mask = self._read_int32("ChannelMask")      # Me neither.
+            # Read and validate the 12 byte sub format in 3 pieces:
+            subformat1 = self._read_int32("Subformat1", expected=0x00000001)
+            subformat2 = self._read_int32("Subformat2", expected=0x00100000)
+            subformat3 = self._read_int32("Subformat3", expected=0xAA000080)
+        else:
+            raise WavFileError("Unknown wav file format: {}".format(format_tag))
+
         # Sanity checks:
         self._check_value("NumChannels", num_channels, lambda v: v > 0, "must be > 0")
         self._check_value("SampleRate", sample_rate_hz, lambda v: v > 0, "must be > 0")
