@@ -166,21 +166,24 @@ class GuanoFile(object):
     """
 
     _coersion_rules = {
-        'Filter HP': float, 'Length': float, 'Loc Elevation': float,
-        'Loc Accuracy': float, 'Samplerate': int,
-        'TE': lambda value: int(value) if value else 1,
+        'Filter HP': float,
+        'Length': float,
+        'Loc Accuracy': float,
+        'Loc Elevation': float,
         'Loc Position': lambda value: tuple(float(v) for v in value.split()),
-        'Timestamp': parse_timestamp,
         'Note': lambda value: value.replace('\\n', '\n'),
+        'Samplerate': int,
+        'TE': lambda value: int(value) if value else 1,
+        'Timestamp': parse_timestamp,
     }
     _serialization_rules = {
-        'Loc Position': lambda value: '%f %f' % value,
-        'Timestamp': lambda value: value.isoformat() if value else '',
         'Length': lambda value: '%.2f' % value,
-        'Note': lambda value: value.replace('\n', '\\n')
+        'Loc Position': lambda value: '%f %f' % value,
+        'Note': lambda value: value.replace('\n', '\\n'),
+        'Timestamp': lambda value: value.isoformat() if value else '',
     }
 
-    def __init__(self, filename=None, strict=True):
+    def __init__(self, filename=None, strict=False):
         """
         Create a GuanoFile instance which represents a single file's GUANO metadata.
         If the file already contains GUANO metadata, it will be parsed immediately. If not, then
@@ -191,8 +194,8 @@ class GuanoFile(object):
         :type filename:  str or None
         :param bool strict:  whether the parser should be strict and raise exceptions when
                              encountering bad metadata values, or whether it should be as lenient
-                             as possible (default: True); if in lenient mode, bad values will
-                             remain in their UTF-8 string form as found persisted in the file
+                             as possible (default: False, lenient); if in lenient mode, bad values
+                             will remain in their UTF-8 string form as found persisted in the file
         :raises ValueError:  if the specified file doesn't represent a valid .WAV or if its
                              existing GUANO metadata is broken
         """
