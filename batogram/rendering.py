@@ -270,9 +270,9 @@ class BnCHelper:
             # Percentile corresponds to area of the image, which depends strongly on standard versus
             # reassigned spectrogram. That means different percents needed. So, we do a simple
             # percentage of the range instead.
-            # vmin = np.percentile(data, percent)
+            vmin = np.percentile(data, percent)
 
-            vmin = (data.max() - data.min()) * percent / 100.0 + data.min()
+            # vmin = (data.max() - data.min()) * percent / 100.0 + data.min()
         except IndexError as e:
             vmin = 0.0
         return vmin
