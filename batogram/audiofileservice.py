@@ -55,6 +55,7 @@ class AudioFileService(RawDataReader):
         sample_rate: float
         channels: int
         length_seconds: float
+        frame_data_present: bool
 
     @dataclass
     class RenderingData:
@@ -134,7 +135,8 @@ class AudioFileService(RawDataReader):
         length_seconds = sample_count / self._sample_rate
         self._metadata = AudioFileService.Metadata(file_name=file_name, file_path=self._filepath,
                                                    sample_rate=self._sample_rate,
-                                                   channels=channels, length_seconds=length_seconds)
+                                                   channels=channels, length_seconds=length_seconds,
+                                                   frame_data_present=chunks.data.frame_data_present)
 
         self._guano_data = guanodata
 

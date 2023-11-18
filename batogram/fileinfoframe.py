@@ -45,7 +45,12 @@ class FileInfoFrame(DrawableFrame):
                 c = "1 channel"
             else:
                 c = "{} channels".format(md.channels)
-            text = "{}: {:.1f} s at {:.1f} kHz, {}".format(
-                md.file_name, md.length_seconds,  md.sample_rate / 1000.0, c)
+            if md.frame_data_present:
+                f = " (frame data present)"
+            else:
+                f = ""
+
+            text = "{}: {:.1f} s at {:.1f} kHz, {}{}".format(
+                md.file_name, md.length_seconds,  md.sample_rate / 1000.0, c, f)
 
         self._label.config(text=text)
