@@ -20,12 +20,12 @@
 
 import io
 
-import numpy
 import numpy as np
 
 from dataclasses import dataclass
 from typing import List, Callable, Any, Tuple, Optional
 from .external.guano import GuanoFile
+from .stegangraphy import LSBSteganography
 
 
 class WavFileError(Exception):
@@ -375,21 +375,7 @@ class WavFileParser:
             channel_data = data[:, 0]
 
         chunk_size = min(512, len(channel_data))
-        # Frame data is 16 bit:
-        frame_data = numpy.zeros(int(np.ceil(chunk_size / 16)), dtype=np.int16)
-        bit = 0
-        value: np.int16 = 0
-        j = 0
-        for i in range(chunk_size):        # If there is a frame start, we will find it in this range.
-            raw_value: np.int16 = channel_data[i]
-            lsb = raw_value & 1
-            value |= lsb << bit
-            bit += 1
-            if bit == 16:
-                frame_data[j] = value
-                j += 1
-                value = 0
-                bit = 0
+        frame_data = LSBSteganography.process(channel_data, chunk_size)
 
         # Decide if there is frame data:
         frame_data_present = False

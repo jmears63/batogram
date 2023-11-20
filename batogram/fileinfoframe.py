@@ -46,7 +46,7 @@ class FileInfoFrame(DrawableFrame):
             else:
                 c = "{} channels".format(md.channels)
             if md.frame_data_present:
-                f = " (frame data present)"
+                f = ", frame data present"
             else:
                 f = ""
 
