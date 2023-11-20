@@ -68,6 +68,10 @@ class AudioFileService(RawDataReader):
         data_serial: int
         channels: int
         bytes_per_value: int
+        frame_data_present: bool
+        frame_data_offset: bool
+        frame_length: int
+        frame_data_values: int
 
     def __init__(self, filepath):
         super().__init__()
@@ -85,6 +89,10 @@ class AudioFileService(RawDataReader):
         self._file_parser: Optional[WavFileParser] = None
         self._channels: Optional[int] = None
         self._bytes_per_value: Optional[int] = None
+        self.frame_data_present = None
+        self.frame_offset = None
+        self.frame_length = None
+        self.frame_data_values = None
 
     def open(self):
         self._file_parser = WavFileParser(self._filepath)
@@ -122,6 +130,11 @@ class AudioFileService(RawDataReader):
         self._frequency_range = AxisRange(0, self._sample_rate / 2.0)
         self._channels = channels
         self._bytes_per_value = int(chunks.header.bits_per_sample / 8)
+
+        self.frame_data_present = chunks.data.frame_data_present
+        self.frame_offset = chunks.data.frame_offset
+        self.frame_length = chunks.data.frame_length
+        self.frame_data_values = chunks.data.frame_data_values
 
         # Force the amplitude range to be symmetrical:z
         abs_a_max = max(-data.data_range[0], data.data_range[1])
@@ -172,7 +185,11 @@ class AudioFileService(RawDataReader):
             amplitude_range=self._amplitude_range,
             data_serial=self._data_serial,
             channels=self._channels,
-            bytes_per_value=self._bytes_per_value
+            bytes_per_value=self._bytes_per_value,
+            frame_data_present=self.frame_data_present,
+            frame_data_offset=self.frame_offset,
+            frame_length=self.frame_length,
+            frame_data_values=self.frame_data_values
         )
 
     def get_guano_data(self):

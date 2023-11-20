@@ -38,6 +38,7 @@ from .common import AxisRange, AreaTuple, clip_to_range
 from .graphsettings import GraphSettings, ADAPTIVE_FFT_SAMPLES, ADAPTIVE_FFT_OVERLAP_PERCENT, \
     FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE, MULTICHANNEL_SINGLE_MODE, \
     SPECTROGRAM_TYPE_REASSIGNMENT, SPECTROGRAM_TYPE_STANDARD, SPECTROGRAM_TYPE_ADAPTIVE
+from .stegangraphy import LSBSteganography
 
 
 class RenderingRequest:
@@ -554,7 +555,8 @@ class PipelineHelper:
 class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
     """All steps needed to render a spectrogram."""
 
-    def __init__(self, settings: GraphSettings, spectrogram_step: "SpectrogramFftStep",
+    def __init__(self, settings: GraphSettings,
+                 spectrogram_step: "SpectrogramFftStep",
                  data_reader_step: "SpectrogramDataReaderStep"):
         super().__init__(settings)
         PipelineHelper.__init__(self)
@@ -564,6 +566,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         self._histogram_interface = None
         self._spectrogram_step = spectrogram_step
         self._data_reader_step = data_reader_step
+        self._extract_frame_data_step = SpectrogramExtractFrameDataStep(settings)
         self._zoom_step = SpectrogramZoomStep(settings)
         self._bnc_step = SpectrogramBNCStep(settings)
         self._apply_colour_map_step = SpectrogramApplyColourMapStep(settings)
@@ -588,6 +591,9 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         filedata, filedata_serial = request.file_data, request.file_data.data_serial
         sample_rate, sample_count = filedata.sample_rate, filedata.sample_count
         file_time_range, file_frequency_range = request.file_data.time_range, request.file_data.frequency_range
+        frame_data_present, frame_data_offset, frame_length, frame_data_values = \
+            request.file_data.frame_data_present, request.file_data.frame_data_offset, \
+            request.file_data.frame_length, request.file_data.frame_data_values
 
         if height < 10 or width < 10:
             # They've asked for a tiny or negative image size. Fail gracefully.
@@ -628,8 +634,14 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         if rawdata.min() == rawdata.max():
             raise FailGracefullyException("Range of raw data values is zero")
 
+        # Extract any frame data:
+        params = raw_data_serial, calc_data.first_time_index_for_amp, frame_data_present, frame_data_offset, \
+            frame_length, frame_data_values
+        (frame_data), frame_data_serial, _ = self._extract_frame_data_step.process_data(
+            rawdata, params)
+
         # Include the actual fft samples and overlap to force a cache miss when they change:
-        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
+        params = frame_data_serial, sample_rate, sample_count, request.axis_time_range, \
             calc_data.actual_window_samples, calc_data.actual_window_overlap_samples, calc_data.actual_window_overlap_percent, \
             request.is_reference
         (specdata, self._graph_params), specdata_serial, _ = \
@@ -694,7 +706,53 @@ class SpectrogramDataReaderStep(PipelineStep):
         _, raw_data_reader, time_min_index, time_max_index, _ = params
 
         raw_data, samples_read = raw_data_reader.read_raw_data((time_min_index, time_max_index))
+
         return raw_data, time_min_index
+
+
+class SpectrogramExtractFrameDataStep(PipelineStep):
+    """Get the raw data we need to render the spectrogram."""
+
+    @dataclass
+    class RelevantSettings:
+        def __init__(self, settings: GraphSettings):
+            pass
+
+    def get_relevant_settings(self) -> RelevantSettings:
+        """Get the settings subset that is relevant to this step. We will use this as a basis
+        for cache invalidation."""
+        return SpectrogramExtractFrameDataStep.RelevantSettings(self._settings)
+
+    def __init__(self, settings: GraphSettings):
+        super().__init__(settings)
+
+    def _implementation(self, inputdata, params):
+        _, first_time_index, frame_data_present, frame_offset, frame_length, frame_data_values = params
+
+        if frame_data_present:
+            if len(inputdata.shape) == 1:
+                channel_data = inputdata[:]
+            else:
+                # We the first channel if there is more than one:
+                channel_data = inputdata[0, :]
+
+            raw_data_len = len(channel_data)
+            frame_count: int = int((raw_data_len - frame_offset) / frame_length)
+            # -2 because we will discard the initial two values, +1 because we will add the index.
+            # int32 to allow for the index range:
+            frame_data = np.zeros((frame_count, frame_data_values - 3 + 1), dtype=np.int32)
+            i = frame_offset
+            expected_raw_data_values = LSBSteganography.frame_data_length_to_raw_data_length(frame_data_values)
+            for f in range(frame_count):
+                lsb_data = LSBSteganography.process(channel_data[i:], expected_raw_data_values)
+                lsb_data[2] = i     # Overwrite an unwanted value with the row.
+                frame_data[f, :] = lsb_data[2:]
+                i += frame_length
+
+            return frame_data, frame_count
+
+        # No frame data.
+        return None, 0
 
 
 class SpectrogramFftStep(PipelineStep):

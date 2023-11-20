@@ -51,7 +51,9 @@ class WavFileParser:
         data_byte_count: int
         data_range: Tuple[Any, Any]
         frame_data_present: bool
+        frame_offset: int
         frame_length: int
+        frame_data_values: int
 
     @dataclass
     class Chunks:
@@ -195,6 +197,7 @@ class WavFileParser:
 
         frame_data_present = False
         frame_length = 0
+        frame_offset = 0
 
         # Note where the data starts so we can come back for it later.
         self._start_of_data = self._f.tell()
@@ -224,7 +227,7 @@ class WavFileParser:
                 max_value = max(max_value, data.max())
 
             if first_time and data is not None:
-                frame_data_present, frame_length = self._find_frame_data(data)
+                frame_data_present, frame_offset, frame_length, frame_data_values = self._find_frame_data(data)
             first_time = False
 
             if data.shape[0] < count:
@@ -244,7 +247,9 @@ class WavFileParser:
                                   data_range=(min_value, max_value),
                                   data_byte_count=data_byte_count,
                                   frame_data_present=frame_data_present,
-                                  frame_length=frame_length)
+                                  frame_offset=frame_offset,
+                                  frame_length=frame_length,
+                                  frame_data_values=frame_data_values)
 
     def read_data(self, index_range: Tuple[int, int]) -> Tuple[Optional[np.ndarray], int]:
         """Read the request range of data (half open), and return the data and actual count read."""
@@ -360,7 +365,7 @@ class WavFileParser:
         return i & 1
 
     @staticmethod
-    def _find_frame_data(data) -> Tuple[bool, int]:
+    def _find_frame_data(data) -> Tuple[bool, int, int]:
         """See if we can find frame data in the audio stream as LSB steganography.
         That means, extract the LSB from each audio sample (first channel) and use
         it to construct 16 bit words of data."""
@@ -374,17 +379,24 @@ class WavFileParser:
             # We the first channel if there is more than one:
             channel_data = data[:, 0]
 
-        chunk_size = min(512, len(channel_data))
+        search_range = 512     # Hope to find a frame start in this range.
+        chunk_size = min(search_range, len(channel_data))
         frame_data = LSBSteganography.process(channel_data, chunk_size)
 
-        # Decide if there is frame data:
+        # Decide if there is frame data. If the data comes direct from the microphone, it
+        # will start at the first location. If the data has been messed around with, such as
+        # being extracted from the middle of a stream, it may not.
         frame_data_present = False
-        prefix = frame_data[0]
         frame_len = 0
-        data_words = frame_data[2]
-        expected_prefix: np.int16 = np.int16(0xDEAF)
-        if prefix == expected_prefix:
-            frame_data_present = True
-            frame_len = frame_data[1]
+        frame_data_values = 0
+        frame_offset = 0
+        for i in range(len(frame_data)):
+            if frame_data[i] == LSBSteganography.prefix_value:
+                # Take this as the start of frame (though it could be chance).
+                frame_data_present = True
+                frame_len = frame_data[i + 1]
+                frame_data_values = frame_data[i + 2]
+                frame_offset = i
+                break
 
-        return frame_data_present, frame_len
+        return frame_data_present, frame_offset, frame_len, frame_data_values
