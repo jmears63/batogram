@@ -365,21 +365,22 @@ class WavFileParser:
         return i & 1
 
     @staticmethod
-    def _find_frame_data(data) -> Tuple[bool, int, int]:
+    def _find_frame_data(data) -> Tuple[bool, int, int, int]:
         """See if we can find frame data in the audio stream as LSB steganography.
         That means, extract the LSB from each audio sample (first channel) and use
         it to construct 16 bit words of data."""
 
         # Assume that the supplied data is the start of the audio stream, so the first data
         # value is bit zero of any frame data.
+        # TODO: relax that assumption so that we deal with data extracts that don't align 16.
 
         if len(data.shape) == 1:
             channel_data = data[:]
         else:
-            # We the first channel if there is more than one:
+            # We take the first channel if there is more than one:
             channel_data = data[:, 0]
 
-        search_range = 512     # Hope to find a frame start in this range.
+        search_range = 1024     # Hope to find a frame start in this range.
         chunk_size = min(search_range, len(channel_data))
         frame_data = LSBSteganography.process(channel_data, chunk_size)
 
@@ -398,5 +399,13 @@ class WavFileParser:
                 frame_data_values = frame_data[i + 2]
                 frame_offset = i
                 break
+
+        # There seems to be frame data at offset frame_offset. Double check that by
+        # looking one frame ahead to see if we find a prefix value there.
+        next_frame_offset = frame_offset + frame_len
+        if len(channel_data) > next_frame_offset + chunk_size:
+            frame_data = LSBSteganography.process(channel_data[next_frame_offset:], chunk_size)
+            if frame_data[0] != LSBSteganography.prefix_value:
+                frame_data_present = False
 
         return frame_data_present, frame_offset, frame_len, frame_data_values

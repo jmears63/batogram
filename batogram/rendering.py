@@ -340,8 +340,9 @@ class SpectrogramCalcData:
             self.actual_window_overlap_percent = settings.window_overlap
 
         # Note: window overlap samples may be different from the final segment overlap samples, because of padding:
-        self.actual_window_overlap_samples = int(self.actual_window_overlap_percent / 100.0 * self.actual_window_samples)
-        self.actual_window_overlap_samples = max(1, self.actual_window_overlap_samples)     # Sanity.
+        self.actual_window_overlap_samples = int(
+            self.actual_window_overlap_percent / 100.0 * self.actual_window_samples)
+        self.actual_window_overlap_samples = max(1, self.actual_window_overlap_samples)  # Sanity.
         self.step_count: int = int(self.actual_window_samples - self.actual_window_overlap_samples)
         step_time: float = self.step_count / sample_rate
         self.nfft = self.actual_window_samples * settings.window_padding_factor
@@ -378,7 +379,7 @@ class SpectrogramCalcData:
         def time_to_time_index(t: float):
             """Get the index of the time sample at the centre of the padded segment whose centre
             is this axis time."""
-            time_index = int(t * sample_rate)   # + half_nfft_offset
+            time_index = int(t * sample_rate)  # + half_nfft_offset
             return time_index
 
         # Convert the axis ranges supplied to data index ranges, rounding outwards.
@@ -420,7 +421,8 @@ class SpectrogramCalcData:
         file_fmin, file_fmax = file_data.frequency_range.get_tuple()
         # Zero padding the window by a factor makes it longer and increases frequency
         # points in the same ratio:
-        freq_points: int = int(self.actual_window_samples * settings.window_padding_factor / 2 + 1)  # Includes f=0 and f=nyquist, so +1.
+        freq_points: int = int(
+            self.actual_window_samples * settings.window_padding_factor / 2 + 1)  # Includes f=0 and f=nyquist, so +1.
 
         def frequency_to_index(f: float) -> int:
             # Round to nearest index:
@@ -544,7 +546,7 @@ class PipelineHelper:
         file_data_bytes_needed: int = file_data_samples_needed * file_data.bytes_per_value
 
         # Space needed to store the spectrum data. Divide by two because we discard the phase info.
-        overlap_factor: float = calc_data.nfft/ (calc_data.nfft - calc_data.nfft_overlap_samples)
+        overlap_factor: float = calc_data.nfft / (calc_data.nfft - calc_data.nfft_overlap_samples)
         spectrum_data_bytes_needed: int = int(file_data_samples_needed * overlap_factor * np.float32(0).nbytes / 2)
 
         total_bytes_needed: int = spectrum_data_bytes_needed + file_data_bytes_needed
@@ -570,6 +572,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         self._zoom_step = SpectrogramZoomStep(settings)
         self._bnc_step = SpectrogramBNCStep(settings)
         self._apply_colour_map_step = SpectrogramApplyColourMapStep(settings)
+        self._apply_phase_colour_step = SpectrogramApplyPhaseColourStep(settings)
 
         # Remember info about the last histogram data, so we know if there is any change to it:
         self._last_histogram_data_details: Tuple[int, int] | None = None
@@ -593,7 +596,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         file_time_range, file_frequency_range = request.file_data.time_range, request.file_data.frequency_range
         frame_data_present, frame_data_offset, frame_length, frame_data_values = \
             request.file_data.frame_data_present, request.file_data.frame_data_offset, \
-            request.file_data.frame_length, request.file_data.frame_data_values
+                request.file_data.frame_length, request.file_data.frame_data_values
 
         if height < 10 or width < 10:
             # They've asked for a tiny or negative image size. Fail gracefully.
@@ -635,8 +638,8 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
             raise FailGracefullyException("Range of raw data values is zero")
 
         # Extract any frame data:
-        params = raw_data_serial, calc_data.first_time_index_for_amp, frame_data_present, frame_data_offset, \
-            frame_length, frame_data_values
+        params = raw_data_serial, calc_data.first_time_index_for_segs, frame_data_present, frame_data_offset, \
+            frame_length, frame_data_values, calc_data.actual_window_samples
         (frame_data), frame_data_serial, _ = self._extract_frame_data_step.process_data(
             rawdata, params)
 
@@ -647,7 +650,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         (specdata, self._graph_params), specdata_serial, _ = \
             self._spectrogram_step.process_data((rawdata, raw_data_offset), params)
 
-        del rawdata  # Allow the gc to reclaim this memory.
+        # del rawdata  # Allow the gc to reclaim this memory.
 
         params = specdata_serial, height, width, request.axis_time_range, request.axis_frequency_range, \
             file_time_range, file_frequency_range, calc_data
@@ -657,8 +660,15 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         (bnc_specdata, auto_vrange), bnc_serial, _ = self._bnc_step.process_data(zoomed_specdata, params)
         # auto_vrange is the auto range chosen, or None if not in autorange mode.
 
-        mapped_specdata, mapped_specdata_serial, _ = self._apply_colour_map_step.process_data(
-            bnc_specdata, (bnc_serial,))
+        if frame_data is not None:
+            params = bnc_serial, frame_data, frame_length, rawdata, calc_data.first_time_index_for_amp, \
+                calc_data.last_time_index_for_amp, calc_data.step_count, calc_data.actual_window_samples
+            mapped_specdata, mapped_specdata_serial, _ = self._apply_phase_colour_step.process_data(
+                bnc_specdata, params)
+        else:
+            params = (bnc_serial,)
+            mapped_specdata, mapped_specdata_serial, _ = self._apply_colour_map_step.process_data(
+                bnc_specdata, params)
 
         # Decide if the histogram needs updating (only if it has changed, taking into
         # account the basis setting):
@@ -727,32 +737,56 @@ class SpectrogramExtractFrameDataStep(PipelineStep):
         super().__init__(settings)
 
     def _implementation(self, inputdata, params):
-        _, first_time_index, frame_data_present, frame_offset, frame_length, frame_data_values = params
+        _, first_time_index, frame_data_present, frame_offset, frame_length, \
+            frame_data_values, actual_window_samples = params
 
         if frame_data_present:
             if len(inputdata.shape) == 1:
                 channel_data = inputdata[:]
             else:
-                # We the first channel if there is more than one:
+                # We use the first channel if there is more than one:
                 channel_data = inputdata[0, :]
 
             raw_data_len = len(channel_data)
-            frame_count: int = int((raw_data_len - frame_offset) / frame_length)
-            # -2 because we will discard the initial two values, +1 because we will add the index.
-            # int32 to allow for the index range:
-            frame_data = np.zeros((frame_count, frame_data_values - 3 + 1), dtype=np.int32)
-            i = frame_offset
-            expected_raw_data_values = LSBSteganography.frame_data_length_to_raw_data_length(frame_data_values)
-            for f in range(frame_count):
-                lsb_data = LSBSteganography.process(channel_data[i:], expected_raw_data_values)
-                lsb_data[2] = i     # Overwrite an unwanted value with the row.
-                frame_data[f, :] = lsb_data[2:]
-                i += frame_length
 
-            return frame_data, frame_count
+            # The first time index relates to the start of the segment, and might be negative.
+            # In that case, the code that reads file data just uses 0 instead of the negative number,
+            # so we do the same:
+            first_time_index = max(0, first_time_index)
+
+            # -3 because we will discard the initial two values, +1 because we will add the index,
+            # int32 to allow for the index range:
+            max_frame_count: int = int(raw_data_len / frame_length + 1)  # Rounding up for now. Trim later.
+            frame_data = np.zeros((max_frame_count, frame_data_values - 3 + 1), dtype=np.int32)
+            raw_data_length_needed = LSBSteganography.frame_data_length_to_raw_data_length(frame_data_values)
+
+            # Calculate where we expect the frame data to start:
+            i = frame_length - (first_time_index % frame_length) + frame_offset
+            while i >= frame_length:
+                i -= frame_length
+
+            # Read all the frames we can:
+            frame_number = 0
+            while i < raw_data_len and frame_number < max_frame_count:
+                steg_data = channel_data[i:i + raw_data_length_needed]
+                if len(steg_data) == raw_data_length_needed:
+                    lsb_data = LSBSteganography.process(steg_data, raw_data_length_needed)
+                    if lsb_data[0] != LSBSteganography.prefix_value:
+                        print("Error: frame alignmnent error")
+                    # LSB data is: magic prefix, samples per frame, smuggled data count (inclusive), data0, data1...
+                    frame_data[frame_number, 1:] = lsb_data[3:]
+                    frame_data[
+                        frame_number, 0] = i  # This is relative to the raw data array, not the image time bucket.
+                i += frame_length
+                frame_number += 1
+
+            # Trim to the data we actually found (we rounded up earlier):
+            frame_data = frame_data[0:frame_number, ...]
+
+            return frame_data
 
         # No frame data.
-        return None, 0
+        return None
 
 
 class SpectrogramFftStep(PipelineStep):
@@ -878,7 +912,7 @@ class SpectrogramFftStep(PipelineStep):
         padded_window_data = np.pad(window_data, (half_pad, half_pad))
 
         # Calculate a corrresponding overlap taking into account the padding:
-        step = actual_window_samples - overlap      # Independet of window padding.
+        step = actual_window_samples - overlap  # Independet of window padding.
         adjusted_overlap = nfft - step
 
         # Create a spectrogram for each channel:
@@ -892,10 +926,11 @@ class SpectrogramFftStep(PipelineStep):
                 fn = self._do_standard_spectrogram
             elif rs.spectrogram_type == SPECTROGRAM_TYPE_ADAPTIVE:
                 time_span = samples / sample_rate
-                time_threshold = 0.1        # Reassigment spectrum if they zoom in this far.
+                time_threshold = 0.1  # Reassigment spectrum if they zoom in this far.
                 fn = self._do_standard_spectrogram if time_span > time_threshold else self._do_reassignment_spectrogram
 
-            stft_power, frequency_buckets, _ = fn(data, channel, sample_rate, padded_window_data, nfft, adjusted_overlap)
+            stft_power, frequency_buckets, _ = fn(data, channel, sample_rate, padded_window_data, nfft,
+                                                  adjusted_overlap)
 
             spectrograms.append(stft_power)
 
@@ -1259,10 +1294,202 @@ class SpectrogramApplyColourMapStep(PipelineStep):
         return SpectrogramApplyColourMapStep.RelevantSettings(self._settings)
 
     def _implementation(self, inputdata, params):
-        # previous_serial, = params
+        previous_serial, = params
         # s = self.get_relevant_settings()
         outputdata = colourmap.instance.map(inputdata)
         return outputdata
+
+
+class SpectrogramApplyPhaseColourStep(PipelineStep):
+    """Replace each value in the supplied data with an RGB colour"""
+
+    def __init__(self, settings: GraphSettings):
+        super().__init__(settings)
+
+    @dataclass
+    class RelevantSettings:
+
+        def __init__(self, settings: GraphSettings):
+            pass
+
+    def get_relevant_settings(self) -> RelevantSettings:
+        """Get the settings subset that is relevant to this step. We will use this as a basis
+        for cache invalidation."""
+        return SpectrogramApplyPhaseColourStep.RelevantSettings(self._settings)
+
+    # These coefficients are based on a full sweep left to right of a 40 kHz source, 8 tap
+    # LMS modelling:
+    _pca_coeffs = np.array(
+        [[0.03021367, -0.07097673, 0.20951503],
+         [0.1371404, -0.11146676, 0.42894947],
+         [-0.43466548, -0.58388255, 0.54726772],
+         [0.41128554, -0.57248333, -0.36514597],
+         [0.6190908, -0.33240138, 0.08767499],
+         [0.44021471, 0.44502297, 0.43206273],
+         [0.18501043, 0.0661124, 0.27586693],
+         [0.10439587, -0.03121688, 0.26230632]
+         ])
+
+    def _implementation(self, inputdata, params):
+        previous_serial, frame_data, frame_length, rawdata, first_time_index, last_time_index, \
+            step_count, actual_window_samples = params
+        # s = self.get_relevant_settings()
+
+        # rawdata is the range to caculate the segments to provide the time span for the spectrogram.
+
+        freq_buckets, time_buckets = inputdata.shape  # inputdata corresponds to the spectrogram we will display.
+        frame_data_length, frame_data_values = frame_data.shape  # frame_data matches the range of rawdata.
+
+        # Do PCA on the frame data in range (excluding the time index field), reducing it to three dimensions
+        # while preserving as much variation as we can:
+        lms_values = frame_data[:, 1:frame_data_values]
+        _, frame_data_rgb, _ = self._princomp(lms_values, 3)
+
+        # Used a precalculated set of coefficients:
+        # frame_data_rgb = self._princomp_apply(frame_data[:, 1:data_values + 1], self._pca_coeffs)
+
+        # frame_data_rgb is transposed relative to frame_data:
+        frame_data_rgb = np.transpose(frame_data_rgb)
+
+        # Normalize the values to the range 0-1:
+        frame_data_rgb = (frame_data_rgb - np.min(frame_data_rgb)) / np.ptp(frame_data_rgb)
+
+        # Inflate the 3d data array so that each row corresponds to a spectrogram
+        # time index (not an image time bucket):
+        rgb_data_by_time_index = self._inflate_array(frame_data_rgb, first_time_index, frame_length,
+                                                     first_time_index, last_time_index)
+
+        # Here's what do to get the RGB data by image time bucket:
+        #   The spectrogram range corresponds to the time index range excluding the half segment width
+        #   at the beginning and end. We ignore that fact that frame data lags by half a frame.
+        #   * Trim the start and end of the raw data by half a segment width.
+        #   * Create a series of rawdata index numbers for spectrogram time bucket for the trimmed raw data.
+        #   * Use those to select frame_data values.
+        #
+        #   TODO: Possible future optmimization: rather than extract all frame data in advance, extract it lazily,
+        #   now, so that we don't extract more than we need, and avoid some processing.
+
+        half_nfft: int = int(actual_window_samples / 2)
+        i1: int = first_time_index + half_nfft
+        i2: int = last_time_index - half_nfft
+        # Add 0.5 to round to the nearest:
+        time_indexes_for_time_buckets = np.linspace(0.5, i2 - i1 - 1 + 0.5, num=time_buckets, dtype=int)
+        rgb_data_by_time_bucket_index = rgb_data_by_time_index[time_indexes_for_time_buckets, ...]    # Copy.
+
+        # Add a dimension to the input data and triplicate the intensity value:
+        inputdata_3d = np.reshape(inputdata, (*inputdata.shape, 1))  # Should return a view.
+        # Duplicate the intensity value for each RGB colour (triplicate):
+        inputdata_3d = np.repeat(inputdata_3d, 3, axis=2)
+
+        # Add a dimension to the rgb data so that it matches the shape of inputdata_3d:
+        rgb_data_3d = np.reshape(rgb_data_by_time_bucket_index, (1, *rgb_data_by_time_bucket_index.shape))
+        # Duplicate the data for each frequency:
+        rgb_data_3d = np.repeat(rgb_data_3d, freq_buckets, axis=0)
+
+        # We can now directly multiply the RGB and intensity data to get an image:
+        outputdata = (inputdata_3d * rgb_data_3d * 256.0).astype(np.uint8)
+
+        # outputdata = colourmap.instance.map(inputdata)
+        return outputdata
+
+    # See https://glowingpython.blogspot.com/2011/07/principal-component-analysis-with-numpy.html
+    @staticmethod
+    def _princomp(A, numpc: int):
+        """ performs principal components analysis
+        (PCA) on the n-by-p data matrix A
+        Rows of A correspond to observations, columns to variables.
+
+        Returns :
+            coeff :
+                is a p-by-p matrix, each column containing coefficients
+                for one principal component.
+            score :
+                the principal component scores; that is, the representation
+                of A in the principal component space. Rows of SCORE
+                correspond to observations, columns to components.
+            latent :
+                a vector containing the eigenvalues
+                of the covariance matrix of A.
+        """
+
+        # computing eigenvalues and eigenvectors of covariance matrix
+        M = (A - np.mean(A.T, axis=1)).T  # subtract the mean (along columns)
+        [latent, coeff] = np.linalg.eig(np.cov(M))
+        p = np.size(coeff, axis=1)
+        idx = np.argsort(latent)  # sorting the eigenvalues
+        idx = idx[::-1]  # in ascending order
+        # sorting eigenvectors according to the sorted eigenvalues
+        coeff = coeff[:, idx]
+        latent = latent[idx]  # sorting eigenvalues
+        if p > numpc >= 0:
+            coeff = coeff[:, range(numpc)]  # cutting some PCs if needed
+        score = np.dot(coeff.T, M)  # projection of the data in the new space
+        # print("coeff = {}".format(coeff))
+        return coeff, score, latent
+
+    @staticmethod
+    def _princomp_apply(A, coeff):
+        """ Apply the coeffs calculated by _princomp on the
+        data matrix supplied, transforming all data points into the new space.
+
+        Returns :
+            the principal component scores; that is, the representation
+            of A in the principal component space. Rows of SCORE
+            correspond to observations, columns to components.
+        """
+
+        M = (A - np.mean(A.T, axis=1)).T  # subtract the mean (along columns)
+        score = np.dot(coeff.T, M)  # projection of the data in the new space
+        return score
+
+    @staticmethod
+    def _inflate_array(s: np.ndarray, i1: int, step: int, j1: int, j2: int) -> np.ndarray:
+        """
+        All ranges are half open. All indices are zero based.
+
+        The s array s:
+            A 2D array whose rows are samples, columns are the sampled readings.
+            Sample numbers are i1 to i2 (half open).
+            The samples are not consecutive - the step size is provided.
+
+        The output destination array d:
+            A row for each sample in the consecutive half open range (j1, j2].
+            Column values copied from the "nearest" entry in the input array.
+
+        If extrapolation is needed, we use the nearest value from the input array.
+        """
+
+        source_length, source_width = s.shape
+
+        if j2 < j1:
+            return np.zeros((0, source_width))
+
+        # Find the input array row numbers that include the output range required,
+        # and clip them to the range actually available:
+        s_index_min = math.floor((j1 - i1) / step)
+        s_index_min = max(s_index_min, 0)
+        i1_actual = s_index_min * step + i1
+
+        s_index_max = math.ceil((j2 - i1) / step)
+        s_index_max = min(s_index_max, source_length)
+        i2_actual = s_index_max * step + i1
+
+        # Trim the source data down to this range:
+        trimmed_s = s[s_index_min:s_index_max + 1, :]  # A view of the range we actually need.
+        expanded_s = np.repeat(trimmed_s, repeats=step, axis=0)  # Repeat elements so the is no step.
+
+        # Pad the array as required:
+        pad_before = max(i1_actual - j1, 0)
+        i1_actual -= pad_before
+        pad_after = max(j2 - i2_actual, 0)
+        i2_actual += pad_after
+        padded_s = np.pad(expanded_s, ((pad_before, pad_after), (0, 0)))
+
+        # expanded_s now contains *consecutive* rows corresponding to i1_actual to i2_actual, and duplicated column data.
+        # The result we need therefore is a subrange of this.
+
+        d = padded_s[(j1 - i1_actual):(j2 - i1_actual), :]
+        return d
 
 
 class AmplitudePipelineRequest(RenderingRequest):
@@ -1289,7 +1516,7 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
 
         self._completion_data = None
         self._reduce_step = AmplitudeReduceData(settings)
-        self._amplitude_image_step = AmplitudeLineSegmentStep(settings)
+        self._amplitude_line_segment_step = AmplitudeLineSegmentStep(settings)
         self._data_reader_step = data_reader_step
 
     def do_processing(self, request: AmplitudePipelineRequest) -> None:
@@ -1334,9 +1561,9 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
         (reduced_data, reduction_ratio), reduce_serial, _ = self._reduce_step.process_data(
             (rawdata, raw_data_offset), params)
 
-        # Draw the amplitude spans into a bitmap array:
+        # Create a list of line segments ready to be drawn:
         params = reduce_serial, sample_rate, height, width, axis_trange, axis_arange, filedata_trange, filedata_arange
-        line_segments, ampdata_serial, _ = self._amplitude_image_step.process_data(
+        line_segments, ampdata_serial, _ = self._amplitude_line_segment_step.process_data(
             reduced_data, params)
 
         # print("Amplitude calcs complete")

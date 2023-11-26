@@ -31,7 +31,7 @@ class ColourMap:
     def __init__(self, map_file: str):
         """
         Don't use this to create instances, instead access
-        the single shared instance using get_instance().
+        the single shared instance colourmap.instance.
         """
 
         self._cmap = None
