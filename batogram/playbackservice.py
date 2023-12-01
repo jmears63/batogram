@@ -1,0 +1,221 @@
+# Copyright (c) 2023 John Mears
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+from __future__ import annotations
+
+import time
+from abc import ABC, abstractmethod
+from enum import Enum
+
+from threading import Thread, Condition
+from typing import Type, Tuple, Optional, Callable, List
+
+
+class PlaybackRequest:
+    """This class encapsulates everything we need to do to play back some audio."""
+
+    def __init__(self):
+        pass
+
+
+class PlaybackEventHandler(ABC):
+    """Classes that need to handle playback notifications should implement this interface."""
+
+    @abstractmethod
+    def on_play_started(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_play_cancelled(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_play_finished(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_play_paused(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_play_resumed(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_exception(self, e: Type[BaseException]):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_broadcast_busy(self):
+        """The service is busy and can't accept any requests to play."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def on_broadcast_ready(self):
+        """The service is ready to accept requests to play."""
+        raise NotImplementedError()
+
+
+# The event closure is a closure that this class passes back to the invoker:
+EventClosureType = Callable[[Type[PlaybackEventHandler]], None]
+
+# The event processor is a method implement on the invoker, used to send events to it:
+EventProcessorType = Callable[[EventClosureType], None]
+
+# This is the request that the playback invoker sends us:
+PlaybackRequestTuple = Tuple[PlaybackRequest, EventProcessorType]
+
+
+class PlaybackService(Thread):
+    """This class does audio playback in a background thread in response
+    to a request which fully specifies what is required.
+
+    Note that Python threading is dire because of the GIL. Therefore we try to do as much of our
+    heavy lifting as we can by nparray and scipy, which are largely C wrappers which release the GIL whenever
+    they can. So threading is likely to help us, though not as much as without the GIL problem.
+    """
+
+    def __init__(self):
+        # daemon means that this thread is killed if the main thread exits.
+        super().__init__(daemon=True, name="Playback")
+
+        self._shutting_down = False
+        self._pending_request_tuple: Optional[PlaybackRequestTuple] = None  # Use with _lock.
+        self._is_processing = False  # Use with _lock.
+        self._condition = Condition()  # Used to signal that a new request is ready for our attention.
+        self._watchers: List[Tuple[Type[PlaybackEventHandler], EventProcessorType]] = []
+
+        # Kick off the thread:
+        self.start()
+
+    def add_watcher(self, watcher: Type[PlaybackEventHandler], processor: EventProcessorType):
+        """Add a watcher which will receive broadcast events."""
+        self._watchers.append((watcher, processor))
+
+    def submit(self, request: Optional[PlaybackRequestTuple]):
+        # print("Submit {}".format(request))
+        # If there is request overrun, discard the older request. The most recent request is the only one of interest:
+        with self._condition:
+            # Atomically note the request:
+            # print("Existing pending request: {}".format(self._pending_request))
+            self._pending_request_tuple = request
+
+            # Tell the worker there is a new request for it, when it is ready.
+            # Note that we might notify the worker redundantly because of the way we discard
+            # submit overruns, so the worker needs to be able to deal with that.
+            self._condition.notify()
+
+    def run(self) -> None:
+        """This method waits for work and performs it. One request at a time."""
+
+        while True:
+            with self._condition:
+                # Wait until our services are required. Note that our master is impatient and may ring for us
+                # more than once, so don't be surprised if there is no request waiting.
+                self._condition.wait_for(lambda: self._pending_request_tuple is not None)
+
+                # You called, my lord?
+
+                # Atomically consume any request before we release the condition lock:
+                pending_request_tuple: Optional[PlaybackRequestTuple] = self._pending_request_tuple
+                self._pending_request_tuple = None
+
+            if self._shutting_down:
+                # print("Exiting from playback thread.")
+                return
+
+            if pending_request_tuple is None:  # I suppose this might happen if there is a race I haven't thought of.
+                continue
+
+            request, event_processor = pending_request_tuple
+            try:
+                # Derived classes must define this to contain work they want doing:
+                self.do_processing(request, event_processor)
+                pass
+            except FailGracefullyException as _:
+                pass
+            except BaseException as e:
+                event_processor(lambda handler: handler.on_exception(e))
+            else:
+                pass  # We completed cleanly.
+
+    def shutdown(self):
+        """Tidily shut down the worker thread when it has finished any work in progress."""
+        self._shutting_down = True
+        self.submit(None)
+
+    def do_processing(self, request: PlaybackRequest, event_processor: EventProcessorType) -> None:
+        """Subclasses must override this to do their work."""
+        raise NotImplementedError()
+
+    def broadcast(self, active_event_processor: EventProcessorType, closure: EventClosureType):
+        """Notify all watchers but the currently active one."""
+
+        for _, p in self._watchers:
+            if p != active_event_processor:
+                p(closure)
+
+
+class FailGracefullyException(BaseException):
+    def __init__(self, msg: str, *args):
+        super().__init__(*args)
+        self._msg = msg
+
+    def get_msg(self):
+        return self._msg
+
+
+class PlaybackSignal(Enum):
+    SIGNAL_NONE = 0
+    SIGNAL_PAUSE = 1
+    SIGNAL_STOP = 2
+
+
+class PlaybackProcessor(PlaybackService):
+    def __init__(self):
+        super().__init__()
+
+        self._pending_signal = PlaybackSignal.SIGNAL_NONE
+
+    def signal(self, signal):
+        self._pending_signal = signal
+
+    def do_processing(self, request: Type[PlaybackRequest], event_processor: EventProcessorType) -> None:
+        self._pending_signal = PlaybackSignal.SIGNAL_NONE
+        self.broadcast(event_processor, lambda handler: handler.on_broadcast_busy())
+        print("Starting")
+        time.sleep(1)
+        event_processor(lambda handler: handler.on_play_started())
+        for i in range(0, 5):
+            if self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
+                # Slowly spin here until they have finished pausing:
+                event_processor(lambda handler: handler.on_play_paused())
+                print("Pausing")
+                while self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
+                    time.sleep(1)
+                event_processor(lambda handler: handler.on_play_resumed())
+                print("Resuming")
+            elif self._pending_signal == PlaybackSignal.SIGNAL_STOP:
+                print("Stopping")
+                event_processor(lambda handler: handler.on_play_cancelled)
+                break
+            time.sleep(1)
+        event_processor(lambda handler: handler.on_play_finished())
+        print("Finishing")
+        self.broadcast(event_processor, lambda handler: handler.on_broadcast_ready())

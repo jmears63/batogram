@@ -21,12 +21,12 @@
 import tkinter as tk
 from typing import Tuple
 
-from .constants import MAIN_AMPLITUDE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
+from .constants import AMPLITUDE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import AudioFileService, RawDataReader
 from .common import AxisRange
 from .frames import GraphFrame, DrawableFrame
-from .rendering import AmplitudePipelineRequest
+from .renderingservice import AmplitudePipelineRequest
 
 AMPLITUDE_HEIGHT = 60
 
@@ -46,7 +46,7 @@ class AmplitudeGraphFrame(GraphFrame):
         self.rowconfigure(0, weight=1)
 
         self.bind("<Configure>", self._on_canvas_change)
-        self.bind(MAIN_AMPLITUDE_COMPLETER_EVENT, self._do_completer)
+        self.bind(AMPLITUDE_COMPLETER_EVENT, self._do_completer)
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         super().draw(draw_scope)
@@ -77,7 +77,7 @@ class AmplitudeGraphFrame(GraphFrame):
                                                  screen_factors, afs)
 
             self._pipeline.submit(request,
-                                  lambda: self.event_generate(MAIN_AMPLITUDE_COMPLETER_EVENT),
+                                  lambda: self.event_generate(AMPLITUDE_COMPLETER_EVENT),
                                   self._pipeline_error_handler)
         else:
             # No data, so we can complete drawing the graph right away:

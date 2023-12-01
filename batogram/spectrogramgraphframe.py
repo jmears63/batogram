@@ -21,7 +21,7 @@
 import tkinter as tk
 from typing import Tuple, Optional
 
-from .constants import MAIN_SPECTROGAM_COMPLETER_EVENT, MIN_F_RANGE, MIN_T_RANGE, \
+from .constants import SPECTROGAM_COMPLETER_EVENT, MIN_F_RANGE, MIN_T_RANGE, \
     AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import RawDataReader, AudioFileService
@@ -29,7 +29,7 @@ from .common import AxisRange
 from .frames import GraphFrame, DrawableFrame
 from .markers import TimeMarkerPair, FrequencyMarkerPair, AbstractMarkerPair
 from .spectrogrammouseservice import SpectrogramMouseService, CursorMode, DragMode
-from .rendering import SpectrogramPipelineRequest
+from .renderingservice import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
 
 
@@ -129,7 +129,7 @@ class SpectrogramGraphFrame(GraphFrame):
         self._pending_frequency_marker_positions: Tuple[Optional[float], Optional[float]] = None, None
 
         self.bind("<Configure>", self._on_canvas_change)
-        self.bind(MAIN_SPECTROGAM_COMPLETER_EVENT, self._do_completer)
+        self.bind(SPECTROGAM_COMPLETER_EVENT, self._do_completer)
 
     def set_histogram_interface(self, interface: HistogramInterface):
         self._histogram_interface = interface
@@ -208,7 +208,7 @@ class SpectrogramGraphFrame(GraphFrame):
                                                      frequency_range, screen_factors,
                                                      self._dc.get_afs())
                 self._pipeline.submit(request,
-                                      lambda: self.event_generate(MAIN_SPECTROGAM_COMPLETER_EVENT),
+                                      lambda: self.event_generate(SPECTROGAM_COMPLETER_EVENT),
                                       self._pipeline_error_handler)
         else:
             # No data, make the sliders full length:

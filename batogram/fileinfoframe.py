@@ -20,7 +20,6 @@
 
 import tkinter as tk
 from .frames import DrawableFrame
-from .rendering import SpectrogramPipeline, GraphParams
 
 
 class FileInfoFrame(DrawableFrame):

@@ -21,7 +21,7 @@
 import tkinter as tk
 
 from .frames import DrawableFrame
-from .rendering import GraphParams
+from .renderingservice import GraphParams
 from .graphsettings import WINDOW_TYPE_OPTIONS
 
 

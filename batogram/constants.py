@@ -21,9 +21,10 @@
 PROGRAM_NAME = "Batogram"
 DATA_CHANGE_MAIN_EVENT = "<<OnDataChangeMain>>"  # Underlying data has change: for example, a file opened or closed.
 DATA_CHANGE_REF_EVENT = "<<OnDataChangeRef>>"  # Underlying data has change: for example, a file opened or closed.
-MAIN_SPECTROGAM_COMPLETER_EVENT = "<<MainSpectrogramCompleter>>"
-MAIN_AMPLITUDE_COMPLETER_EVENT = "<<MainAmplitudeCompleter>>"
-MAIN_PROFILE_COMPLETER_EVENT = "<<MainProfileCompleter>>"
+SPECTROGAM_COMPLETER_EVENT = "<<MainSpectrogramCompleter>>"
+AMPLITUDE_COMPLETER_EVENT = "<<MainAmplitudeCompleter>>"
+PROFILE_COMPLETER_EVENT = "<<MainProfileCompleter>>"
+PLAYBACK_EVENT = "<<PlaybackEvent>>"
 ZOOM_ORDER = 2  # This will move into settings. 0-2 is a useful range.
 COLOUR_MAPS_PATH = "colour_maps"
 ASSETS_PATH = "assets"

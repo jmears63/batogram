@@ -49,7 +49,7 @@ class RenderingRequest:
         self.file_data: AudioFileService.RenderingData = file_data
 
 
-PendingRequestTuple = Tuple[Type[RenderingRequest], Any, Any]
+PendingRenderingRequestTuple = Tuple[Type[RenderingRequest], Any, Any]
 
 
 class RenderingPipeline(Thread):
@@ -82,7 +82,7 @@ class RenderingPipeline(Thread):
 
         self._settings = settings
         self._shutting_down = False
-        self._pending_request_tuple: Optional[PendingRequestTuple] = None  # Use with _lock.
+        self._pending_request_tuple: Optional[PendingRenderingRequestTuple] = None  # Use with _lock.
         self._is_processing = False  # Use with _lock.
         self._condition = Condition()  # Used to signal that a new request is ready for our attention.
 
@@ -115,7 +115,7 @@ class RenderingPipeline(Thread):
                 # You called, my lord?
 
                 # Atomically consume any request before we release the condition lock:
-                pending_request_tuple: Optional[PendingRequestTuple] = self._pending_request_tuple
+                pending_request_tuple: Optional[PendingRenderingRequestTuple] = self._pending_request_tuple
                 self._pending_request_tuple = None
 
             if self._shutting_down:

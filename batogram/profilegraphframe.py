@@ -21,12 +21,12 @@
 import tkinter as tk
 from typing import Tuple
 
-from .constants import MAIN_PROFILE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
+from .constants import PROFILE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import RawDataReader
 from .common import AxisRange
 from .frames import GraphFrame, DrawableFrame
-from .rendering import ProfilePipelineRequest
+from .renderingservice import ProfilePipelineRequest
 
 PROFILE_WIDTH = 90
 
@@ -45,7 +45,7 @@ class ProfileGraphFrame(GraphFrame):
         self._is_reference = is_reference
 
         self.bind("<Configure>", self._on_canvas_change)
-        self.bind(MAIN_PROFILE_COMPLETER_EVENT, self._do_completer)
+        self.bind(PROFILE_COMPLETER_EVENT, self._do_completer)
 
         # self._pipeline = None   # Temporary, remove this.
 
@@ -76,7 +76,7 @@ class ProfileGraphFrame(GraphFrame):
             request = self._get_pipeline_request(self._is_reference, af_data, data_area, time_range, frequency_range, screen_factors,
                                                  self._dc.get_afs())
             self._pipeline.submit(request,
-                                  lambda: self.event_generate(MAIN_PROFILE_COMPLETER_EVENT),
+                                  lambda: self.event_generate(PROFILE_COMPLETER_EVENT),
                                   self._pipeline_error_handler)
         else:
             # No data, so we can complete drawing the graph right away:

@@ -39,7 +39,8 @@ from .fileinfoframe import FileInfoFrame
 from .frames import DrawableFrame
 from .graphsettings import GraphSettings
 from .historianservice import HistorianService
-from .rendering import SpectrogramPipeline, SpectrogramFftStep, \
+from .playbackservice import PlaybackProcessor
+from .renderingservice import SpectrogramPipeline, SpectrogramFftStep, \
     AmplitudePipeline, ProfilePipeline, GraphParams, SpectrogramDataReaderStep
 from .profilegraphframe import ProfileGraphFrame
 from .readoutframe import ReadoutFrame, SettingsButton
@@ -138,20 +139,22 @@ class GraphPipelines(NamedTuple):
 class PanelFrame(tk.Frame):
     """This is a Frame which contains the set of graphs relating to the main or the reference data."""
 
-    def __init__(self, parent, root, pipelines: GraphPipelines, data_context, settings, settings_frame, pad, is_reference):
+    def __init__(self, parent, root, pipelines: GraphPipelines, data_context, settings, settings_frame, pad,
+                 playback_processor: PlaybackProcessor, is_reference):
         super().__init__(parent)
 
         self._pipelines = pipelines
         self._dc = data_context
         self._settings = settings
         self._settings_frame = settings_frame
+        self._playback_processor = playback_processor
 
         col = 0
         self._fileinfo_frame = FileInfoFrame(self, self._dc)
         self._fileinfo_frame.grid(row=0, column=col, columnspan=3, pady=(pad, 0), sticky='ew', padx=pad)
 
         self._button_frame = ButtonFrame(self, self._dc.breadcrumb_service, self, self._dc, program_directory,
-                                         is_reference)
+                                         is_reference, playback_processor)
         self._button_frame.grid(row=1, column=col, columnspan=3, pady=(0, 0), sticky='we', padx=pad)
         initial_cursor_mode = self._button_frame.get_cursor_mode()
 
@@ -489,6 +492,8 @@ class RootWindow(tk.Tk):
         # Kick off all the rendering pipelines:
         self._start_pipelines()
 
+        self._playback_service: PlaybackProcessor = PlaybackProcessor()
+
         self._create_menus()
         self._create_widgets()
 
@@ -548,12 +553,12 @@ class RootWindow(tk.Tk):
 
         self._ref_pane = PanelFrame(
             self._paned_window, self, self._ref_pipelines, self._dc_ref, self._ref_settings,
-            self._ref_settings_frame, pad, is_reference=True)
+            self._ref_settings_frame, pad, self._playback_service, is_reference=True)
         self._ref_pane.pack(side=tk.LEFT)
 
         self._main_pane = PanelFrame(
             self._paned_window, self, self._main_pipelines, self._dc_main, self._main_settings,
-            self._main_settings_frame, pad, is_reference=False)
+            self._main_settings_frame, pad, self._playback_service, is_reference=False)
         self._main_pane.pack(side=tk.RIGHT)
 
         SettingsButtonsController(bottom,
