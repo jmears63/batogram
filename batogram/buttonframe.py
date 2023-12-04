@@ -19,13 +19,14 @@
 # SOFTWARE.
 
 import tkinter as tk
+import tkinter.messagebox
 from enum import Enum
 from typing import Type, Optional
 
 from . import get_asset_path
 from .audiofileservice import AudioFileService
 from .common import AxisRange
-from .constants import PLAYBACK_EVENT
+from .constants import PLAYBACK_EVENT, PROGRAM_NAME
 
 from .frames import DrawableFrame
 from .playbackservice import PlaybackProcessor, PlaybackRequest, PlaybackEventHandler, PlaybackRequestTuple, \
@@ -266,13 +267,16 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
             slave_afs: AudioFileService = AudioFileService.make_slave_copy(self._dc.afs)#
             rendering_data = slave_afs.get_rendering_data()
             if rendering_data.sample_rate > 0:
-                # Determine the range of data to play back:
+                # Determine the range of data to play back. We use time range of the spectrogram.
                 tmin, tmax = self._dc.time_range.get_tuple()
-                tmin, tmax = tmin / rendering_data.sample_rate, tmax / rendering_data.sample_rate
+                tmin, tmax = int(tmin * rendering_data.sample_rate), int(tmax * rendering_data.sample_rate)
                 tmin, tmax = max(tmin, 0), min(tmax, rendering_data.sample_count)
+
+                # Assemble what we need for the playback request:
                 pr = PlaybackRequest(slave_afs, (tmin, tmax))
                 request: PlaybackRequestTuple = pr, self._event_processor
 
+                # It all seems to be in order, so kick off the playback:
                 self._playback_state = PlaybackState.PLAYBACK_PLAY_PENDING
                 self.draw()
                 self._playback_processor.submit(request)
@@ -321,7 +325,8 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
 
     def on_exception(self, e: Type[Exception]):
         """Notificiation callback called in the thread of the playback service."""
-        pass
+        tk.messagebox.showerror(PROGRAM_NAME, "Error encountered in playback: {}".format(e))
+        raise e
 
     def on_broadcast_busy(self):
         self._playback_state = PlaybackState.PLAYBACK_DISABLED

@@ -20,6 +20,8 @@
 from __future__ import annotations
 
 import time
+import pyaudio
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -103,13 +105,25 @@ class PlaybackService(Thread):
         self._is_processing = False  # Use with _lock.
         self._condition = Condition()  # Used to signal that a new request is ready for our attention.
         self._watchers: List[Tuple[Type[PlaybackEventHandler], EventProcessorType]] = []
+        self._shutting_down = False
+        self._pa: Optional[pyaudio.PyAudio] = None
 
         # Kick off the thread:
         self.start()
 
+    def get_pa(self) -> pyaudio.PyAudio:
+        if self._pa is None:
+            self._pa = pyaudio.PyAudio()
+        return self._pa
+
     def add_watcher(self, watcher: Type[PlaybackEventHandler], processor: EventProcessorType):
         """Add a watcher which will receive broadcast events."""
         self._watchers.append((watcher, processor))
+
+    def shutdown(self):
+        """Tidily shut down the worker thread when it has finished any work in progress."""
+        self._shutting_down = True
+        self.submit(None)
 
     def submit(self, request: Optional[PlaybackRequestTuple]):
         # print("Submit {}".format(request))
@@ -141,6 +155,8 @@ class PlaybackService(Thread):
 
             if self._shutting_down:
                 # print("Exiting from playback thread.")
+                if self._pa:
+                    self._pa.terminate()
                 return
 
             if pending_request_tuple is None:  # I suppose this might happen if there is a race I haven't thought of.
@@ -157,11 +173,6 @@ class PlaybackService(Thread):
                 event_processor(lambda handler: handler.on_exception(e))
             else:
                 pass  # We completed cleanly.
-
-    def shutdown(self):
-        """Tidily shut down the worker thread when it has finished any work in progress."""
-        self._shutting_down = True
-        self.submit(None)
 
     def do_processing(self, request: PlaybackRequest, event_processor: EventProcessorType) -> None:
         """Subclasses must override this to do their work."""
@@ -201,26 +212,63 @@ class PlaybackProcessor(PlaybackService):
 
     def do_processing(self, request: Type[PlaybackRequest], event_processor: EventProcessorType) -> None:
         afs = request.afs
-        with afs:       # Make sure we close the file handle when we are done.
+        with afs:       # Automatically close the file handle when we are done.
+            print("Starting")
             self._pending_signal = PlaybackSignal.SIGNAL_NONE
             self.broadcast(event_processor, lambda handler: handler.on_broadcast_busy())
-            print("Starting")
-            time.sleep(1)
+
+            ########################################
+            # Kick off the playback.
+            sample_width_bytes: int = 2                             # TODO avoid this hard coding.
+            rendering_data = afs.get_rendering_data()
+            # TODO Check for sane parameter values below.
+            pa = self.get_pa()
+
+            stream = pa.open(format=pa.get_format_from_width(sample_width_bytes, unsigned=False),
+                            channels=rendering_data.channels,
+                            rate=rendering_data.sample_rate,
+                            output=True)
+            ########################################
+
             event_processor(lambda handler: handler.on_play_started())
-            for i in range(0, 5):
+
+            # This is a worker thread, so we will use the pyaudio blocking model.
+
+            ########################################
+            chunk_len: int = 1024   # Arbitrary.
+            start, finish = request.sample_range
+            ########################################
+            for offset in range(start, finish, chunk_len):
+                ########################################
                 if self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
                     # Slowly spin here until they have finished pausing:
                     event_processor(lambda handler: handler.on_play_paused())
                     print("Pausing")
-                    while self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
-                        time.sleep(1)
+                    while self._pending_signal == PlaybackSignal.SIGNAL_PAUSE and not self._shutting_down:
+                        time.sleep(0.2)     # TODO could we use a condition variable instead of the poll?
                     event_processor(lambda handler: handler.on_play_resumed())
                     print("Resuming")
                 elif self._pending_signal == PlaybackSignal.SIGNAL_STOP:
                     print("Stopping")
                     event_processor(lambda handler: handler.on_play_cancelled)
                     break
-                time.sleep(1)
+                elif self._shutting_down:
+                    break
+
+                ########################################
+                chunk_data, samples_read = afs.read_raw_data((offset, offset + chunk_len))
+                if samples_read == 0:
+                    break
+                try:
+                    stream.write(chunk_data.tobytes(), samples_read)        # Hopefully this releases the GIL.
+                except BaseException as e:
+                    print(e)
+                ########################################
+
+            stream.close()
+
+            ########################################
             event_processor(lambda handler: handler.on_play_finished())
             print("Finishing")
             self.broadcast(event_processor, lambda handler: handler.on_broadcast_ready())
+
