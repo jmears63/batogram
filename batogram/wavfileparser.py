@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import io
+import os
 
 import numpy as np
 
@@ -53,7 +54,7 @@ class WavFileParser:
         frame_data_present: bool
         frame_offset: int
         frame_length: int
-        frame_data_values: int
+        frame_data_num_values: int
 
     @dataclass
     class Chunks:
@@ -66,6 +67,28 @@ class WavFileParser:
         self._f = None
         self._start_of_data = None  # File offset to where data starts.
         self._fmt_header: Optional[WavFileParser.Header] = None
+        # IMPORTANT: also add any new properties to make_slave_copy.
+
+    @staticmethod
+    def make_slave_copy(other: "WavFileParser") -> "WavFileParser":
+        """Create a copy of this file parser, including duping the file handle so that the
+        copied instance can be used and closed independently of the original.
+
+        Simple variables are copied by value; objects that we regard as constant are copied
+        by reference; the file descriptor is duped.
+        """
+
+        new_instance = WavFileParser(other._filepath)
+        new_instance._filepath = other._filepath                # By reference as we regard as unchanging.
+        new_instance._start_of_data = other._start_of_data      # Copy.
+        new_instance._fmt_header = other._fmt_header            # By reference as we regard as unchanging.
+
+        # Duplicate the file handle and create an associated python file object. This allows us to seek
+        # and close independently using the new file descriptor:
+        fd2 = os.dup(other._f.fileno())
+        new_instance._f = os.fdopen(fd2)
+
+        return new_instance
 
     def open(self) -> Chunks:
         # Binary mode:
@@ -207,6 +230,7 @@ class WavFileParser:
         expected_sample_count = int(value_count / header.num_channels)
 
         min_value, max_value = None, None
+        frame_data_present, frame_offset, frame_length, frame_data_num_values = False, 0, 0, 0
 
         # Read portions of data using via ndarray for speed, in portions
         # to avoid excessive memory usage, and track the data range
@@ -227,7 +251,7 @@ class WavFileParser:
                 max_value = max(max_value, data.max())
 
             if first_time and data is not None:
-                frame_data_present, frame_offset, frame_length, frame_data_values = self._find_frame_data(data)
+                frame_data_present, frame_offset, frame_length, frame_data_num_values = self._find_frame_data(data)
             first_time = False
 
             if data.shape[0] < count:
@@ -249,7 +273,7 @@ class WavFileParser:
                                   frame_data_present=frame_data_present,
                                   frame_offset=frame_offset,
                                   frame_length=frame_length,
-                                  frame_data_values=frame_data_values)
+                                  frame_data_num_values=frame_data_num_values)
 
     def read_data(self, index_range: Tuple[int, int]) -> Tuple[Optional[np.ndarray], int]:
         """Read the request range of data (half open), and return the data and actual count read."""
@@ -301,6 +325,7 @@ class WavFileParser:
 
         chunk_size_bytes = self._read_int32("ChunkSize")
         metadata = self._f.read(chunk_size_bytes)
+        gf = None
         try:
             gf = GuanoFile.from_string(metadata, strict=False)
         except Exception as e:
@@ -362,7 +387,7 @@ class WavFileParser:
 
     @staticmethod
     def _is_odd(i: int) -> bool:
-        return i & 1
+        return bool(i & 1)
 
     @staticmethod
     def _find_frame_data(data) -> Tuple[bool, int, int, int]:

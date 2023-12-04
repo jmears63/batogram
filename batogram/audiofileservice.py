@@ -82,7 +82,6 @@ class AudioFileService(RawDataReader):
         self._filepath = filepath
         self._sample_rate = None
         self._sample_count = None
-        self._raw_data = None
         self._data_serial: int = 0  # Used for the pipeline to detect when the file data has changed.
         self._metadata = None
         self._guano_data = None
@@ -93,6 +92,41 @@ class AudioFileService(RawDataReader):
         self.frame_offset = None
         self.frame_length = None
         self.frame_data_values = None
+        # IMPORTANT: also add any new properties to make_slave_copy.
+
+    @staticmethod
+    def make_slave_copy(other: "AudioFileService") -> "AudioFileService":
+        """Create a copy of an instance of this class, duplicating the file parser so the copy
+        can be closed independently of the original."""
+
+        new_instance = AudioFileService(other._filepath)
+
+        # Much of this is copied by reference as the slave is always used to refer
+        # to the same file.
+        new_instance._amplitude_range = other._amplitude_range
+        new_instance._time_range = other._time_range
+        # new_instance._filepath = other._filepath      # No need, pass via the argument.
+        new_instance._sample_rate = other._sample_rate
+        new_instance._sample_count = other._sample_count
+        new_instance._data_serial = other._data_serial
+        new_instance._metadata = other._metadata
+        new_instance._guano_data = other._guano_data
+        new_instance._file_parser = WavFileParser.make_slave_copy(other._file_parser)
+        new_instance._channels = other._channels
+        new_instance._bytes_per_value = other._bytes_per_value
+        new_instance.frame_data_present = other.frame_data_present
+        new_instance.frame_offset = other.frame_offset
+        new_instance.frame_length = other.frame_length
+        new_instance.frame_data_values = other.frame_data_values
+
+        return new_instance
+
+    def __enter__(self):
+        # Support for with.
+        pass
+    def __exit__(self, *args):
+        # Support for with.
+        self.close()
 
     def open(self):
         self._file_parser = WavFileParser(self._filepath)
@@ -134,10 +168,11 @@ class AudioFileService(RawDataReader):
         self.frame_data_present = chunks.data.frame_data_present
         self.frame_offset = chunks.data.frame_offset
         self.frame_length = chunks.data.frame_length
-        self.frame_data_values = chunks.data.frame_data_values
+        self.frame_data_values = chunks.data.frame_data_num_values
 
-        # Force the amplitude range to be symmetrical:z
-        abs_a_max = max(-data.data_range[0], data.data_range[1])
+        # Force the amplitude range to be symmetrical. The inner max is avoid the impossible negation of -32678.
+        # There is no such positive number.
+        abs_a_max = max(-(max(data.data_range[0], -32767)), data.data_range[1])
         self._amplitude_range = AxisRange(-abs_a_max, abs_a_max)
 
         # Construct a string that can be used to know if a new (or the same) file has been loaded:

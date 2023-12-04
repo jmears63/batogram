@@ -23,6 +23,8 @@ from enum import Enum
 from typing import Type, Optional
 
 from . import get_asset_path
+from .audiofileservice import AudioFileService
+from .common import AxisRange
 from .constants import PLAYBACK_EVENT
 
 from .frames import DrawableFrame
@@ -260,12 +262,22 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
 
     def _handle_play(self):
         if self._playback_state == PlaybackState.PLAYBACK_STOPPED:
-            self._playback_state = PlaybackState.PLAYBACK_PLAY_PENDING
-            self.draw()
-
             # Send a playback request off to the async service:
-            request: PlaybackRequestTuple = PlaybackRequest(), self._event_processor
-            self._playback_processor.submit(request)
+            slave_afs: AudioFileService = AudioFileService.make_slave_copy(self._dc.afs)#
+            rendering_data = slave_afs.get_rendering_data()
+            if rendering_data.sample_rate > 0:
+                # Determine the range of data to play back:
+                tmin, tmax = self._dc.time_range.get_tuple()
+                tmin, tmax = tmin / rendering_data.sample_rate, tmax / rendering_data.sample_rate
+                tmin, tmax = max(tmin, 0), min(tmax, rendering_data.sample_count)
+                pr = PlaybackRequest(slave_afs, (tmin, tmax))
+                request: PlaybackRequestTuple = pr, self._event_processor
+
+                self._playback_state = PlaybackState.PLAYBACK_PLAY_PENDING
+                self.draw()
+                self._playback_processor.submit(request)
+            else:
+                print("Sample rate is insane: {}".format(rendering_data.sample_rate))
 
     def _handle_pause(self):
         if self._playback_state == PlaybackState.PLAYBACK_PLAYING:

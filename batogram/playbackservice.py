@@ -21,17 +21,20 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 
 from threading import Thread, Condition
 from typing import Type, Tuple, Optional, Callable, List
 
+from batogram.audiofileservice import AudioFileService
 
+
+@dataclass
 class PlaybackRequest:
     """This class encapsulates everything we need to do to play back some audio."""
-
-    def __init__(self):
-        pass
+    afs: AudioFileService
+    sample_range: Tuple[int, int]
 
 
 class PlaybackEventHandler(ABC):
@@ -197,25 +200,27 @@ class PlaybackProcessor(PlaybackService):
         self._pending_signal = signal
 
     def do_processing(self, request: Type[PlaybackRequest], event_processor: EventProcessorType) -> None:
-        self._pending_signal = PlaybackSignal.SIGNAL_NONE
-        self.broadcast(event_processor, lambda handler: handler.on_broadcast_busy())
-        print("Starting")
-        time.sleep(1)
-        event_processor(lambda handler: handler.on_play_started())
-        for i in range(0, 5):
-            if self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
-                # Slowly spin here until they have finished pausing:
-                event_processor(lambda handler: handler.on_play_paused())
-                print("Pausing")
-                while self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
-                    time.sleep(1)
-                event_processor(lambda handler: handler.on_play_resumed())
-                print("Resuming")
-            elif self._pending_signal == PlaybackSignal.SIGNAL_STOP:
-                print("Stopping")
-                event_processor(lambda handler: handler.on_play_cancelled)
-                break
+        afs = request.afs
+        with afs:       # Make sure we close the file handle when we are done.
+            self._pending_signal = PlaybackSignal.SIGNAL_NONE
+            self.broadcast(event_processor, lambda handler: handler.on_broadcast_busy())
+            print("Starting")
             time.sleep(1)
-        event_processor(lambda handler: handler.on_play_finished())
-        print("Finishing")
-        self.broadcast(event_processor, lambda handler: handler.on_broadcast_ready())
+            event_processor(lambda handler: handler.on_play_started())
+            for i in range(0, 5):
+                if self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
+                    # Slowly spin here until they have finished pausing:
+                    event_processor(lambda handler: handler.on_play_paused())
+                    print("Pausing")
+                    while self._pending_signal == PlaybackSignal.SIGNAL_PAUSE:
+                        time.sleep(1)
+                    event_processor(lambda handler: handler.on_play_resumed())
+                    print("Resuming")
+                elif self._pending_signal == PlaybackSignal.SIGNAL_STOP:
+                    print("Stopping")
+                    event_processor(lambda handler: handler.on_play_cancelled)
+                    break
+                time.sleep(1)
+            event_processor(lambda handler: handler.on_play_finished())
+            print("Finishing")
+            self.broadcast(event_processor, lambda handler: handler.on_broadcast_ready())
