@@ -21,13 +21,13 @@
 import tkinter as tk
 from typing import Tuple, Optional
 
-from .constants import SPECTROGAM_COMPLETER_EVENT, MIN_F_RANGE, MIN_T_RANGE, \
-    AXIS_FONT_HEIGHT
+from .constants import SPECTROGAM_COMPLETER_EVENT, MIN_F_RANGE, MIN_T_RANGE, AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import RawDataReader, AudioFileService
 from .common import AxisRange
 from .frames import GraphFrame, DrawableFrame
 from .markers import TimeMarkerPair, FrequencyMarkerPair, AbstractMarkerPair
+from .playbackservice import PlaybackCursorEventHandler
 from .spectrogrammouseservice import SpectrogramMouseService, CursorMode, DragMode
 from .renderingservice import SpectrogramPipelineRequest
 from .moreframe import HistogramInterface
@@ -100,7 +100,7 @@ class RightMouseMenu(tk.Menu):
             self.grab_release()
 
 
-class SpectrogramGraphFrame(GraphFrame):
+class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
     """A graph frame containing a spectrogram."""
 
     def __init__(self, parent: "PanelFrame", root, pipeline, data_context, settings, initial_cursor_mode, is_reference):
@@ -114,12 +114,15 @@ class SpectrogramGraphFrame(GraphFrame):
 
         self._layout = None
         self._histogram_interface: Optional[HistogramInterface] = None
+        self._data_area: Optional[Tuple[int, int, int, int]] = None
 
         # Scrollers are (individually) optional:
         self._scroller_t = None
         self._scroller_f = None
 
         self._parent = parent
+
+        self._playback_line_id: Optional[int] = None
 
         # Optional time marker pair, depends whether the user has enabled time markers or not:
         self._time_marker_pair: Optional[TimeMarkerPair] = None
@@ -194,6 +197,7 @@ class SpectrogramGraphFrame(GraphFrame):
         graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range,
                                                        self._settings.show_grid,
                                                        self._settings.zero_based_time)
+        self._data_area = data_area
 
         if afs_data:
             self._update_time_scroller(time_range, afs_data.time_range)
@@ -651,3 +655,32 @@ class SpectrogramGraphFrame(GraphFrame):
 
         self._settings.on_app_modified_settings()
         self.draw()
+
+    def on_show_update_playback_cursor(self, offset: int):
+        # Note any existing line id, and delete it after drawing the new one, for smoothness.
+        existing_line_id = self._playback_line_id
+        self._playback_line_id = None
+
+        if self._data_area is not None:
+            # Draw a vertical line in the data area at the x canvas position corresponding to the
+            # raw data sample offset provided.
+            # This code may not be the most efficient ever, but it runs in the UI thread which is not
+            # doing much else during playback.
+            colour = "#00ff00"
+            left, top, right, bottom = self._data_area
+            if self._dc.afs is not None:
+                rendering_data = self._dc.afs.get_rendering_data()
+                t: float = offset / rendering_data.sample_rate
+                x = self._layout.time_to_canvas(t)
+                # Only draw it if it is within the data area:
+                if left <= x <= right:
+                    self._playback_line_id = self._canvas.create_line(x, top, x, bottom, fill=colour, width=1,
+                                                                      dash=(1, 1))
+
+        if existing_line_id is not None:
+            self._canvas.delete(existing_line_id)
+
+    def on_hide_playback_cursor(self):
+        if self._playback_line_id is not None:
+            self._canvas.delete(self._playback_line_id)
+            self._playback_line_id = None

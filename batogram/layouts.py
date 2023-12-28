@@ -355,6 +355,11 @@ class AxisLayout(Layout):
                 self._axis_range.max - self._axis_range.min) + self._axis_range.min
         return v
 
+    def axis_to_canvas(self, v):
+        p = (v - self._axis_range.min) / (self._axis_range.max - self._axis_range.min) * (
+                self._max_pixel - self._min_pixel) + self._min_pixel
+        return p
+
     def get_axis_range(self) -> AxisRange:
         return self._axis_range
 
@@ -531,6 +536,10 @@ class SpectrogramLayout(GraphLayout):
             return t_data_area, f_data_area
         else:
             return None
+
+    def time_to_canvas(self, t: float) -> int:
+        """Finded the canvas x coordinate for the time provided."""
+        return int(self._x_axis.axis_to_canvas(t) + 0.5)
 
 
 class AmplitudeLayout(GraphLayout):

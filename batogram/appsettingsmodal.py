@@ -25,13 +25,13 @@ from typing import List, Callable
 
 from pathlib import Path
 
-from batogram.appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP, AppSettingsWrapper
+from batogram.appsettings import TD_MAPS, DEFAULT_COLOUR_MAP, AppSettingsWrapper
 from batogram.modalwindow import ModalWindow
 
 
 class ColourMapOptionMenu(tk.OptionMenu):
     def __init__(self, parent, var):
-        options: List[str] = list(COLOUR_MAPS.keys())
+        options: List[str] = list(TD_MAPS.keys())
         options.sort()
         # Force the preselect value to be valid. Perhaps an obselete value
         # was stored in JSON?

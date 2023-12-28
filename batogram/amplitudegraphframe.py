@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
-from typing import Tuple
+from typing import Tuple, Callable
 
 from .constants import AMPLITUDE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
@@ -34,11 +34,13 @@ AMPLITUDE_HEIGHT = 60
 class AmplitudeGraphFrame(GraphFrame):
     """A Frame the contains an amplitude graph."""
 
-    def __init__(self, parent, root, pipeline, data_context, settings, is_reference=False):
+    def __init__(self, parent, root, pipeline, data_context, settings, is_reference,
+                 on_t_range_set: Callable[[Tuple[int, int]], None]):
         super().__init__(parent, root, pipeline, data_context, settings)
 
         self._is_reference = is_reference
         self._parent = parent
+        self._on_t_range_set = on_t_range_set
 
         self._canvas = tk.Canvas(self, bg="black", height=AMPLITUDE_HEIGHT, width=1)
         self._canvas.grid(row=0, column=0, sticky='nesw')
@@ -95,5 +97,8 @@ class AmplitudeGraphFrame(GraphFrame):
         # A bit of a hack because tkinter doesn't seem to allow data to be attached to an event:
         completer = self._completer
         if completer:
-            is_memory_limit_hit, request, completion_data = self._pipeline.get_completion_data()
+            is_memory_limit_hit, request, completion_data, t_range = self._pipeline.get_completion_data()
+            # Notify interested parties when the time sample range is known from the rendering pipeline:
+            self._on_t_range_set(t_range)
+            # print("t_range = {}".format(t_range))
             completer(is_memory_limit_hit, completion_data)

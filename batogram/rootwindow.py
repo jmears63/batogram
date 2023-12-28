@@ -28,7 +28,7 @@ from timeit import default_timer as timer
 from typing import NamedTuple, Optional, Tuple
 from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
-from .appsettings import COLOUR_MAPS
+from .appsettings import TD_MAPS
 from .appsettingsmodal import AppSettingsWindow
 from .audiofileservice import AudioFileService
 from .breadcrumbservice import BreadcrumbService, Breadcrumb
@@ -39,7 +39,7 @@ from .fileinfoframe import FileInfoFrame
 from .frames import DrawableFrame
 from .graphsettings import GraphSettings
 from .historianservice import HistorianService
-from .playbackservice import PlaybackProcessor
+from .playbackservice import PlaybackServiceImpl
 from .renderingservice import SpectrogramPipeline, SpectrogramFftStep, \
     AmplitudePipeline, ProfilePipeline, GraphParams, SpectrogramDataReaderStep
 from .profilegraphframe import ProfileGraphFrame
@@ -140,7 +140,7 @@ class PanelFrame(tk.Frame):
     """This is a Frame which contains the set of graphs relating to the main or the reference data."""
 
     def __init__(self, parent, root, pipelines: GraphPipelines, data_context, settings, settings_frame, pad,
-                 playback_processor: PlaybackProcessor, is_reference):
+                 playback_processor: PlaybackServiceImpl, is_reference):
         super().__init__(parent)
 
         self._pipelines = pipelines
@@ -159,12 +159,13 @@ class PanelFrame(tk.Frame):
         initial_cursor_mode = self._button_frame.get_cursor_mode()
 
         self._amplitude_frame = AmplitudeGraphFrame(self, root, pipelines.amplitude, self._dc, self._settings,
-                                                    is_reference=is_reference)
+                                                    is_reference, self.on_t_range_set)
         self._amplitude_frame.grid(row=2, column=col, sticky='nesw', padx=pad)
 
         self._spectrogram_frame = SpectrogramGraphFrame(self, root, pipelines.spectrogram, self._dc, self._settings,
                                                         initial_cursor_mode, is_reference=is_reference)
         self._spectrogram_frame.grid(row=3, column=col, sticky='nesw', padx=pad)
+        self._button_frame.set_playback_cursor_controller(self._spectrogram_frame)
 
         # Set up two-way communications between the scroll bar and the graph frame.
         # Set repeatdelay=0 to disable repeating, which behaves oddly.
@@ -201,6 +202,10 @@ class PanelFrame(tk.Frame):
 
         self._frames = [self._amplitude_frame, self._spectrogram_frame, self._profile_frame,
                         self._button_frame, self._fileinfo_frame, self._readout_frame]
+
+    def on_t_range_set(self, t_range: Tuple[int, int]) -> None:
+        if self._button_frame:
+            self._button_frame.set_t_range(t_range)
 
     def get_settings_button(self) -> SettingsButton:
         return self._readout_frame.get_settings_button()
@@ -492,7 +497,7 @@ class RootWindow(tk.Tk):
         # Kick off all the rendering pipelines:
         self._start_pipelines()
 
-        self._playback_service: PlaybackProcessor = PlaybackProcessor()
+        self._playback_service: PlaybackServiceImpl = PlaybackServiceImpl()
 
         self._create_menus()
         self._create_widgets()
@@ -718,7 +723,7 @@ class RootWindow(tk.Tk):
             # Attempt to read the wav file provided:
             af_this = af.AudioFileService(filepath)
             af_this.open()
-        except (FileNotFoundError, WavFileError) as e:
+        except (FileNotFoundError, WavFileError, ValueError) as e:
             tk.messagebox.showerror(PROGRAM_NAME, "Error reading audio file: {}".format(e))
             return None
         else:
@@ -813,5 +818,5 @@ class RootWindow(tk.Tk):
     @staticmethod
     def _apply_settings():
         # Refresh some things from the updated settings values:
-        cmap_file = COLOUR_MAPS[appsettings.instance.colour_map]
+        cmap_file = TD_MAPS[appsettings.instance.colour_map]
         colourmap.instance.reload_map(cmap_file)

@@ -22,7 +22,7 @@ from typing import Optional
 import numpy as np
 
 from . import get_colour_map_path
-from .appsettings import COLOUR_MAPS, DEFAULT_COLOUR_MAP
+from .appsettings import TD_MAPS, DEFAULT_COLOUR_MAP
 
 
 class ColourMap:
@@ -83,4 +83,4 @@ class ColourMap:
 
 
 # The single global instance of the colour map:
-instance: ColourMap = ColourMap(COLOUR_MAPS[DEFAULT_COLOUR_MAP])
+instance: ColourMap = ColourMap(TD_MAPS[DEFAULT_COLOUR_MAP])

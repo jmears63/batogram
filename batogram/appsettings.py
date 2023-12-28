@@ -31,7 +31,7 @@ from scipy.interpolate import CubicSpline
 
 DEFAULT_COLOUR_MAP = "Kindlmann *"
 
-COLOUR_MAPS = {
+TD_MAPS = {
     DEFAULT_COLOUR_MAP:         "kindlmann-table-byte-1024.csv",
     "Kindlmann (extended)":     "extended-kindlmann-table-byte-1024.csv",
     "Black body":               "black-body-table-byte-1024.csv",
@@ -95,7 +95,7 @@ class AppSettingsWrapper(AppSettings):
                 s = f.read()
                 file_settings: AppSettings = self.from_json(s)
                 # Validate some values:
-                if file_settings.colour_map not in COLOUR_MAPS:
+                if file_settings.colour_map not in TD_MAPS:
                     file_settings.colour_map = DEFAULT_COLOUR_MAP
 
                 # Surely there is a neater way to do this?

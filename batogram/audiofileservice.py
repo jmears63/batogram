@@ -124,6 +124,7 @@ class AudioFileService(RawDataReader):
     def __enter__(self):
         # Support for with.
         pass
+
     def __exit__(self, *args):
         # Support for with.
         self.close()
@@ -138,6 +139,9 @@ class AudioFileService(RawDataReader):
         # print("Opened file {}: rate = {} channels = {} samples = {}".format(self._filepath, sample_rate, channels, sample_count))
 
         # Do some sanity checks:
+        if chunks.header.bits_per_sample != 16:
+            raise ValueError(
+                "Support is currently limited to 16 bit PCM - found {} bit data.".format(int(chunks.header.bits_per_sample)))
         if channels < 1:
             raise ValueError(
                 "The data file must contain at least one channel - it actually contains {}".format(channels))
@@ -239,7 +243,7 @@ class AudioFileService(RawDataReader):
         # Sanitize the range requested:
         start, end = index_range
         start = max(0, start)
-        end = min(self._sample_count + 1, end)      # Half open.
+        end = min(self._sample_count, end)      # Half open.
         actual_range = start, end
 
         # Read the data from file and organize it into channels:

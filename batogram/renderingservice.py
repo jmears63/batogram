@@ -1546,7 +1546,7 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
 
         if bytes_needed > self._MAX_SPECTROGRAM_MEMORY_USAGE:
             # No, we aren't going ahead with a request that needs this much memory.
-            self._completion_data = True, request, None
+            self._completion_data = True, request, None, None
             return
 
         params = filedata_serial, request.raw_data_reader, calc_data.first_time_index_for_segs, \
@@ -1567,7 +1567,8 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
             reduced_data, params)
 
         # print("Amplitude calcs complete")
-        self._completion_data = False, request, line_segments
+        t_range = calc_data.first_time_index_for_segs, calc_data.last_time_index_for_segs
+        self._completion_data = False, request, line_segments, t_range
 
     def get_completion_data(self):
         return self._completion_data

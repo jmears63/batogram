@@ -119,7 +119,7 @@ class GraphSettings:
         self.zoom_interpolation = DEFAULT_INTERPOLATION
         self.do_histogram_normalization = False
         self.bnc_adjust_type = BNC_ADAPTIVE_MODE
-        self.bnc_background_threshold_percent = 60.0
+        self.bnc_background_threshold_percent = 20.0
         self.bnc_manual_min, self.bnc_manual_max = 0.0, 1.0
         self.show_time_markers = False
         self.show_frequency_markers = False

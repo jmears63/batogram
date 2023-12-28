@@ -283,8 +283,8 @@ class WavFileParser:
             dt = np.dtype(np.uint8)
         elif self._fmt_header.bits_per_sample == 16:
             dt = np.dtype(np.int16)
-        elif self._fmt_header.bits_per_sample == 24:
-            dt = np.dtype(np.int24)
+        # elif self._fmt_header.bits_per_sample == 24:
+        #    dt = np.dtype(np.int24)        # Not supported in numpy.
         elif self._fmt_header.bits_per_sample == 32:
             dt = np.dtype(np.int32)
         else:

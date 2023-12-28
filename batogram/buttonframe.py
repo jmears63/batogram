@@ -17,20 +17,23 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import queue
 import tkinter as tk
 import tkinter.messagebox
+import wave
 from enum import Enum
-from typing import Type, Optional
+from pathlib import Path
+from queue import SimpleQueue
+from typing import Type, Optional, Tuple
 
 from . import get_asset_path
 from .audiofileservice import AudioFileService
-from .common import AxisRange
 from .constants import PLAYBACK_EVENT, PROGRAM_NAME
 
 from .frames import DrawableFrame
-from .playbackservice import PlaybackProcessor, PlaybackRequest, PlaybackEventHandler, PlaybackRequestTuple, \
-    EventClosureType, PlaybackSignal
+from .playbackmodal import PlaybackModal, PlaybackSettings
+from .playbackservice import PlaybackServiceImpl, PlaybackRequest, PlaybackEventHandler, PlaybackRequestTuple, \
+    EventClosureType, PlaybackSignal, PlaybackCursorEventHandler
 from .spectrogrammouseservice import CursorMode
 from .external.tooltip import ToolTip
 
@@ -45,7 +48,7 @@ class MyButton(tk.Button):
 
 
 class PlaybackState(Enum):
-    PLAYBACK_STOPPED = 0  # Starting state.
+    PLAYBACK_STOPPED = 0
     PLAYBACK_PLAY_PENDING = 1
     PLAYBACK_PLAYING = 2
     PLAYBACK_STOP_PENDING = 3
@@ -56,9 +59,10 @@ class PlaybackState(Enum):
 
 class ButtonFrame(DrawableFrame, PlaybackEventHandler):
     """A Frame containing the control buttons for a pane."""
+    _playback_settings: PlaybackSettings = PlaybackSettings()
 
     def __init__(self, parent, breadcrumb_service, action_target, data_context, program_directory, is_reference,
-                 playback_processor: PlaybackProcessor):
+                 playback_processor: PlaybackServiceImpl):
         super().__init__(parent)
 
         self._sync_source = None
@@ -68,14 +72,17 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         self._program_directory = program_directory
         self._action_target = action_target
         self._dc = data_context
-        self._playback_processor: PlaybackProcessor = playback_processor
+        self._playback_processor: PlaybackServiceImpl = playback_processor
+        self._playback_cursor_controller: Optional[PlaybackCursorEventHandler] = None
+        self._first_file_open = True
+        self._t_range: Optional[Tuple[int, int]] = None
 
         self._playback_processor.add_watcher(self, self._event_processor)  # Don't know why type hinting complains.
 
         col = 0
         small_gap = 10
 
-        self._event_closure: Optional[EventClosureType] = None
+        self._event_closure_queue: SimpleQueue[EventClosureType] = SimpleQueue()
         self.bind(PLAYBACK_EVENT, self._do_playback_event)
 
         if not is_reference:
@@ -91,7 +98,7 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         col += 1
 
         def home_command():
-            self._breadcrumb_service.reset()        # Clicking "home" clears the breadcrumb history
+            self._breadcrumb_service.reset()  # Clicking "home" clears the breadcrumb history
             self._action_target.on_home_button()
 
         self._home_image = self._load_image("fullscreen-line.png")
@@ -166,8 +173,15 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         self.columnconfigure(index=spacer1_index, weight=1)
         self.columnconfigure(index=spacer2_index, weight=1)
 
+    def set_t_range(self, t_range: Tuple[int, int]) -> None:
+        """This is called by our parent to tell us the sample index range that corresponds to the graph width."""
+        self._t_range = t_range
+
     def get_cursor_mode(self):
         return self._cursor_mode
+
+    def set_playback_cursor_controller(self, playback_cursor_controller: PlaybackCursorEventHandler):
+        self._playback_cursor_controller = playback_cursor_controller
 
     @staticmethod
     def _load_image(file_name):
@@ -263,25 +277,52 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
 
     def _handle_play(self):
         if self._playback_state == PlaybackState.PLAYBACK_STOPPED:
-            # Send a playback request off to the async service:
-            slave_afs: AudioFileService = AudioFileService.make_slave_copy(self._dc.afs)#
-            rendering_data = slave_afs.get_rendering_data()
-            if rendering_data.sample_rate > 0:
-                # Determine the range of data to play back. We use time range of the spectrogram.
-                tmin, tmax = self._dc.time_range.get_tuple()
-                tmin, tmax = int(tmin * rendering_data.sample_rate), int(tmax * rendering_data.sample_rate)
-                tmin, tmax = max(tmin, 0), min(tmax, rendering_data.sample_count)
+            ok_clicked: bool = False
+
+            def on_ok():
+                nonlocal ok_clicked
+                ok_clicked = True
+
+            modal = PlaybackModal(self, self._playback_settings, on_ok)
+            modal.grab_set()
+            modal.wait_window()
+
+            # _t_range might not have been set yet if the rendering pipeline has not completed,
+            # but that is very unlikely. So we just silently skip if that seems to have happened.
+            if ok_clicked and self._t_range is not None:
+                # Send a playback request off to the async service:
+                slave_afs: AudioFileService = AudioFileService.make_slave_copy(self._dc.afs)
+                rendering_data = slave_afs.get_rendering_data()
+                if rendering_data.bytes_per_value != 2 or not 1 <= rendering_data.channels <= 2:
+                    tk.messagebox.showerror(PROGRAM_NAME, "Playback is limited 16 bit PCM data in 1 or 2 channels")
+                    return
+                if not rendering_data.sample_rate > 0:
+                    print("Sample rate is insane: {}".format(rendering_data.sample_rate))
+
+                wave_file: Optional[wave.Wave_write] = None
+                if self._playback_settings.write_to_file:
+                    file_name = self._open_file_dialog()
+                    if not file_name:
+                        return
+                    try:
+                        wave_file = wave.open(file_name, mode="wb")
+                        self._playback_settings.file_name = file_name
+                    except BaseException as e:
+                        tk.messagebox.showerror(PROGRAM_NAME,
+                                                "Can't open output file: {}".format(e))
+                        return
+
+                tmin, tmax = self._t_range
 
                 # Assemble what we need for the playback request:
-                pr = PlaybackRequest(slave_afs, (tmin, tmax))
-                request: PlaybackRequestTuple = pr, self._event_processor
+                request = PlaybackRequest(afs=slave_afs, sample_range=(tmin, tmax),
+                                          settings=self._playback_settings, wave_file=wave_file)
+                playback_args: PlaybackRequestTuple = request, self._event_processor
 
                 # It all seems to be in order, so kick off the playback:
                 self._playback_state = PlaybackState.PLAYBACK_PLAY_PENDING
                 self.draw()
-                self._playback_processor.submit(request)
-            else:
-                print("Sample rate is insane: {}".format(rendering_data.sample_rate))
+                self._playback_processor.submit(playback_args)
 
     def _handle_pause(self):
         if self._playback_state == PlaybackState.PLAYBACK_PLAYING:
@@ -336,19 +377,62 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         self._playback_state = PlaybackState.PLAYBACK_STOPPED
         self.draw()
 
+    def on_show_update_playback_cursor(self, offset: int):
+        if self._playback_cursor_controller:
+            self._playback_cursor_controller.on_show_update_playback_cursor(offset)
+
+    def on_hide_playback_cursor(self):
+        if self._playback_cursor_controller:
+            self._playback_cursor_controller.on_hide_playback_cursor()
+
     def _event_processor(self, event_closure: EventClosureType):
-        """This method is passed to the playback service for it to send us events back from
+        """
+        Threading: this method is called in the playback thread.
+
+        This method is passed to the playback service for it to send us events back from
         its thread. It passes us a closure of the code it wants to be execute in this UI thread.
 
         The closure is a method that takes a PlaybackNotificationHandler (ourselves) as a parameter.
         """
 
-        self._event_closure = event_closure
-        self.event_generate(PLAYBACK_EVENT)
+        # Executed in the playback thread.
+        # We can't attach payload data to a tkinter event, so we maintain a parallel queue
+        # of event payloads:
+        try:
+            self._event_closure_queue.put(event_closure)  # This is advertised as thread safe.
+            self.event_generate(PLAYBACK_EVENT)  # Who knows if this is thread safe - we have no alternative.
+        except queue.Full:
+            print("Playback event closure queue is full")
 
     def _do_playback_event(self, _):
-        event_closure: EventClosureType = self._event_closure
+        """
+            Threading: this method is called by tkinter in the UI thread.
+        """
 
-        self._event_closure = None
-        if event_closure:
+        try:
+            event_closure: EventClosureType = self._event_closure_queue.get()
             event_closure(self)  # No idea why typing hinting complains about this.
+        except queue.Empty:
+            print("Playback event closure queue is unexecptedly empty")
+
+    def _open_file_dialog(self) -> str:
+
+        filetypes = (
+            ('audio files', '*.wav *.WAV'),
+            ('All files', '*.*')
+        )
+
+        initialdir = None
+        if self._first_file_open:
+            self._first_file_open = False
+            # Only do this the first time a file is opened; thereafter, the dialog
+            # remembers where the user last navigated it to:
+            initialdir = Path.home()
+
+        filepath: str = tk.filedialog.asksaveasfilename(title="Playback output file", filetypes=filetypes,
+                                                        initialdir=initialdir)
+        suffix = ".wav"
+        if filepath and not filepath.lower().endswith(suffix):
+            filepath += suffix
+
+        return filepath
