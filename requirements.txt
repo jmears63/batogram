@@ -5,3 +5,4 @@ Pillow==10.1.0
 scipy==1.11.4
 dataclasses-json==0.6.3
 platformdirs==4.1.0
+PyAudio==0.2.14
