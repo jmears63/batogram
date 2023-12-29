@@ -1566,8 +1566,6 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
         line_segments, ampdata_serial, _ = self._amplitude_line_segment_step.process_data(
             reduced_data, params)
 
-        # print("Amplitude calcs complete")
-        # t_range = calc_data.first_time_index_for_segs, calc_data.last_time_index_for_segs
         t_range = calc_data.first_time_index_for_amp, calc_data.last_time_index_for_amp
         self._completion_data = False, request, line_segments, t_range
 

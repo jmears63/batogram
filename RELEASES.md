@@ -1,3 +1,7 @@
+### Release 1.2.0
+* Added audio playback.
+* Added support for frame data and direction-based colour rendering (specific to the BatGizmo microphone).
+
 ### Release 1.1.0
 * Added multichannel options.
 * Added support for reassignment spectrograms for increased resolution.

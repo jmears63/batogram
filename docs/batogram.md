@@ -135,6 +135,33 @@ You can choose to combine them all or by selecting a specific channel. Channel c
 is done by summing the spectrogram power amplitudes after phase is discarded to avoid interference effects.
 If you select a channel that is not present, any channels that are present will be summed instead. 
 
+## Audio Playback
+
+Audio playback is controlled by the playback buttons above the spectrogram:
+![img.png](playbackbuttons.png). These start, pause and stop playback.
+
+Audio playback is based on the time range currently visible in the spectrogram. So, zoom in to reduce
+the playback time range and zoom out to increase it. The play, pause and stop buttons work in the obvious way.
+
+Playback settings are displayed when the play button is clicked:
+![img.png](playbacksettings.png)
+
+* Heterodyne playback simulates the sound that would be heard from a classic heterodyne bat
+detector. Choose a reference frequency close to and a little below the frequency of the calls
+you are interested in.
+* Time division playback slows down the recording by a selectable factor, so that the pitch is reduced to be
+audible.
+* Direct playback plays the recording unmodified, other than decimation mentioned below, so that any audio sounds
+can be heard.
+
+All the playback methods reduce the audio sample rate by decimation to a nominal 48 kHz. This is exact if
+the original sample rate is a multiple of 48 kHz, otherwise it is approximate. The resultant
+audio stream can be written to a .wav file if required, so it can be shared and played in other software.
+
+"Auto volume control" applies a gain factor based on the initial 20s of data, designed to match
+that data to 80% of the maximum raw signal range. If the loudest part of your data is after 20s, it
+may be distorted in playback. In that case, uncheck this feature.
+
 Settings
 --------
 

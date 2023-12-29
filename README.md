@@ -7,6 +7,7 @@ Batogram is an open source application for viewing bat call spectrograms.
 
 Some capabilities and features: 
 * Rendering of spectrograms from .wav files.
+* Audio playback: direct, heterodyne and time division, write to .wav file.
 * Auto selection of many parameters for simple operation.
 * Efficient rendering with graceful handling of larger data files.
 * Pan and scale using the mouse, keys or by manual selection.
@@ -53,6 +54,10 @@ You need to have Python 3.9 as a minimum.
 
     # It's good practice to have pip up to date:
     pip install pip --upgrade
+
+    # You may need to install some dependencies. On fedora it looks as follows.
+    # More information on pyaudio installation here: https://people.csail.mit.edu/hubert/pyaudio/
+    sudo dnf install python3-devel gcc portaudio-devel python3-tkinter
 
     # Install batogram and its dependencies. This may take a few moments.
     pip install batogram
