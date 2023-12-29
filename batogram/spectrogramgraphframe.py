@@ -316,7 +316,9 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
         return request
 
     def _do_completer(self, _):
-        # A bit of a hack because tkinter doesn't seem to allow data to be attached to an event:
+        # A bit of a hack because tkinter doesn't seem to allow data to be attached to an event.
+        # Possibly, using a queue would be slightly more elegant, but this slightly hacky approach
+        # is actually fine.
         completer = self._completer
         if completer:
             memory_limit_hit, request, image, histogram, auto_vrange = self._pipeline.get_completion_data()  # Can be None.
