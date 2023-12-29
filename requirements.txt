@@ -1,7 +1,7 @@
 # In the interests of reproducibility, I have specific precise versions of
 # the dependencies.
-numpy==1.24.2
-Pillow==9.5.0
-scipy==1.10.1
-dataclasses-json==0.5.7
-platformdirs==3.2.0
+numpy==1.26.2
+Pillow==10.1.0
+scipy==1.11.4
+dataclasses-json==0.6.3
+platformdirs==4.1.0

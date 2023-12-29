@@ -778,17 +778,17 @@ class PyAudioPlaybackEngine(PlaybackEngine, ABC):
         Threading: this method is called in the pyaudio worker thread.
         """
 
-        # with self._rlock:
-        data: np.ndarray
-        signal: PlaybackSignal
+        with self._rlock:
+            data: np.ndarray
+            signal: PlaybackSignal
 
-        databytes, length, finished = self.get_data(frame_count)
+            databytes, length, finished = self.get_data(frame_count)
 
-        # If len(data) is less than requested frame_count, PyAudio automatically
-        # assumes the stream is finished, and the stream stops.
-        # We stop playback by externally calling stream.stop()
+            # If len(data) is less than requested frame_count, PyAudio automatically
+            # assumes the stream is finished, and the stream stops.
+            # We stop playback by externally calling stream.stop()
 
-        rc = pyaudio.paComplete if finished else pyaudio.paContinue
+            rc = pyaudio.paComplete if finished else pyaudio.paContinue
 
         return databytes, rc
 
@@ -799,7 +799,7 @@ class PyAudioPlaybackEngine(PlaybackEngine, ABC):
             super().start()
 
             # For debugging in the UI thread:
-            d1 = self._pyaudio_data_callback(None, native_frame_size, None, None)
+            # d1 = self._pyaudio_data_callback(None, native_frame_size, None, None)
             # d2 = self._pyaudio_data_callback(None, native_frame_size, None, None)
 
             sample_width_bytes: int = playback_dtype.itemsize
