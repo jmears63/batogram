@@ -111,7 +111,7 @@ About the Author
 
 I am John Mears. I obtained a degree in physics in the University of Oxford
 in the distant past. I have spent much of the last 40 years writing software
-relating to scientific and email seccurity applications. In my spare time I cycle,
+relating to scientific and email security applications. In my spare time I cycle,
 play double bass in local amateur orchestras, 
 and [wander around at dusk](https://fitzharrys.wordpress.com/) with a bat detector of
 my own design.
