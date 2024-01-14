@@ -69,6 +69,11 @@ class OtherFrame(tk.Frame, ValidatingFrameHelper):
 
         multichannel_frame.grid(row=0, column=0)
 
+        batgizmo_frame = tk.LabelFrame(self, text="BatGizmo Settings")
+        self._frame_data_checkbutton = ValidatingCheckbutton(batgizmo_frame, button_frame, self, "Use frame data")
+        self._frame_data_checkbutton.grid(row=0, column=0, padx=pad, sticky="W")
+        batgizmo_frame.grid(row=0, column=1, sticky="NS", padx=pad)
+
         self.copy_settings_to_widgets()
 
     def copy_settings_to_widgets(self):
@@ -77,10 +82,10 @@ class OtherFrame(tk.Frame, ValidatingFrameHelper):
         self._selected_channel_radiobutton.set_value(self._settings.multichannel_mode)
         # self._stereo_channel_radiobutton.set_value(self._settings.multichannel_mode)
         self._channel.set_value(self._settings.multichannel_channel)
-        pass
+        self._frame_data_checkbutton.set_value(self._settings.use_frame_data)
 
     def copy_widgets_to_settings(self):
         # Update the settings values from the UI:
         self._settings.multichannel_mode = self._combined_channel_radiobutton.get_value()
         self._settings.multichannel_channel = self._channel.get_value()
-        pass
+        self._settings.use_frame_data = self._frame_data_checkbutton.get_value()

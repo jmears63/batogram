@@ -725,8 +725,10 @@ class SpectrogramExtractFrameDataStep(PipelineStep):
 
     @dataclass
     class RelevantSettings:
+        use_frame_data: bool
+
         def __init__(self, settings: GraphSettings):
-            pass
+            self.use_frame_data = settings.use_frame_data
 
     def get_relevant_settings(self) -> RelevantSettings:
         """Get the settings subset that is relevant to this step. We will use this as a basis
@@ -740,7 +742,8 @@ class SpectrogramExtractFrameDataStep(PipelineStep):
         _, first_time_index, frame_data_present, frame_offset, frame_length, \
             frame_data_values, actual_window_samples = params
 
-        if frame_data_present:
+        rs = self.get_relevant_settings()
+        if frame_data_present and rs.use_frame_data:
             if len(inputdata.shape) == 1:
                 channel_data = inputdata[:]
             else:

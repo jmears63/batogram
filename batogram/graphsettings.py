@@ -100,6 +100,7 @@ class GraphSettings:
     multichannel_mode: int
     multichannel_channel: int
     spectrogram_type: int
+    use_frame_data: bool
 
     def __init__(self,
                  on_app_modified_settings: Callable[[int], NoReturn],
@@ -126,6 +127,7 @@ class GraphSettings:
         self.multichannel_mode = MULTICHANNEL_COMBINED_MODE
         self.multichannel_channel = 0
         self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
+        self.use_frame_data = True
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""

@@ -425,12 +425,13 @@ class WavFileParser:
                 frame_offset = i
                 break
 
-        # There seems to be frame data at offset frame_offset. Double check that by
-        # looking one frame ahead to see if we find a prefix value there.
-        next_frame_offset = frame_offset + frame_len
-        if len(channel_data) > next_frame_offset + chunk_size:
-            frame_data = LSBSteganography.process(channel_data[next_frame_offset:], chunk_size)
-            if frame_data[0] != LSBSteganography.prefix_value:
-                frame_data_present = False
+        if frame_data_present:
+            # There seems to be frame data at offset frame_offset. Double check that by
+            # looking one frame ahead to see if we find a prefix value there.
+            next_frame_offset = frame_offset + frame_len
+            if len(channel_data) > next_frame_offset + chunk_size:
+                frame_data = LSBSteganography.process(channel_data[next_frame_offset:], chunk_size)
+                if frame_data[0] != LSBSteganography.prefix_value:
+                    frame_data_present = False
 
         return frame_data_present, frame_offset, frame_len, frame_data_values
