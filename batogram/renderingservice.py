@@ -1353,7 +1353,11 @@ class SpectrogramApplyPhaseColourStep(PipelineStep):
         # We will use HSLuv, where H and S come from PCA and L is fixed at 100% for now, to be scaled
         # by audio power later. HSLuv is perceptually uniform so we get good colour distribution.
         # See https://www.hsluv.org/.
-        lightness: int = 50        # This is the L in HSL. We will scale it be sound power later.
+        lightness: int = 33         # This is the L in HSL. We will scale it by the sound power later.
+                                    # 33% seems to be about the largest value that avoids one of RGB
+                                    # going offscale. See https://www.hsluv.org/.
+                                    # That does result in the resulting spectrograms looking a bit dull
+                                    # unfortunately.
         _, samples = hs.shape
         el = np.repeat(lightness, samples)
         el = el[:, np.newaxis]      # Make it the right shape to append.
@@ -1363,7 +1367,8 @@ class SpectrogramApplyPhaseColourStep(PipelineStep):
         # Normalize HSL to conventional ranges (0-360, 0-100, 0-100):
         ptp, v_min = np.ptp(frame_data_hsl, axis=0), np.min(frame_data_hsl, axis=0)
         frame_data_hsl[:, 0] = 360 * (frame_data_hsl[:, 0] - v_min[0]) / ptp[0]
-        frame_data_hsl[:, 1] = 100 * (frame_data_hsl[:, 0] - v_min[1]) / ptp[1]
+        # frame_data_hsl[:, 1] = 100 * (frame_data_hsl[:, 0] - v_min[1]) / ptp[1]
+        frame_data_hsl[:, 1] = 100      # Fix the saturation at maximum for the most colourful display.
         # Column 2 is already scaled correctly.
 
         # Transform every row to RGB:
