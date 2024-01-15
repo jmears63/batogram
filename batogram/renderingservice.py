@@ -39,6 +39,7 @@ from .graphsettings import GraphSettings, ADAPTIVE_FFT_SAMPLES, ADAPTIVE_FFT_OVE
     FFT_OVERLAP_PERCENT_OPTIONS, BNC_ADAPTIVE_MODE, BNC_MANUAL_MODE, BNC_INTERACTIVE_MODE, MULTICHANNEL_SINGLE_MODE, \
     SPECTROGRAM_TYPE_REASSIGNMENT, SPECTROGRAM_TYPE_STANDARD, SPECTROGRAM_TYPE_ADAPTIVE
 from .stegangraphy import LSBSteganography
+from hsluv import hsluv_to_rgb
 
 
 class RenderingRequest:
@@ -1343,19 +1344,43 @@ class SpectrogramApplyPhaseColourStep(PipelineStep):
         freq_buckets, time_buckets = inputdata.shape  # inputdata corresponds to the spectrogram we will display.
         frame_data_length, frame_data_values = frame_data.shape  # frame_data matches the range of rawdata.
 
-        # Do PCA on the frame data in range (excluding the time index field), reducing it to three dimensions
-        # while preserving as much variation as we can:
+        # Do PCA on the frame data in range (excluding the time index field), reducing it to two colour
+        # dimensions, while preserving as much variation as we can. We reserve one dimension for signal
+        # intensity.
         lms_values = frame_data[:, 1:frame_data_values]
-        _, frame_data_rgb, _ = self._princomp(lms_values, 3)
+        _, hs, _ = self._princomp(lms_values, 2)
+
+        # We will use HSLuv, where H and S come from PCA and L is fixed at 100% for now, to be scaled
+        # by audio power later. HSLuv is perceptually uniform so we get good colour distribution.
+        # See https://www.hsluv.org/.
+        lightness: int = 50        # This is the L in HSL. We will scale it be sound power later.
+        _, samples = hs.shape
+        el = np.repeat(lightness, samples)
+        el = el[:, np.newaxis]      # Make it the right shape to append.
+        hs = np.transpose(hs)
+        frame_data_hsl = np.append(hs, el, axis=1)
+
+        # Normalize HSL to conventional ranges (0-360, 0-100, 0-100):
+        ptp, v_min = np.ptp(frame_data_hsl, axis=0), np.min(frame_data_hsl, axis=0)
+        frame_data_hsl[:, 0] = 360 * (frame_data_hsl[:, 0] - v_min[0]) / ptp[0]
+        frame_data_hsl[:, 1] = 100 * (frame_data_hsl[:, 0] - v_min[1]) / ptp[1]
+        # Column 2 is already scaled correctly.
+
+        # Transform every row to RGB:
+        def transform_row(row):
+            # hue, saturation, my_lightness = row[0], row[1], row[2]
+            return hsluv_to_rgb(row)
+
+        frame_data_rgb = np.apply_along_axis(transform_row, axis=1, arr=frame_data_hsl)
 
         # Used a precalculated set of coefficients:
         # frame_data_rgb = self._princomp_apply(frame_data[:, 1:data_values + 1], self._pca_coeffs)
 
         # frame_data_rgb is transposed relative to frame_data:
-        frame_data_rgb = np.transpose(frame_data_rgb)
+        # frame_data_rgb = np.transpose(frame_data_rgb)
 
         # Normalize the values to the range 0-1:
-        frame_data_rgb = (frame_data_rgb - np.min(frame_data_rgb)) / np.ptp(frame_data_rgb)
+        # frame_data_rgb = (frame_data_rgb - np.min(frame_data_rgb)) / np.ptp(frame_data_rgb)
 
         # Inflate the 3d data array so that each row corresponds to a spectrogram
         # time index (not an image time bucket):
