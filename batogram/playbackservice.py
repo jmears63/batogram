@@ -453,9 +453,9 @@ class PlaybackServiceImpl(PlaybackService):
         settings = request.settings
         modifiers: List[Modifier] = [ScalingModifier(i_scaler)]
         if settings.method == PlaybackMethod.PLAYBACK_HETERODYNE_METHOD:
-            modifiers.append(HeterodyneModifier(settings.reference_khz, rendering_data.sample_rate))
+            modifiers.append(HeterodyneModifier(settings.reference_khz, settings.settings_sample_rate))
             # Decimate to get to 48 kHz, rounding if the raw sample rate is not a multiple of 48:
-            factor: int = int(rendering_data.sample_rate / native_sample_rate + 0.5)
+            factor: int = int(settings.settings_sample_rate / native_sample_rate + 0.5)
             factor = max(factor, 1)
             modifiers.append(DecimationModifier(factor, rendering_data.channels))
         elif settings.method == PlaybackMethod.PLAYBACK_TD_METHOD:
@@ -464,7 +464,7 @@ class PlaybackServiceImpl(PlaybackService):
             # A smaller division would result in a sample rate > 48 kHz: we need to decimate.
             # The raw data must be a multiple of 48 kHz: if it isn't, we pretend that it is by rounding.
 
-            total_factor: int = int(rendering_data.sample_rate / native_sample_rate + 0.5)
+            total_factor: int = int(settings.settings_sample_rate / native_sample_rate + 0.5)
             td_factor: int = settings.td_factor
             modifiers.append(TDModifier(td_factor))
             if td_factor < total_factor:
@@ -478,7 +478,7 @@ class PlaybackServiceImpl(PlaybackService):
                 pass  # Nothing more to do.
         else:
             # Decimate to get to 48 kHz, rounding if the raw sample rate is not a multiple of 48:
-            factor: int = int(rendering_data.sample_rate / native_sample_rate + 0.5)
+            factor: int = int(settings.settings_sample_rate / native_sample_rate + 0.5)
             factor = max(factor, 1)
             modifiers.append(DecimationModifier(factor, rendering_data.channels))
 
@@ -710,7 +710,7 @@ class PlaybackEngine(AbstractPlaybackEngine, ABC):
             rendering_data = self._request.afs.get_rendering_data()
 
             # Parameters as they are before any modifiers are applied:
-            self._raw_params = Modifier.Params(sample_rate=rendering_data.sample_rate,
+            self._raw_params = Modifier.Params(sample_rate=self._request.settings.settings_sample_rate,
                                                chunk_size=native_frame_size)
 
             # Each modifier gets to update the params in turn:

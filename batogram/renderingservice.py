@@ -327,7 +327,7 @@ class SpectrogramCalcData:
         """
 
         # General preparation:
-        sample_rate: int = file_data.sample_rate
+        sample_rate: int = settings.settings_sample_rate
 
         if settings.window_samples == ADAPTIVE_FFT_SAMPLES:
             self.actual_window_samples = self._calculate_auto_window_samples(sample_rate, screen_factors)
@@ -419,7 +419,7 @@ class SpectrogramCalcData:
 
         # ************** Calculations relating to the frequency axis **************
 
-        file_fmin, file_fmax = file_data.frequency_range.get_tuple()
+        file_fmin, file_fmax = settings.calc_frequency_range().get_tuple()
         # Zero padding the window by a factor makes it longer and increases frequency
         # points in the same ratio:
         freq_points: int = int(
@@ -565,7 +565,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         PipelineHelper.__init__(self)
 
         self._completion_data = None
-        self._graph_params: GraphParams = None
+        self._graph_params: Optional[GraphParams] = None
         self._histogram_interface = None
         self._spectrogram_step = spectrogram_step
         self._data_reader_step = data_reader_step
@@ -593,8 +593,9 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
         l, t, r, b = request.data_area
         height, width = b - t + 1, r - l + 1
         filedata, filedata_serial = request.file_data, request.file_data.data_serial
-        sample_rate, sample_count = filedata.sample_rate, filedata.sample_count
-        file_time_range, file_frequency_range = request.file_data.time_range, request.file_data.frequency_range
+        sample_rate, sample_count = self._settings.settings_sample_rate, filedata.sample_count
+        file_time_range = self._settings.calc_time_range(request.file_data)
+        file_frequency_range = self._settings.calc_frequency_range()
         frame_data_present, frame_data_offset, frame_length, frame_data_values = \
             request.file_data.frame_data_present, request.file_data.frame_data_offset, \
                 request.file_data.frame_length, request.file_data.frame_data_values
@@ -645,7 +646,7 @@ class SpectrogramPipeline(RenderingPipeline, PipelineHelper):
             rawdata, params)
 
         # Include the actual fft samples and overlap to force a cache miss when they change:
-        params = frame_data_serial, sample_rate, sample_count, request.axis_time_range, \
+        params = frame_data_serial, sample_count, request.axis_time_range, \
             calc_data.actual_window_samples, calc_data.actual_window_overlap_samples, calc_data.actual_window_overlap_percent, \
             request.is_reference
         (specdata, self._graph_params), specdata_serial, _ = \
@@ -808,6 +809,7 @@ class SpectrogramFftStep(PipelineStep):
         multichannel_mode: int
         multichannel_channel: int
         spectrogram_type: int
+        settings_sample_rate: int
 
         def __init__(self, settings: GraphSettings):
             self.fft_samples = settings.window_samples
@@ -817,6 +819,7 @@ class SpectrogramFftStep(PipelineStep):
             self.multichannel_mode = settings.multichannel_mode
             self.multichannel_channel = settings.multichannel_channel
             self.spectrogram_type = settings.spectrogram_type
+            self.settings_sample_rate = settings.settings_sample_rate
 
     def get_relevant_settings(self) -> RelevantSettings:
         """Get the settings subset that is relevant to this step. We will use this as a basis
@@ -824,7 +827,7 @@ class SpectrogramFftStep(PipelineStep):
         return SpectrogramFftStep.RelevantSettings(self._settings)
 
     def _implementation(self, inputdata, params):
-        previous_serial, sample_rate, file_data_samples, axis_time_range, actual_window_samples, \
+        previous_serial, file_data_samples, axis_time_range, actual_window_samples, \
             actual_window_overlap_samples, actual_window_overlap_percent, is_reference = params
         rs = self.get_relevant_settings()
 
@@ -842,7 +845,7 @@ class SpectrogramFftStep(PipelineStep):
         # print("calculating spectrogram: {}: {}", params, inputdata.shape)
 
         frequencies, combined_spectrogram, channel_usage_tuple = self._do_spectrogram(
-            data_read, sample_rate, rs.window_type, actual_window_samples, actual_window_overlap_samples, rs)
+            data_read, rs.settings_sample_rate, rs.window_type, actual_window_samples, actual_window_overlap_samples, rs)
 
         # print("delta_t = {}".format(delta_t))
 
@@ -1556,10 +1559,11 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
         # Unpack some parameters:
         l, t, r, b = request.data_area
         height, width = b - t + 1, r - l + 1
-        sample_rate, filedata, filedata_serial = request.file_data.sample_rate, request.file_data, request.file_data.data_serial
+        sample_rate, filedata, filedata_serial = self._settings.settings_sample_rate, request.file_data, request.file_data.data_serial
         axis_trange, axis_arange = request.time_range, request.amplitude_range
-        filedata_trange = filedata.time_range
         filedata_arange = filedata.amplitude_range
+        filedata_trange = self._settings.calc_time_range(request.file_data)
+
         filedata_sample_count = filedata.sample_count
 
         if height < 1 or width < 1:
@@ -1595,7 +1599,7 @@ class AmplitudePipeline(RenderingPipeline, PipelineHelper):
             (rawdata, raw_data_offset), params)
 
         # Create a list of line segments ready to be drawn:
-        params = reduce_serial, sample_rate, height, width, axis_trange, axis_arange, filedata_trange, filedata_arange
+        params = reduce_serial, height, width, axis_trange, axis_arange, filedata_trange, filedata_arange
         line_segments, ampdata_serial, _ = self._amplitude_line_segment_step.process_data(
             reduced_data, params)
 
@@ -1667,7 +1671,7 @@ class AmplitudeLineSegmentStep(PipelineStep):
         super().__init__(settings)
 
     def _implementation(self, inputdata, params):
-        previous_serial, sample_rate, height, width, trange, arange, filedata_trange, filedata_arange = params
+        previous_serial, height, width, trange, arange, filedata_trange, filedata_arange = params
 
         # Input data is in aggregated buckets, each point is the amplitude range, and the bucket range
         # already matches the time axis range we need:
@@ -1747,9 +1751,11 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
         # Unpack some parameters:
         l, t, r, b = request.data_area
         height, width = b - t + 1, r - l + 1
-        file_time_range, file_frequency_range = request.file_data.time_range, request.file_data.frequency_range
+        file_time_range = self._settings.calc_time_range(request.file_data)
+        file_frequency_range = self._settings.calc_frequency_range()
+
         filedata, filedata_serial = request.file_data, request.file_data.data_serial
-        sample_rate, sample_count = filedata.sample_rate, filedata.sample_count
+        sample_rate, sample_count = self._settings.settings_sample_rate, filedata.sample_count
 
         self._completion_data = None
 
@@ -1781,7 +1787,7 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
         (rawdata, raw_data_offset), raw_data_serial, _ = self._data_reader_step.process_data(
             None, params)
 
-        params = raw_data_serial, sample_rate, sample_count, request.axis_time_range, \
+        params = raw_data_serial, sample_count, request.axis_time_range, \
             calc_data.actual_window_samples, calc_data.actual_window_overlap_samples, calc_data.actual_window_overlap_percent, \
             request.is_reference
         (specdata, self._graph_params), specdata_serial, spectrogram_serial = \

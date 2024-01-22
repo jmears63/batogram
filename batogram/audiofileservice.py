@@ -52,7 +52,7 @@ class AudioFileService(RawDataReader):
         """Metadata is used for displaying in the UI."""
         file_name: str
         file_path: str
-        sample_rate: float
+        file_sample_rate: int
         channels: int
         length_seconds: float
         frame_data_present: bool
@@ -60,10 +60,8 @@ class AudioFileService(RawDataReader):
     @dataclass
     class RenderingData:
         """Data used for calculations and rendering."""
-        sample_rate: int
+        file_sample_rate: int
         sample_count: int
-        time_range: AxisRange
-        frequency_range: AxisRange
         amplitude_range: AxisRange
         data_serial: int
         channels: int
@@ -77,10 +75,8 @@ class AudioFileService(RawDataReader):
         super().__init__()
 
         self._amplitude_range = None
-        self._frequency_range = None
-        self._time_range = None
         self._filepath = filepath
-        self._sample_rate = None
+        self._file_sample_rate = None
         self._sample_count = None
         self._data_serial: int = 0  # Used for the pipeline to detect when the file data has changed.
         self._metadata = None
@@ -104,9 +100,9 @@ class AudioFileService(RawDataReader):
         # Much of this is copied by reference as the slave is always used to refer
         # to the same file.
         new_instance._amplitude_range = other._amplitude_range
-        new_instance._time_range = other._time_range
+        # new_instance._time_range = other._time_range
         # new_instance._filepath = other._filepath      # No need, pass via the argument.
-        new_instance._sample_rate = other._sample_rate
+        new_instance._file_sample_rate = other._file_sample_rate
         new_instance._sample_count = other._sample_count
         new_instance._data_serial = other._data_serial
         new_instance._metadata = other._metadata
@@ -147,7 +143,7 @@ class AudioFileService(RawDataReader):
                 "The data file must contain at least one channel - it actually contains {}".format(channels))
         if sample_rate < 0:
             raise ValueError(
-                "The sample rate must be a positive number - it is actually {}".format(self._sample_rate))
+                "The sample rate must be a positive number - it is actually {}".format(sample_rate))
         min_samples = MAX_FFT_SAMPLES * 2
         if sample_count < min_samples:
             raise ValueError(
@@ -160,12 +156,10 @@ class AudioFileService(RawDataReader):
         # header sometimes reflects data stored in TE form:
         guano_key = 'Samplerate'
         if guanodata is not None and guano_key in guanodata:
-            self._sample_rate = guanodata[guano_key]
+            self._file_sample_rate = int(guanodata[guano_key])
         else:
-            self._sample_rate = sample_rate
+            self._file_sample_rate = sample_rate
         self._sample_count = sample_count
-        self._time_range = AxisRange(0, sample_count / self._sample_rate)
-        self._frequency_range = AxisRange(0, self._sample_rate / 2.0)
         self._channels = channels
         self._bytes_per_value = int(chunks.header.bits_per_sample / 8)
 
@@ -184,9 +178,9 @@ class AudioFileService(RawDataReader):
 
         # Prepare some metadata that will be used for the UI:
         _, file_name = os.path.split(self._filepath)
-        length_seconds = sample_count / self._sample_rate
+        length_seconds = sample_count / self._file_sample_rate
         self._metadata = AudioFileService.Metadata(file_name=file_name, file_path=self._filepath,
-                                                   sample_rate=self._sample_rate,
+                                                   file_sample_rate=self._file_sample_rate,
                                                    channels=channels, length_seconds=length_seconds,
                                                    frame_data_present=chunks.data.frame_data_present)
 
@@ -217,10 +211,8 @@ class AudioFileService(RawDataReader):
 
     def get_rendering_data(self) -> RenderingData:
         return AudioFileService.RenderingData(
-            sample_rate=self._sample_rate,
+            file_sample_rate=self._file_sample_rate,
             sample_count=self._sample_count,
-            time_range=self._time_range,
-            frequency_range=self._frequency_range,
             amplitude_range=self._amplitude_range,
             data_serial=self._data_serial,
             channels=self._channels,

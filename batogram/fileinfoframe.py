@@ -26,9 +26,10 @@ class FileInfoFrame(DrawableFrame):
     """A Frame that contains a short summary of info relating to the data file being
     displayed."""
 
-    def __init__(self, parent, data_context: "DataContext"):
+    def __init__(self, parent, data_context: "DataContext", settings: "GraphSettings"):
         super().__init__(parent)
         self._dc = data_context
+        self._settings = settings
 
         self._label = tk.Label(self, text="", width=1, anchor=tk.CENTER)
         self._label.grid(row=0, column=0, sticky="nsew")
@@ -50,6 +51,6 @@ class FileInfoFrame(DrawableFrame):
                 f = ""
 
             text = "{}: {:.1f} s at {:.1f} kHz, {}{}".format(
-                md.file_name, md.length_seconds,  md.sample_rate / 1000.0, c, f)
+                md.file_name, md.length_seconds,  self._settings.settings_sample_rate / 1000.0, c, f)
 
         self._label.config(text=text)

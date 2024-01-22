@@ -148,13 +148,14 @@ class PanelFrame(tk.Frame):
         self._settings = settings
         self._settings_frame = settings_frame
         self._playback_processor = playback_processor
+        self._last_sample_rate: int = None          # We need to detect when the sample rate changes.
 
         col = 0
-        self._fileinfo_frame = FileInfoFrame(self, self._dc)
+        self._fileinfo_frame = FileInfoFrame(self, self._dc, self._settings)
         self._fileinfo_frame.grid(row=0, column=col, columnspan=3, pady=(pad, 0), sticky='ew', padx=pad)
 
         self._button_frame = ButtonFrame(self, self._dc.breadcrumb_service, self, self._dc, program_directory,
-                                         is_reference, playback_processor)
+                                         is_reference, playback_processor, self._settings)
         self._button_frame.grid(row=1, column=col, columnspan=3, pady=(0, 0), sticky='we', padx=pad)
         initial_cursor_mode = self._button_frame.get_cursor_mode()
 
@@ -212,7 +213,15 @@ class PanelFrame(tk.Frame):
 
     def on_user_applied_settings(self, draw_scope: int):
         """The user change the settings - refresh the display accordingly."""
-        self.on_rescale_handler(self._settings.time_range, self._settings.frequency_range, draw_scope=draw_scope)
+        if self._last_sample_rate is not None \
+                and self._last_sample_rate != self._settings.settings_sample_rate:
+            # They've change the sample rate to use, to rescale the spectrogram to the
+            # new range of the file data.
+            self.on_home_button()
+        else:
+            self.on_rescale_handler(self._settings.time_range, self._settings.frequency_range, draw_scope=draw_scope)
+
+        self._last_sample_rate = self._settings.settings_sample_rate
 
     def update_readout_coords(self, p_axis, p_data_area):
         # Use the data area coordinates to get a data value (power) from the pipeline's
@@ -232,8 +241,10 @@ class PanelFrame(tk.Frame):
         # Clip the requested ranges to the limits from the data file:
         af_data = self._dc.get_afs_data()
         if af_data:
-            time_range = self._clip_to_file_data_range(time_range, af_data.time_range, self._dc.time_range)
-            frequency_range = self._clip_to_file_data_range(frequency_range, af_data.frequency_range,
+            max_time_range = self._settings.calc_time_range(af_data)
+            time_range = self._clip_to_file_data_range(time_range, max_time_range, self._dc.time_range)
+            max_frequency_range = self._settings.calc_frequency_range()
+            frequency_range = self._clip_to_file_data_range(frequency_range, max_frequency_range,
                                                             self._dc.frequency_range)
 
         self._dc.time_range, self._dc.frequency_range = time_range, frequency_range
@@ -296,6 +307,11 @@ class PanelFrame(tk.Frame):
             if f:
                 f.draw(draw_scope)
 
+        # Note the sample rate we used, so that later can tell if it has
+        # been changed. No marks for elegance but it does the job and is contains
+        # the complexity somewhat.
+        self._last_sample_rate = self._settings.settings_sample_rate
+
     @staticmethod
     def _clip_to_file_data_range(r_in: AxisRange, r_permitted, r_default):
         in_min, in_max = r_in.get_tuple()
@@ -313,7 +329,9 @@ class PanelFrame(tk.Frame):
         if myaf:
             # If there is a file, home takes us to the file limits:
             fdata = myaf.get_rendering_data()
-            self.on_rescale_handler(fdata.time_range, fdata.frequency_range, add_breadcrumb=True)
+            time_range = self._settings.calc_time_range(fdata)
+            frequency_range = self._settings.calc_frequency_range()
+            self.on_rescale_handler(time_range, frequency_range, add_breadcrumb=True)
         else:
             # Otherwise, home to the default ranges.
             self.on_rescale_handler(DataContext.DEFAULT_TIME_RANGE, DataContext.DEFAULT_FREQUENCY_RANGE,
@@ -435,12 +453,12 @@ class DataContext:
     def get_afs_data(self) -> Optional[AudioFileService.RenderingData]:
         return self.afs.get_rendering_data() if self.afs is not None else None
 
-    def update_from_af(self, afs: AudioFileService):
+    def update_from_af(self, afs: AudioFileService, settings: GraphSettings):
         self._set_afs(afs)
         af_data = afs.get_rendering_data()
         self.amplitude_range = af_data.amplitude_range
-        self.time_range = af_data.time_range
-        self.frequency_range = af_data.frequency_range
+        self.time_range = settings.calc_time_range(af_data)
+        self.frequency_range = settings.calc_frequency_range()
 
     def push_breadcrumb(self):
         self.breadcrumb_service.push_entry(
@@ -698,26 +716,26 @@ class RootWindow(tk.Tk):
     def _do_open_main_file(self, filepath):
         myaf = self._do_open_file(filepath, self._menu_recent_main, self._do_open_main_file, self._main_historian)
         if myaf is not None:
-            self._dc_main.update_from_af(myaf)
             self._main_settings_frame.copy_settings_to_widgets()  # The axis ranges have changed
             self._main_settings_frame.set_guano_data(myaf.get_guano_data())
-            self._main_settings.on_open_new_file()
+            self._main_settings.on_open_new_file(myaf)
+            self._dc_main.update_from_af(myaf, self._main_settings)
             self.event_generate(DATA_CHANGE_MAIN_EVENT)
 
     def _do_open_ref_file(self, filepath):
         myaf = self._do_open_file(filepath, self._menu_recent_ref, self._do_open_ref_file, self._ref_historian)
         if myaf is not None:
-            self._dc_ref.update_from_af(myaf)
             self._ref_settings_frame.copy_settings_to_widgets()  # The axis ranges have changed
             self._ref_settings_frame.set_guano_data(myaf.get_guano_data())
-            self._main_settings.on_open_new_file()
+            self._ref_settings.on_open_new_file(myaf)
+            self._dc_ref.update_from_af(myaf, self._ref_settings)
             # Make sure the ref pane is visible:
             x, y = self._paned_window.sash_coord(0)
             if x < 10:
                 self._paned_window.sash_place(0, 300, y)
             self.event_generate(DATA_CHANGE_REF_EVENT)
 
-    def _do_open_file(self, filepath, recent_menu_item, method, historian):
+    def _do_open_file(self, filepath, recent_menu_item, method, historian) -> af.AudioFileService:
         self._push_cursor("watch")  # A large file might take time to load. Though, it seems not.
         try:
             # Attempt to read the wav file provided:

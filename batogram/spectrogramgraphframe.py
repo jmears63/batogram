@@ -200,8 +200,8 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
         self._data_area = data_area
 
         if afs_data:
-            self._update_time_scroller(time_range, afs_data.time_range)
-            self._update_frequency_scroller(frequency_range, afs_data.frequency_range)
+            self._update_time_scroller(time_range, self._settings.calc_time_range(afs_data))
+            self._update_frequency_scroller(frequency_range, self._settings.calc_frequency_range())
             if self._pipeline:
                 # Kick off the pipeline which will create a spectrogram in another thread,
                 # and complete by generating an event that will finish drawing the graph in
@@ -672,7 +672,7 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
             left, top, right, bottom = self._data_area
             if self._dc.afs is not None:
                 rendering_data = self._dc.afs.get_rendering_data()
-                t: float = offset / rendering_data.sample_rate
+                t: float = offset / self._settings.settings_sample_rate
                 x = self._layout.time_to_canvas(t)
                 # Only draw it if it is within the data area:
                 if left <= x <= right:

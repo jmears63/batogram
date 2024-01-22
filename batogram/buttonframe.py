@@ -62,7 +62,7 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
     _playback_settings: PlaybackSettings = PlaybackSettings()
 
     def __init__(self, parent, breadcrumb_service, action_target, data_context, program_directory, is_reference,
-                 playback_processor: PlaybackServiceImpl):
+                 playback_processor: PlaybackServiceImpl, settings: "GraphSettings"):
         super().__init__(parent)
 
         self._sync_source = None
@@ -76,6 +76,7 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         self._playback_cursor_controller: Optional[PlaybackCursorEventHandler] = None
         self._first_file_open = True
         self._t_range: Optional[Tuple[int, int]] = None
+        self._settings = settings
 
         self._playback_processor.add_watcher(self, self._event_processor)  # Don't know why type hinting complains.
 
@@ -283,6 +284,10 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
                 nonlocal ok_clicked
                 ok_clicked = True
 
+            # Pass through the sample rate we should use for playback (not necessarily the
+            # file sample rate):
+            self._playback_settings.settings_sample_rate = int(self._settings.settings_sample_rate)
+
             modal = PlaybackModal(self, self._playback_settings, on_ok)
             modal.grab_set()
             modal.wait_window()
@@ -294,10 +299,11 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
                 slave_afs: AudioFileService = AudioFileService.make_slave_copy(self._dc.afs)
                 rendering_data = slave_afs.get_rendering_data()
                 if rendering_data.bytes_per_value != 2 or not 1 <= rendering_data.channels <= 2:
-                    tk.messagebox.showerror(PROGRAM_NAME, "Playback is limited 16 bit PCM data in 1 or 2 channels")
+                    tk.messagebox.showerror(PROGRAM_NAME, "Playback is limited to 16 bit PCM data in 1 or 2 channels")
                     return
-                if not rendering_data.sample_rate > 0:
-                    print("Sample rate is insane: {}".format(rendering_data.sample_rate))
+                sr: int = self._settings.settings_sample_rate
+                if not sr > 0:
+                    print("Sample rate is insane: {}".format(sr))
 
                 wave_file: Optional[wave.Wave_write] = None
                 if self._playback_settings.write_to_file:

@@ -48,6 +48,7 @@ class PlaybackSettings:
     autoscale: bool = True
     write_to_file: bool = False
     file_name: Optional[str] = None
+    settings_sample_rate: int       # A hidden setting that we use to pass a value through from the main settings.
 
 
 class TDOptionMenu(tk.OptionMenu):

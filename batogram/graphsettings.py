@@ -101,6 +101,7 @@ class GraphSettings:
     multichannel_channel: int
     spectrogram_type: int
     use_frame_data: bool
+    settings_sample_rate: int
 
     def __init__(self,
                  on_app_modified_settings: Callable[[int], NoReturn],
@@ -128,6 +129,7 @@ class GraphSettings:
         self.multichannel_channel = 0
         self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
         self.use_frame_data = True
+        self.settings_sample_rate = 384000           # Dummy value to be replaced when a file is loaded.
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""
@@ -137,7 +139,7 @@ class GraphSettings:
         """Signal to the application that the underlying settings values have changed."""
         self._on_user_applied_settings(draw_scope)
 
-    def on_open_new_file(self):
+    def on_open_new_file(self, afs: "AudioFileService"):
         # Always start with auto BnC, so that the manual range
         # gets initialized to something sensible:
         self.bnc_adjust_type = BNC_ADAPTIVE_MODE
@@ -148,3 +150,13 @@ class GraphSettings:
 
         # Reset various things for the new file:
         self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
+
+        self.settings_sample_rate = afs.get_rendering_data().file_sample_rate
+
+    def calc_time_range(self, afs_data: "AudioFileService.RenderingData") -> AxisRange:
+        sample_count = afs_data.sample_count
+        return AxisRange(0, sample_count / self.settings_sample_rate)
+
+    def calc_frequency_range(self) -> AxisRange:
+        return AxisRange(0, self.settings_sample_rate / 2.0)
+
