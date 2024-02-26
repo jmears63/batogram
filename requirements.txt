@@ -6,3 +6,4 @@ scipy==1.11.4
 dataclasses-json==0.6.3
 platformdirs==4.1.0
 PyAudio==0.2.14
+hsluv==5.0.4

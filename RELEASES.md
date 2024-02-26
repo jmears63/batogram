@@ -1,3 +1,7 @@
+### Release 1.3.0
+* Added the ability to open a folder of audio files and conveniently cycle through them.
+* Added a setting to override the sample rate inferred from the wav file, which may not be correct in rare cases.
+
 ### Release 1.2.0
 * Added audio playback.
 * Added support for frame data and direction-based colour rendering (specific to the BatGizmo microphone).

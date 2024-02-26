@@ -24,7 +24,9 @@ import tkinter.filedialog
 import tkinter.messagebox
 
 from itertools import chain
+from pathlib import Path
 from timeit import default_timer as timer
+from tkinter import filedialog
 from typing import NamedTuple, Optional, Tuple
 from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
@@ -49,15 +51,17 @@ from .spectrogramgraphframe import SpectrogramGraphFrame
 from .wavfileparser import WavFileError
 from .about import AboutWindow
 from . import get_asset_path
+from .browserframe import BrowserFrame, FolderWalker
 
 # One day, we will define the menus using a table including shortcuts and underlined letters:
 MENU_TEXT_FILE = "File"
 MENU_TEXT_ABOUT = "About"
 MENU_TEXT_SETTINGS = "Settings"
-MENU_TEXT_OPEN_MAIN = "Open"
-MENU_TEXT_OPEN_RECENT_MAIN = "Open recent"
-MENU_TEXT_OPEN_REF = "Open reference"
-MENU_TEXT_OPEN_RECENT_REF = "Open recent as reference"
+MENU_TEXT_OPEN_MAIN = "Open file"
+MENU_TEXT_OPEN_RECENT_MAIN = "Open recent file"
+MENU_TEXT_OPEN_FOLDER = "Open folder"
+MENU_TEXT_OPEN_REF = "Open reference file"
+MENU_TEXT_OPEN_RECENT_REF = "Open recent file as reference"
 MENU_TEXT_CLOSE_MAIN = "Close"
 MENU_TEXT_CLOSE_REF = "Close reference"
 # MENU_TEXT_SAVE = "Save"
@@ -497,6 +501,8 @@ class RootWindow(tk.Tk):
         self._menu_file = None
         self._first_file_open = True  # Track whether this is the first time the user has opened a file.
 
+        self._folder_walker: Optional[FolderWalker] = None        # If this is not None, we are in browsing mode.
+
         appsettings.instance.read()
         self._apply_settings()
 
@@ -544,7 +550,7 @@ class RootWindow(tk.Tk):
         self._ref_pane.draw()
 
         if initialfile is not None:
-            self.after_idle(lambda: self._do_open_main_file(initialfile))
+            self.after_idle(lambda: self.do_open_main_file(initialfile))
 
     def _start_pipelines(self):
         # Kick off the spectrogram rendering pipelines. This has to done at this level because
@@ -569,7 +575,7 @@ class RootWindow(tk.Tk):
                                             sashrelief=tk.GROOVE)
 
         bottom = self._create_bottom_panel(self, pad)
-        bottom.grid(row=1, column=0)
+        bottom.grid(row=1, column=1)
 
         # Create the settings frames first so they can be passed as parameters
         # to other frames below:
@@ -588,14 +594,19 @@ class RootWindow(tk.Tk):
                                   self._main_pane.get_settings_button(), self._main_settings_frame,
                                   self._ref_pane.get_settings_button(), self._ref_settings_frame)
 
+        self._browser_frame = BrowserFrame(self, pad)
+        self._browser_frame.grid(row=0, column=0, sticky="nsew", rowspan=2)
+        self._browser_frame.grid_remove()       # Initially not visible.
+
         # Assemble the panel window:
         self._paned_window.add(self._ref_pane)
         self._paned_window.add(self._main_pane)
-        self._paned_window.grid(row=0, column=0, sticky="nsew")
+        self._paned_window.grid(row=0, column=1, sticky="nsew")
 
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=0)
-        self.columnconfigure(0, weight=1)
+        self.columnconfigure(0, weight=0)
+        self.columnconfigure(1, weight=1)
 
         # This code annoyingly jumps on startup. I can't find simple way to avoid that right now.
         # Maybe we should make the frame invisible? I don't know if that would work.
@@ -624,10 +635,13 @@ class RootWindow(tk.Tk):
         self._menu_file.add_command(label=MENU_TEXT_OPEN_MAIN, command=self._open_main_file, underline=0)
         self._menu_file.entryconfigure(MENU_TEXT_OPEN_MAIN, accelerator='Ctrl+O')
         self.bind("<Control-o>", self._open_main_file_event)
+        self._menu_file.add_command(label=MENU_TEXT_OPEN_FOLDER, command=self._open_folder, underline=5)
+        self._menu_file.entryconfigure(MENU_TEXT_OPEN_FOLDER, accelerator='Ctrl+F')
+        self.bind("<Control-f>", self._open_folder_event)
         self._menu_recent_main = tk.Menu(self._menu_file)
         self._menu_file.add_cascade(menu=self._menu_recent_main, label=MENU_TEXT_OPEN_RECENT_MAIN)
-        self._populate_file_history(self._menu_recent_main, self._main_historian, self._do_open_main_file)
-        self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_file_event, underline=0)
+        self._populate_file_history(self._menu_recent_main, self._main_historian, self.do_open_main_file)
+        self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_event, underline=0)
         self._menu_file.add_separator()
 
         self._menu_file.add_command(label=MENU_TEXT_OPEN_REF, command=self._open_ref_file, underline=5)
@@ -635,7 +649,7 @@ class RootWindow(tk.Tk):
         self.bind("<Control-r>", self._open_ref_file_event)
         self._menu_recent_ref = tk.Menu(self._menu_file)
         self._menu_file.add_cascade(menu=self._menu_recent_ref, label=MENU_TEXT_OPEN_RECENT_REF)
-        self._populate_file_history(self._menu_recent_ref, self._ref_historian, self._do_open_ref_file)
+        self._populate_file_history(self._menu_recent_ref, self._ref_historian, self.do_open_ref_file)
         self._menu_file.add_command(label=MENU_TEXT_CLOSE_REF, command=self.close_ref_file_event)
         self._menu_file.add_separator()
 
@@ -703,7 +717,34 @@ class RootWindow(tk.Tk):
     def _open_main_file(self):
         filepath = self._open_file_dialog("Open an audio file")
         if filepath:
-            self._do_open_main_file(filepath)
+            self.do_open_main_file(filepath)
+
+    def _open_folder_event(self, _):
+        self._open_folder()
+
+    def _open_folder(self):
+
+        initial = appsettings.instance.data_directory if appsettings.instance.data_directory != "" else Path.home()
+        directory_selected = filedialog.askdirectory(parent=self, mustexist=True, initialdir=initial,
+                                                     title="Open an audio file folder")
+        # print(directory_selected)
+        if directory_selected:
+            # If we are already browsing, clean up the existing browse state:
+            if self._folder_walker is not None:
+                self._folder_walker.close()
+
+            # If we have any file currently loaded, unload it:
+            self.close_main_file()
+
+            self._folder_walker = FolderWalker(Path(directory_selected))
+            self._browser_frame.reset(self._folder_walker)
+            # Show the browser:
+            self._browser_frame.grid()
+
+    def close_folder(self):
+        if self._folder_walker is not None:
+            self._folder_walker.close()
+        self._browser_frame.grid_remove()
 
     def _open_ref_file_event(self, _):
         self._open_ref_file()
@@ -711,10 +752,10 @@ class RootWindow(tk.Tk):
     def _open_ref_file(self):
         filepath = self._open_file_dialog("Open a reference audio file")
         if filepath:
-            self._do_open_ref_file(filepath)
+            self.do_open_ref_file(filepath)
 
-    def _do_open_main_file(self, filepath):
-        myaf = self._do_open_file(filepath, self._menu_recent_main, self._do_open_main_file, self._main_historian)
+    def do_open_main_file(self, filepath):
+        myaf = self._do_open_file(filepath, self._menu_recent_main, self.do_open_main_file, self._main_historian)
         if myaf is not None:
             self._main_settings_frame.copy_settings_to_widgets()  # The axis ranges have changed
             self._main_settings_frame.set_guano_data(myaf.get_guano_data())
@@ -722,8 +763,8 @@ class RootWindow(tk.Tk):
             self._dc_main.update_from_af(myaf, self._main_settings)
             self.event_generate(DATA_CHANGE_MAIN_EVENT)
 
-    def _do_open_ref_file(self, filepath):
-        myaf = self._do_open_file(filepath, self._menu_recent_ref, self._do_open_ref_file, self._ref_historian)
+    def do_open_ref_file(self, filepath):
+        myaf = self._do_open_file(filepath, self._menu_recent_ref, self.do_open_ref_file, self._ref_historian)
         if myaf is not None:
             self._ref_settings_frame.copy_settings_to_widgets()  # The axis ranges have changed
             self._ref_settings_frame.set_guano_data(myaf.get_guano_data())
@@ -751,7 +792,11 @@ class RootWindow(tk.Tk):
         finally:
             self._pop_cursor()
 
-    def _close_main_file_event(self):
+    def _close_main_event(self):
+        self.close_folder()             # In case there is a folder browser open.
+        self.close_main_file()          # In case there is a file open.
+
+    def close_main_file(self):
         self._dc_main.reset()
         self._main_settings_frame.set_guano_data(None)
         self.event_generate(DATA_CHANGE_MAIN_EVENT)

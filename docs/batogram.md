@@ -85,7 +85,7 @@ as shown below. Draw the yellow markers to move the datum lines.
 ![img.png](markers.png)
 
 
-## Brightness and Contrast
+### Brightness and Contrast
 
 The Brightness/Contrast tab allows you to determine how spectral power is mapped to
 colours in the spectogram. There are three modes:
@@ -133,7 +133,11 @@ The Other tab includes miscellaneous options.
 * Multichannel data determines how data files with more with one channel of data will be handled.
 You can choose to combine them all or by selecting a specific channel. Channel combination
 is done by summing the spectrogram power amplitudes after phase is discarded to avoid interference effects.
-If you select a channel that is not present, any channels that are present will be summed instead. 
+If you select a channel that is not present, any channels that are present will be summed instead.
+* BatGizmo settings are specific to the BatGizmo detector.
+* The Sample Rate field allows you to override the sample rate inferred from the wav file and metadata
+settings (which in rare cases are not correct). You may need to do this if you notice that the frequence
+range in the spectrogram is not what you expect.
 
 ## Audio Playback
 
@@ -176,6 +180,23 @@ with an asterisk. Selection is a matter of taste and eyesight.
 should point this where you store your data files.
 * Mic response (main and ref) allows you to correct for microphone frequency response, by specifying a
 response for the main and reference spectrograms. More on the file format is provided [here](mic-response.md).
+
+Browsing a folder of audio files
+--------------------------------
+
+Use the File | Open folder menu option to open a folder of audio files. This results in the audio
+files being listed in the browser panel.
+
+Click on a file in the list to view it.
+
+Use cursor up/down arrows to move to the previous/next file, and click on reset to move to the top of the list.
+
+Various sorting options may be chosen:
+* The natural order in the file system.
+* Ordering based on the time of the file.
+* Alphetical ordering, which results in time order when file names start with a date and time.
+
+![Folder browser](folderbrowser.png "Folder browser")
 
 
 Side by Side Comparison

@@ -485,10 +485,10 @@ class SpectrogramCalcData:
 
         fft_samples_squared = sample_rate * sample_rate * overlap_ratio * aspect_factor
 
-        fft_samples = int(scipy.sqrt(fft_samples_squared) + 0.5)
+        fft_samples = int(math.sqrt(fft_samples_squared) + 0.5)
 
         # Round to the nearest factor of 2:
-        rounded_window_samples = 2 ** int(scipy.log2(fft_samples) + 0.5)
+        rounded_window_samples = 2 ** int(math.log2(fft_samples) + 0.5)
         rounded_window_samples *= 2  # Subjectively, this looks better.
 
         # These limits need to make the range of samples that can be selected manually:

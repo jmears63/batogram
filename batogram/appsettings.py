@@ -175,4 +175,4 @@ class AppSettingsWrapper(AppSettings):
 
 
 # The single global instance of this class:
-instance: "AppSettingsWrapper" = AppSettingsWrapper()
+instance: AppSettingsWrapper = AppSettingsWrapper()
