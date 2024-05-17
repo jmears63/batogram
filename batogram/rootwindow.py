@@ -266,7 +266,7 @@ class PanelFrame(tk.Frame):
 
         # Limit the the deltas to the range of the available data, maintaining the span of each axis,
         # and assuming (1) the existing range is valid (2) the deltas are less than the current axis ranges.
-        af_data = self._dc.get_afs_data()
+        af_data: AudioFileService.RenderingData = self._dc.get_afs_data()
         if af_data:
             time_min, time_max = af_data.time_range.get_tuple()
             if delta_t > 0:

@@ -67,7 +67,7 @@ class BrowserFrame(tk.Frame):
         list_frame = tk.Frame(self)
         self._file_list_var = tk.StringVar()
         self._file_list = tk.Listbox(list_frame, listvariable=self._file_list_var,
-                                     width=0,       # Adjust width to data.
+                                     width=20,       # Fixed - the user can cursor left/right to see the full text.
                                      height=10)
         self._file_list.bind("<<ListboxSelect>>", self._on_listbox_select_main)
         scrollbar = tk.Scrollbar(list_frame)
@@ -107,7 +107,8 @@ class BrowserFrame(tk.Frame):
         # Walk the folder, finding files with the right extensions:
         self._file_list_entries = self._folder_walker.get_list(self._sorting_var.get())
         # Limit the length of the string:
-        entries_as_array = [self._truncate_string(item) for (item, path) in self._file_list_entries]
+        # entries_as_array = [self._truncate_string(item) for (item, path) in self._file_list_entries]
+        entries_as_array = [item for (item, path) in self._file_list_entries]
         self._file_list_var.set(entries_as_array)
 
         # Select and load the first file in the list, first clearing any existing selection:

@@ -31,7 +31,7 @@ method is as follows:
 [here](https://github.com/jmears63/batogram/releases). You need the file named batogram.exe, listed
 under Assets.
 * Probably Windows Defender will warn you of the danger of downloading such files from unknown
-sources. Assess the risk and decide if you going ahead. Assuming you are, proceed to the
+sources. Assess the risk and decide if you are going ahead. Assuming you are, proceed to the
 next step.
 * Copy the downloaded executable to your Windows desktop, so that you can find it when you want it.
 * Double click it on the desktop to run it. The first time you run it, it will take a little longer to start 
