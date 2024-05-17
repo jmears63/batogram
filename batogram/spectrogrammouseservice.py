@@ -111,6 +111,10 @@ class SpectrogramMouseService:
 
     def _on_button1_press(self, event):
         # print("1+")
+
+        # A button click is propagated upward so that the spectrogram takes the focus.
+        self._graph_frame.set_spectrogram_focus()
+
         if self._preempted:
             return
 

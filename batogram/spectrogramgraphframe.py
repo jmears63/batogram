@@ -134,6 +134,12 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(SPECTROGAM_COMPLETER_EVENT, self._do_completer)
 
+    def set_spectrogram_focus(self):
+        # Invoked by a child widget to signal upwards that this spectrogram should
+        # grab the focus.
+
+        self._parent.set_spectrogram_focus()
+
     def set_histogram_interface(self, interface: HistogramInterface):
         self._histogram_interface = interface
 

@@ -67,6 +67,7 @@ class BrowserFrame(tk.Frame):
         list_frame = tk.Frame(self)
         self._file_list_var = tk.StringVar()
         self._file_list = tk.Listbox(list_frame, listvariable=self._file_list_var,
+                                     selectmode=tk.EXTENDED,
                                      width=20,       # Fixed - the user can cursor left/right to see the full text.
                                      height=10)
         self._file_list.bind("<<ListboxSelect>>", self._on_listbox_select_main)
@@ -79,22 +80,32 @@ class BrowserFrame(tk.Frame):
         list_frame.columnconfigure(0, weight=1)
         list_frame.grid(row=1, column=0, sticky="nsew", padx=pad, pady=pad)
 
+        self._selected_count_var = tk.StringVar(self, "")
+        selected_count_label = tk.Label(self, textvariable=self._selected_count_var)
+        selected_count_label.grid(row=2, column=0, sticky="ew", padx=pad)
+
         sort_options = (SORT_NATURAL, SORT_TIME, SORT_ALPHABETICAL)
         self._sorting_var = tk.StringVar(self, SORT_TIME)
         sorting_menu = tk.OptionMenu(self, self._sorting_var, *sort_options, command=self._on_sort_order_changed)
-        sorting_menu.grid(row=2, column=0, sticky="ew", padx=pad)
+        sorting_menu.grid(row=3, column=0, sticky="ew", padx=pad)
+
+        self._moverename_button = tk.Button(self, text="Move/rename selected", command=self._on_moverename)
+        self._moverename_button.grid(row=4, column=0, sticky="ew", padx=pad)
+        self._moverename_button.config(state=tk.DISABLED)
 
         button_frame = tk.Frame(self)
         reset_button = tk.Button(button_frame, text="Reset", command=self._on_reset)
         reset_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
         close_button = tk.Button(button_frame, text="Close", command=self._on_close)
         close_button.grid(row=0, column=1, sticky="nsew", padx=pad, pady=pad)
-        button_frame.grid(row=3, column=0, sticky="nsew")
+        button_frame.grid(row=5, column=0, sticky="nsew")
 
         self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=0)
         self.rowconfigure(3, weight=0)
+
+        self._file_list.focus_set()
 
     def _populate(self, folder_walker: Optional[FolderWalker]) -> bool:
 
@@ -114,8 +125,8 @@ class BrowserFrame(tk.Frame):
         # Select and load the first file in the list, first clearing any existing selection:
         self._file_list.select_clear(0, tk.END)
         if len(self._file_list_entries) > 0:
-            self._file_list.select_set(0)
-            self._load_selected_file(self._parent.do_open_main_file)
+            self._file_list.activate(0)
+            self._load_activated_file(self._parent.do_open_main_file)
 
         return len(self._file_list_entries) > 0
 
@@ -137,21 +148,31 @@ class BrowserFrame(tk.Frame):
         p = str(path)
         self._path_var.set(self._truncate_string(p, False) + ":")
 
-    def _load_selected_file(self, action: Callable):
-        sel_tuple = self._file_list.curselection()
-        if len(sel_tuple) > 0:
-            selection = sel_tuple[0]
-            _, selected_path = self._file_list_entries[selection]
-            action(selected_path)
+    def _load_activated_file(self, action: Callable):
+        selection = self._file_list.index(tk.ACTIVE)
+        _, selected_path = self._file_list_entries[selection]
+        action(selected_path)
 
     def _on_listbox_select_main(self, _):
-        self._load_selected_file(self._parent.do_open_main_file)
+        # Update the UI:
+        selection_tuple = self._file_list.curselection()
+        self._selected_count_var.set("{} selected".format(len(selection_tuple)))
+        button_state = tk.NORMAL if len(selection_tuple) > 0 else tk.DISABLED
+        self._moverename_button.config(state=button_state)
 
-    def _on_listbox_select_ref(self, _):
-        self._load_selected_file(self._parent.do_open_ref_file)
+        # Open the file for the active entry:
+        self._load_activated_file(self._parent.do_open_main_file)
 
     def _on_sort_order_changed(self, _):
         self.reset(None)
+
+    def _on_moverename(self):
+        # Prompt the user with move/rename parameters:
+        # TODO
+
+        # Take the action if they didn't cancel:
+        for sel in self._file_list.curselection():
+            pass
 
     @staticmethod
     def _truncate_string(s: str, at_end: bool = True) -> str:

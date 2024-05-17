@@ -145,7 +145,8 @@ class PanelFrame(tk.Frame):
 
     def __init__(self, parent, root, pipelines: GraphPipelines, data_context, settings, settings_frame, pad,
                  playback_processor: PlaybackServiceImpl, is_reference):
-        super().__init__(parent)
+        super().__init__(parent,
+                         takefocus=1, highlightthickness=1)       # This frame can get focus on tab sequence.
 
         self._pipelines = pipelines
         self._dc = data_context
@@ -207,6 +208,34 @@ class PanelFrame(tk.Frame):
 
         self._frames = [self._amplitude_frame, self._spectrogram_frame, self._profile_frame,
                         self._button_frame, self._fileinfo_frame, self._readout_frame]
+
+        self.bind('<Left>', self.on_left_key)
+        self.bind('<Right>', self.on_right_key)
+        self.bind("<FocusIn>", self.on_focus_in)
+        self.bind("<FocusOut>", self.on_focus_out)
+        self.bind('<Shift-Left>', self.on_shift_left_key)
+        self.bind('<Shift-Right>', self.on_shift_right_key)
+        self.bind('<Up>', self.on_up_key)
+        self.bind('<Shift-Up>', self.on_shift_up_key)
+        self.bind('<Down>', self.on_down_key)
+        self.bind('<Shift-Down>', self.on_shift_down_key)
+        self.bind('<Prior>', self.on_page_up_key)
+        self.bind('<Shift-Prior>', self.on_shift_page_up_key)
+        self.bind('<Next>', self.on_page_down_key)
+        self.bind('<Shift-Next>', self.on_shift_page_down_key)
+        self.bind('<Home>', self.on_home_key)
+
+    def set_spectrogram_focus(self):
+        # Invoked by a child widget to signal upwards that this spectrogram should
+        # grab the focus.
+
+        self.focus_set()
+
+    def on_focus_in(self, _):
+        pass
+
+    def on_focus_out(self, _):
+        pass
 
     def on_t_range_set(self, t_range: Tuple[int, int]) -> None:
         if self._button_frame:
@@ -528,20 +557,6 @@ class RootWindow(tk.Tk):
 
         self.bind(DATA_CHANGE_MAIN_EVENT, self._on_data_change_main)
         self.bind(DATA_CHANGE_REF_EVENT, self._on_data_change_ref)
-
-        self.bind('<Left>', self._main_pane.on_left_key)
-        self.bind('<Shift-Left>', self._main_pane.on_shift_left_key)
-        self.bind('<Right>', self._main_pane.on_right_key)
-        self.bind('<Shift-Right>', self._main_pane.on_shift_right_key)
-        self.bind('<Up>', self._main_pane.on_up_key)
-        self.bind('<Shift-Up>', self._main_pane.on_shift_up_key)
-        self.bind('<Down>', self._main_pane.on_down_key)
-        self.bind('<Shift-Down>', self._main_pane.on_shift_down_key)
-        self.bind('<Prior>', self._main_pane.on_page_up_key)
-        self.bind('<Shift-Prior>', self._main_pane.on_shift_page_up_key)
-        self.bind('<Next>', self._main_pane.on_page_down_key)
-        self.bind('<Shift-Next>', self._main_pane.on_shift_page_down_key)
-        self.bind('<Home>', self._main_pane.on_home_key)
 
         # Allow tk to work out the size of things before we try to draw any graphs:
         self.update_idletasks()
