@@ -70,7 +70,7 @@ class BrowserFrame(tk.Frame):
                                      selectmode=tk.EXTENDED,
                                      width=20,       # Fixed - the user can cursor left/right to see the full text.
                                      height=10)
-        self._file_list.bind("<<ListboxSelect>>", self._on_listbox_select_main)
+        self._file_list.bind("<<ListboxSelect>>", self._on_listbox_select)
         scrollbar = tk.Scrollbar(list_frame)
         self._file_list.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self._file_list.yview)
@@ -120,13 +120,14 @@ class BrowserFrame(tk.Frame):
         # Limit the length of the string:
         # entries_as_array = [self._truncate_string(item) for (item, path) in self._file_list_entries]
         entries_as_array = [item for (item, path) in self._file_list_entries]
-        self._file_list_var.set(entries_as_array)
+        self._file_list_var.set("\n".join(entries_as_array))
 
         # Select and load the first file in the list, first clearing any existing selection:
         self._file_list.select_clear(0, tk.END)
         if len(self._file_list_entries) > 0:
             self._file_list.activate(0)
-            self._load_activated_file(self._parent.do_open_main_file)
+            # Don't move the focus away from the folder browser:
+            self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), 0)
 
         return len(self._file_list_entries) > 0
 
@@ -148,20 +149,25 @@ class BrowserFrame(tk.Frame):
         p = str(path)
         self._path_var.set(self._truncate_string(p, False) + ":")
 
-    def _load_activated_file(self, action: Callable):
-        selection = self._file_list.index(tk.ACTIVE)
-        _, selected_path = self._file_list_entries[selection]
-        action(selected_path)
-
-    def _on_listbox_select_main(self, _):
+    def _on_listbox_select(self, event):
         # Update the UI:
         selection_tuple = self._file_list.curselection()
         self._selected_count_var.set("{} selected".format(len(selection_tuple)))
         button_state = tk.NORMAL if len(selection_tuple) > 0 else tk.DISABLED
         self._moverename_button.config(state=button_state)
 
-        # Open the file for the active entry:
-        self._load_activated_file(self._parent.do_open_main_file)
+        def update_cb():
+            selected = self._file_list.index(tk.ACTIVE)
+            self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), selected)
+
+        # We can't do the update here and now because index(tk.ACTIVE) still refers the old value.
+        # That seems like a bug in tkinter or tk. So, this little hack to allow tk to catch up with itself,
+        # which it generally will, but might not if the CPU has other things on its mind.
+        self.after(200, update_cb)
+
+    def _load_activated_file(self, action: Callable, selection: int):
+        _, selected_path = self._file_list_entries[selection]
+        action(selected_path)
 
     def _on_sort_order_changed(self, _):
         self.reset(None)

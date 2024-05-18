@@ -769,7 +769,7 @@ class RootWindow(tk.Tk):
         if filepath:
             self.do_open_ref_file(filepath)
 
-    def do_open_main_file(self, filepath):
+    def do_open_main_file(self, filepath, setfocus=True):
         myaf = self._do_open_file(filepath, self._menu_recent_main, self.do_open_main_file, self._main_historian)
         if myaf is not None:
             self._main_settings_frame.copy_settings_to_widgets()  # The axis ranges have changed
@@ -777,8 +777,10 @@ class RootWindow(tk.Tk):
             self._main_settings.on_open_new_file(myaf)
             self._dc_main.update_from_af(myaf, self._main_settings)
             self.event_generate(DATA_CHANGE_MAIN_EVENT)
+            if setfocus:
+                self._main_pane.focus_set()
 
-    def do_open_ref_file(self, filepath):
+    def do_open_ref_file(self, filepath, setfocus=True):
         myaf = self._do_open_file(filepath, self._menu_recent_ref, self.do_open_ref_file, self._ref_historian)
         if myaf is not None:
             self._ref_settings_frame.copy_settings_to_widgets()  # The axis ranges have changed
@@ -790,6 +792,8 @@ class RootWindow(tk.Tk):
             if x < 10:
                 self._paned_window.sash_place(0, 300, y)
             self.event_generate(DATA_CHANGE_REF_EVENT)
+            if setfocus:
+                self._ref_pane.focus_set()
 
     def _do_open_file(self, filepath, recent_menu_item, method, historian) -> af.AudioFileService:
         self._push_cursor("watch")  # A large file might take time to load. Though, it seems not.
