@@ -8,7 +8,7 @@ class LSBSteganography:
     """Use this class for extracting data from a raw data stream, where additional int16 data is encoded
     as the LSB of the raw data."""
 
-    prefix_value: np.int16 = np.int16(0xDEAF)
+    prefix_value: np.uint16 = np.uint16(0xDEAF)
 
     def __init__(self):
         pass
