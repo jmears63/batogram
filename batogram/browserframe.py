@@ -1,7 +1,11 @@
 import os
+import shutil
 import tkinter as tk
+import send2trash
 from pathlib import Path
 from typing import Optional, List, Tuple, Callable
+
+from batogram.moverenamemodal import MoveRenameModal, MoveRenameSettings, MoveType
 
 SORT_NATURAL = "Natural order"
 SORT_TIME = "Time order"
@@ -57,6 +61,9 @@ class BrowserFrame(tk.Frame):
     def __init__(self, parent: "RootWindow", pad: int):
         super().__init__(parent)
 
+        # The life cycle of the settings is the same as the browser frame, ie the
+        # lifetime of the application:
+        self._move_rename_settings: MoveRenameSettings = MoveRenameSettings()
         self._parent = parent
         self._file_list_entries: List[Tuple[str, str]] = []
 
@@ -89,12 +96,12 @@ class BrowserFrame(tk.Frame):
         sorting_menu = tk.OptionMenu(self, self._sorting_var, *sort_options, command=self._on_sort_order_changed)
         sorting_menu.grid(row=3, column=0, sticky="ew", padx=pad)
 
-        self._moverename_button = tk.Button(self, text="Move/rename selected", command=self._on_moverename)
+        self._moverename_button = tk.Button(self, text="Move/Rename", command=self._on_moverename)
         self._moverename_button.grid(row=4, column=0, sticky="ew", padx=pad)
         self._moverename_button.config(state=tk.DISABLED)
 
         button_frame = tk.Frame(self)
-        reset_button = tk.Button(button_frame, text="Reset", command=self._on_reset)
+        reset_button = tk.Button(button_frame, text="Reload", command=self._on_reset)
         reset_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
         close_button = tk.Button(button_frame, text="Close", command=self._on_close)
         close_button.grid(row=0, column=1, sticky="nsew", padx=pad, pady=pad)
@@ -173,12 +180,34 @@ class BrowserFrame(tk.Frame):
         self.reset(None)
 
     def _on_moverename(self):
+        ok_clicked: bool = False
+
+        def on_ok():
+            nonlocal ok_clicked
+            ok_clicked = True
+
+        # Note the selection before displaying the modal, as it can be cleared if
+        # they open the directory selection dialog. But not always. Me neither.
+        current_selection = self._file_list.curselection()
+
         # Prompt the user with move/rename parameters:
-        # TODO
+        default_folder = os.path.relpath(self._folder_walker.get_path(), Path.home())
+        modal = MoveRenameModal(self, self._move_rename_settings, on_ok, initialdir=default_folder)
+        modal.grab_set()
+        modal.wait_window()
 
         # Take the action if they didn't cancel:
-        for sel in self._file_list.curselection():
-            pass
+        if ok_clicked:
+            for sel_index in current_selection:
+                filename = self._file_list.get(sel_index)
+                try:
+                    self._do_move_rename(filename, self._move_rename_settings)
+                except BaseException as e:
+                    cont = tk.messagebox.askyesno(title="Error", message="Unable to perform requested action:\n\n {}\n\nDo you want to continue?".format(str(e)))
+                    if not cont:
+                        break
+
+            self.reset(None)
 
     @staticmethod
     def _truncate_string(s: str, at_end: bool = True) -> str:
@@ -192,4 +221,37 @@ class BrowserFrame(tk.Frame):
                 s = my_ellipsis + s[-(MAX_STRING - ellipsis_len):]
 
         return s
+
+    def _do_move_rename(self, source_filename: str, settings: MoveRenameSettings):
+
+        # Note: paths provided by the user are relative to their home directory.
+
+        source_folder: str = str(self._folder_walker.get_path())
+        source_path = os.path.normpath(os.path.join(source_folder, source_filename))
+
+        if settings.do_move and settings.move_type == MoveType.MOVE_TO_WASTEBASKET:
+            # Move to the waste basket:
+            send2trash.send2trash(source_path)
+            return
+
+        target_filename = source_filename
+        if settings.do_rename:
+            target_filename = settings.rename_prefix + source_filename
+
+        target_folder: str = source_folder
+        if settings.do_move and settings.move_type == MoveType.MOVE_TO_FOLDER:
+            target_folder = os.path.join(Path.home(), settings.relative_folder_name)
+
+        target_path = os.path.normpath(os.path.join(target_folder, target_filename))
+
+        # Creating the target path first if required.
+        # Note: it might exist but be a file, not a folder. That will fail
+        # downstream.
+        if settings.create_folder and not os.path.exists(target_folder):
+            os.makedirs(target_folder)      # Doesn't seem to mind if the dirs already exist.
+
+        # Do the move - which might just be a file rename:
+        print("Moving {} to {}".format(source_path, target_path))
+
+        shutil.move(source_path, target_path)
 

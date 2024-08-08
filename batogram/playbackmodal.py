@@ -176,6 +176,12 @@ class PlaybackModal(ModalWindow):
 
     def on_ok(self):
         # Basic validation:
+        try:
+            reference = int(self._reference_var.get())
+        except BaseException as e:
+            messagebox.showerror(title="Error", message=e, parent=self)
+            return
+
         allowed = 10, 150
         if not allowed[0] <= int(self._reference_var.get()) <= allowed[1]:
             messagebox.showerror(title="Error",

@@ -609,19 +609,19 @@ class RootWindow(tk.Tk):
                                   self._main_pane.get_settings_button(), self._main_settings_frame,
                                   self._ref_pane.get_settings_button(), self._ref_settings_frame)
 
-        self._browser_frame = BrowserFrame(self, pad)
-        self._browser_frame.grid(row=0, column=0, sticky="nsew", rowspan=2)
-        self._browser_frame.grid_remove()       # Initially not visible.
-
         # Assemble the panel window:
         self._paned_window.add(self._ref_pane)
         self._paned_window.add(self._main_pane)
         self._paned_window.grid(row=0, column=1, sticky="nsew")
 
+        self._browser_frame = BrowserFrame(self, pad)
+        self._browser_frame.grid(row=0, column=0, sticky="nsew", rowspan=2)
+        self._browser_frame.grid_remove()       # Initially not visible.
+
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=0)
         self.columnconfigure(0, weight=0)
-        self.columnconfigure(1, weight=1)
+        self.columnconfigure(1, weight=1)       # We want the spectrograms to stretch, not the folder browser.
 
         # This code annoyingly jumps on startup. I can't find simple way to avoid that right now.
         # Maybe we should make the frame invisible? I don't know if that would work.
