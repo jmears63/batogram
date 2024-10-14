@@ -1,10 +1,12 @@
 import os
 import shutil
 import tkinter as tk
+from tkinter import ttk
 import send2trash
 from pathlib import Path
 from typing import Optional, List, Tuple, Callable
 
+from batogram import get_asset_path
 from batogram.moverenamemodal import MoveRenameModal, MoveRenameSettings, MoveType
 
 SORT_NATURAL = "Natural order"
@@ -14,6 +16,7 @@ SORT_ALPHABETICAL = "Alphabetical order"
 
 class FolderWalker:
     """This class knows how to iterate through wav files in a folder in a given sort order."""
+
     def __init__(self, folder_path: Path):
         self._folder_path: Path = folder_path
 
@@ -29,7 +32,7 @@ class FolderWalker:
         for item in contents:
             path = os.path.join(self._folder_path, item)
             if os.path.isdir(path):
-                pass        # Don't want folders, only files.
+                pass  # Don't want folders, only files.
             else:
                 _, ext = os.path.splitext(path)
                 if ext.lower() == '.wav':
@@ -67,25 +70,49 @@ class BrowserFrame(tk.Frame):
         self._parent = parent
         self._file_list_entries: List[Tuple[str, str]] = []
 
+        self._image_unflagged = tk.PhotoImage(file=get_asset_path("transparent.png"))
+        self._image_flagged = tk.PhotoImage(file=get_asset_path("flag-fill.png"))
+
         self._path_var = tk.StringVar(value="")
         self._path_label = tk.Label(self, textvariable=self._path_var, anchor=tk.W)
         self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
 
-        list_frame = tk.Frame(self)
+        treeview_frame = tk.Frame(self)
         self._file_list_var = tk.StringVar()
-        self._file_list = tk.Listbox(list_frame, listvariable=self._file_list_var,
-                                     selectmode=tk.EXTENDED,
-                                     width=20,       # Fixed - the user can cursor left/right to see the full text.
-                                     height=10)
-        self._file_list.bind("<<ListboxSelect>>", self._on_listbox_select)
-        scrollbar = tk.Scrollbar(list_frame)
-        self._file_list.config(yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self._file_list.yview)
-        self._file_list.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="nsew")
-        list_frame.rowconfigure(0, weight=1)
-        list_frame.columnconfigure(0, weight=1)
-        list_frame.grid(row=1, column=0, sticky="nsew", padx=pad, pady=pad)
+        tv = ttk.Treeview(treeview_frame,
+                          selectmode=tk.EXTENDED,
+                          show='tree headings',  # Don't show the columns headings.
+                          columns=("size", "time"),
+                          )
+        self._file_treeview = tv
+        # tv.column(0, width=10, anchor=tk.E)      # Seems to do nothing.
+        # Minwidth set quite large so that horizontal scrolling is possible:
+        tv.heading('#0', text="File", anchor=tk.W)
+        tv.heading('#1', text="Size", anchor=tk.W)
+        tv.heading('#2', text="Time", anchor=tk.W)
+        # "stretch" controls what happens if the widget is resized, not the column. The columns
+        # can always be resized:
+        tv.column('#0', width=200, minwidth=150, stretch=True)
+        tv.column('#1', width=60, minwidth=60, stretch=False)
+        tv.column('#2', width=150, minwidth=100, stretch=False)
+
+        self._file_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
+
+        vscrollbar = tk.Scrollbar(treeview_frame, orient=tk.VERTICAL)
+        self._file_treeview.config(yscrollcommand=vscrollbar.set)
+        vscrollbar.config(command=self._file_treeview.yview)
+        vscrollbar.grid(row=0, column=1, sticky="nsew")
+
+        hscrollbar = tk.Scrollbar(treeview_frame, orient=tk.HORIZONTAL)
+        self._file_treeview.config(xscrollcommand=hscrollbar.set)
+        hscrollbar.config(command=self._file_treeview.xview)
+        hscrollbar.grid(row=1, column=0, sticky="nsew")
+
+        self._file_treeview.grid(row=0, column=0, sticky="nsew")
+
+        treeview_frame.rowconfigure(0, weight=1)
+        treeview_frame.columnconfigure(0, weight=1)
+        treeview_frame.grid(row=1, column=0, sticky="nsew", padx=pad, pady=pad)
 
         self._selected_count_var = tk.StringVar(self, "")
         selected_count_label = tk.Label(self, textvariable=self._selected_count_var)
@@ -112,10 +139,13 @@ class BrowserFrame(tk.Frame):
         self.rowconfigure(2, weight=0)
         self.rowconfigure(3, weight=0)
 
-        self._file_list.focus_set()
+        self._file_treeview.focus_set()
+
+    def _clear_treeview(self):
+        for item in self._file_treeview.get_children():
+            self._file_treeview.delete(item)
 
     def _populate(self, folder_walker: Optional[FolderWalker]) -> bool:
-
         if folder_walker is not None:
             self._folder_walker = folder_walker
         del folder_walker
@@ -127,14 +157,21 @@ class BrowserFrame(tk.Frame):
         # Limit the length of the string:
         # entries_as_array = [self._truncate_string(item) for (item, path) in self._file_list_entries]
         entries_as_array = [item for (item, path) in self._file_list_entries]
-        self._file_list_var.set("\n".join(entries_as_array))
+
+        self._clear_treeview()
+        for entry in entries_as_array:
+            self._file_treeview.insert("", tk.END,
+                                       text=entry,
+                                       image=self._image_flagged if False else self._image_unflagged,
+                                       values=("1.2M", "2024-12-05 22.43"),
+                                       iid=self._folder_walker.get_path() / entry        # Use the file path as the iid.
+                                       )
 
         # Select and load the first file in the list, first clearing any existing selection:
-        self._file_list.select_clear(0, tk.END)
         if len(self._file_list_entries) > 0:
-            self._file_list.activate(0)
-            # Don't move the focus away from the folder browser:
-            self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), 0)
+            iid = self._file_treeview.get_children()[0]
+            # A side effect of the following is to load the file, as the selection event is generated:
+            self._file_treeview.selection_set(iid)
 
         return len(self._file_list_entries) > 0
 
@@ -156,24 +193,45 @@ class BrowserFrame(tk.Frame):
         p = str(path)
         self._path_var.set(self._truncate_string(p, False) + ":")
 
-    def _on_listbox_select(self, event):
+    def _on_treeview_select(self, event):
         # Update the UI:
-        selection_tuple = self._file_list.curselection()
+        # selection_tuple = self._file_treeview.curselection()
+        selection_tuple = self._file_treeview.selection()
         self._selected_count_var.set("{} selected".format(len(selection_tuple)))
         button_state = tk.NORMAL if len(selection_tuple) > 0 else tk.DISABLED
         self._moverename_button.config(state=button_state)
 
-        def update_cb():
-            selected = self._file_list.index(tk.ACTIVE)
-            self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), selected)
+        # Only load data when exactly one row is selected - to avoid flicker when
+        # extending the selection.
+        if len(selection_tuple) == 1:
+            def update_cb():
+                # selected = self._file_treeview.index(tk.ACTIVE)
+                selected = selection_tuple[0]
+                self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), selected)
 
-        # We can't do the update here and now because index(tk.ACTIVE) still refers the old value.
-        # That seems like a bug in tkinter or tk. So, this little hack to allow tk to catch up with itself,
-        # which it generally will, but might not if the CPU has other things on its mind.
-        self.after(200, update_cb)
+            # We can't do the update here and now because index(tk.ACTIVE) still refers the old value.
+            # That seems like a bug in tkinter or tk. So, this little hack is to allow tk to catch up with itself,
+            # which it generally will, but might not if the CPU has other things on its mind.
+            self.after(200, update_cb)
 
-    def _load_activated_file(self, action: Callable, selection: int):
-        _, selected_path = self._file_list_entries[selection]
+        if False:
+            def print_hierarchy(w, depth=0):
+                print('  ' * depth + w.winfo_class() + ' w=' + str(w.winfo_width()) + ' h=' + str(
+                    w.winfo_height()) + ' x=' + str(w.winfo_x()) + ' y=' + str(w.winfo_y()))
+                for i in w.winfo_children():
+                    print_hierarchy(i, depth + 1)
+
+            print_hierarchy(self, 5)
+
+            c = self._file_treeview.configure()
+            print(c)
+
+            print("Requested: {} {}".format(self._file_treeview.winfo_reqwidth(), self._file_treeview.winfo_reqheight()))
+            print("Actual: {} {}".format(self._file_treeview.winfo_width(), self._file_treeview.winfo_height()))
+
+    def _load_activated_file(self, action: Callable, selection: str):
+        # _, selected_path = self._file_list_entries[selection]
+        selected_path = selection
         action(selected_path)
 
     def _on_sort_order_changed(self, _):
@@ -188,7 +246,7 @@ class BrowserFrame(tk.Frame):
 
         # Note the selection before displaying the modal, as it can be cleared if
         # they open the directory selection dialog. But not always. Me neither.
-        current_selection = self._file_list.curselection()
+        current_selection = self._file_treeview.curselection()
 
         # Prompt the user with move/rename parameters:
         default_folder = os.path.relpath(self._folder_walker.get_path(), Path.home())
@@ -199,11 +257,13 @@ class BrowserFrame(tk.Frame):
         # Take the action if they didn't cancel:
         if ok_clicked:
             for sel_index in current_selection:
-                filename = self._file_list.get(sel_index)
+                filename = self._file_treeview.get(sel_index)
                 try:
                     self._do_move_rename(filename, self._move_rename_settings)
                 except BaseException as e:
-                    cont = tk.messagebox.askyesno(title="Error", message="Unable to perform requested action:\n\n {}\n\nDo you want to continue?".format(str(e)))
+                    cont = tk.messagebox.askyesno(title="Error",
+                                                  message="Unable to perform requested action:\n\n {}\n\nDo you want to continue?".format(
+                                                      str(e)))
                     if not cont:
                         break
 
@@ -248,10 +308,9 @@ class BrowserFrame(tk.Frame):
         # Note: it might exist but be a file, not a folder. That will fail
         # downstream.
         if settings.create_folder and not os.path.exists(target_folder):
-            os.makedirs(target_folder)      # Doesn't seem to mind if the dirs already exist.
+            os.makedirs(target_folder)  # Doesn't seem to mind if the dirs already exist.
 
         # Do the move - which might just be a file rename:
         print("Moving {} to {}".format(source_path, target_path))
 
         shutil.move(source_path, target_path)
-

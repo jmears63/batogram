@@ -777,7 +777,7 @@ class SpectrogramExtractFrameDataStep(PipelineStep):
                 if len(steg_data) == raw_data_length_needed:
                     lsb_data = LSBSteganography.process(steg_data, raw_data_length_needed)
                     if lsb_data[0] != LSBSteganography.prefix_value:
-                        print("Error: frame alignmnent error")
+                        print("Error: frame alignment error")
                     # LSB data is: magic prefix, samples per frame, smuggled data count (inclusive), data0, data1...
                     frame_data[frame_number, 1:] = lsb_data[3:]
                     frame_data[

@@ -6,3 +6,4 @@ venv
 dist
 batogram.egg-info
 .vscode
+build
