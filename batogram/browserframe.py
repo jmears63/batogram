@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 import tkinter as tk
 from tkinter import ttk
 import send2trash
@@ -9,13 +10,9 @@ from typing import Optional, List, Tuple, Callable
 from batogram import get_asset_path
 from batogram.moverenamemodal import MoveRenameModal, MoveRenameSettings, MoveType
 
-SORT_NATURAL = "Natural order"
-SORT_TIME = "Time order"
-SORT_ALPHABETICAL = "Alphabetical order"
-
 
 class FolderWalker:
-    """This class knows how to iterate through wav files in a folder in a given sort order."""
+    """This class knows how to iterate through wav files in a folder."""
 
     def __init__(self, folder_path: Path):
         self._folder_path: Path = folder_path
@@ -26,7 +23,14 @@ class FolderWalker:
     def get_path(self) -> Path:
         return self._folder_path
 
-    def get_list(self, sort_type: str) -> List[Tuple[str, str]]:
+    @staticmethod
+    def _formatted_size(raw_size) -> str:
+        if raw_size >= 1000000:
+            return "{:.1f} MB".format(raw_size / 1000000)
+        else:
+            return "{:.1f} KB".format(raw_size / 1024)
+
+    def get_list(self) -> List[Tuple[str, str]]:
         contents = os.listdir(self._folder_path)
         paths: List[(str, str)] = []
         for item in contents:
@@ -36,28 +40,17 @@ class FolderWalker:
             else:
                 _, ext = os.path.splitext(path)
                 if ext.lower() == '.wav':
-                    paths.append((item, path))
-
-        # The folder contents are in natural order at this point. If the user has
-        # asked for a different sort order, do that now:
-
-        if sort_type == SORT_TIME:
-            def time_compare(entry):
-                _, p = entry
-                return os.path.getmtime(p)
-
-            paths = sorted(paths, key=time_compare)
-        elif sort_type == SORT_ALPHABETICAL:
-            def alpha_compare(entry):
-                name, _ = entry
-                return name
-
-            paths = sorted(paths, key=alpha_compare)
+                    raw_mtime = os.path.getmtime(path)
+                    raw_size = os.path.getsize(path)
+                    paths.append((item, path,
+                                  self._formatted_size(raw_size), raw_size,
+                                  time.ctime(raw_mtime), raw_mtime)
+                                 )
 
         return paths
 
 
-MAX_STRING = 35
+MAX_STRING = 50
 
 
 class BrowserFrame(tk.Frame):
@@ -77,23 +70,26 @@ class BrowserFrame(tk.Frame):
         self._path_label = tk.Label(self, textvariable=self._path_var, anchor=tk.W)
         self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
 
+        # State of column sorting: current sorted column, reversed flag:
+        self._column_sort_state: Tuple[Optional[int], bool]
+        self._reset_sort_start()
+
         treeview_frame = tk.Frame(self)
         self._file_list_var = tk.StringVar()
         tv = ttk.Treeview(treeview_frame,
                           selectmode=tk.EXTENDED,
                           show='tree headings',  # Don't show the columns headings.
-                          columns=("size", "time"),
+                          columns=("size", "raw size", "modified", "raw modified"),
+                          displaycolumns=(0, 2)
                           )
         self._file_treeview = tv
         # tv.column(0, width=10, anchor=tk.E)      # Seems to do nothing.
         # Minwidth set quite large so that horizontal scrolling is possible:
-        tv.heading('#0', text="File", anchor=tk.W)
-        tv.heading('#1', text="Size", anchor=tk.W)
-        tv.heading('#2', text="Time", anchor=tk.W)
+        self._treeview_set_headings(tv)
         # "stretch" controls what happens if the widget is resized, not the column. The columns
         # can always be resized:
         tv.column('#0', width=200, minwidth=150, stretch=True)
-        tv.column('#1', width=60, minwidth=60, stretch=False)
+        tv.column('#1', width=60, minwidth=70, stretch=False)
         tv.column('#2', width=150, minwidth=100, stretch=False)
 
         self._file_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
@@ -118,13 +114,8 @@ class BrowserFrame(tk.Frame):
         selected_count_label = tk.Label(self, textvariable=self._selected_count_var)
         selected_count_label.grid(row=2, column=0, sticky="ew", padx=pad)
 
-        sort_options = (SORT_NATURAL, SORT_TIME, SORT_ALPHABETICAL)
-        self._sorting_var = tk.StringVar(self, SORT_TIME)
-        sorting_menu = tk.OptionMenu(self, self._sorting_var, *sort_options, command=self._on_sort_order_changed)
-        sorting_menu.grid(row=3, column=0, sticky="ew", padx=pad)
-
         self._moverename_button = tk.Button(self, text="Move/Rename", command=self._on_moverename)
-        self._moverename_button.grid(row=4, column=0, sticky="ew", padx=pad)
+        self._moverename_button.grid(row=3, column=0, sticky="ew", padx=pad)
         self._moverename_button.config(state=tk.DISABLED)
 
         button_frame = tk.Frame(self)
@@ -132,14 +123,60 @@ class BrowserFrame(tk.Frame):
         reset_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
         close_button = tk.Button(button_frame, text="Close", command=self._on_close)
         close_button.grid(row=0, column=1, sticky="nsew", padx=pad, pady=pad)
-        button_frame.grid(row=5, column=0, sticky="nsew")
+        button_frame.grid(row=4, column=0, sticky="nsew")
 
         self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=0)
         self.rowconfigure(3, weight=0)
+        self.rowconfigure(4, weight=0)
 
         self._file_treeview.focus_set()
+
+    def _treeview_sort_column(self, tv1: ttk.Treeview, value_index: Optional[int], reset: bool = False):
+        # Work what what is required based on current sort state:
+        reverse: bool = False
+        if reset:
+            reverse = False
+        else:
+            if value_index == self._column_sort_state[0]:
+                reverse = not self._column_sort_state[1]
+
+        # Make a list of tuples: entry and column value:
+        def get_sort_value(entry):
+            if value_index is None:
+                return entry['text'].lower()
+            else:
+                return entry['values'][value_index]
+
+        li = [(get_sort_value(tv1.item(iid)), iid) for iid in tv1.get_children('')]
+        # Sort by the value:
+        li.sort(key=lambda t: t[0], reverse=reverse)
+
+        # Rearrange items in sorted positions
+        for index, (_, iid) in enumerate(li):
+            tv1.move(iid, '', index)
+
+        # Update the state to what we have just done:
+        self._column_sort_state = (value_index, reverse)
+
+        # Modify the column headers to match the sorting:
+        self._treeview_set_headings(tv1)
+
+    def _treeview_set_headings(self, tv: ttk.Treeview):
+        def set_heading(cid, text, sort_value_index: Optional[int]):
+            sort_column, reverse = self._column_sort_state
+            if sort_value_index == sort_column:
+                suffix = " ↓" if reverse else " ↑"
+            else:
+                suffix = ""
+
+            tv.heading(cid, text=text + suffix, anchor=tk.W,
+                       command=lambda: self._treeview_sort_column(tv, sort_value_index))
+
+        set_heading('#0', "File",  None)
+        set_heading('#1', "Size",  1)
+        set_heading('#2', "Modified",  3)
 
     def _clear_treeview(self):
         for item in self._file_treeview.get_children():
@@ -153,27 +190,27 @@ class BrowserFrame(tk.Frame):
         self._set_path(self._folder_walker.get_path())
 
         # Walk the folder, finding files with the right extensions:
-        self._file_list_entries = self._folder_walker.get_list(self._sorting_var.get())
-        # Limit the length of the string:
-        # entries_as_array = [self._truncate_string(item) for (item, path) in self._file_list_entries]
-        entries_as_array = [item for (item, path) in self._file_list_entries]
-
         self._clear_treeview()
-        for entry in entries_as_array:
+        empty: bool = True
+        for (item, path, size, raw_size, mtime, raw_mtime) in self._folder_walker.get_list():
+            empty = False
             self._file_treeview.insert("", tk.END,
-                                       text=entry,
+                                       text=item,
                                        image=self._image_flagged if False else self._image_unflagged,
-                                       values=("1.2M", "2024-12-05 22.43"),
-                                       iid=self._folder_walker.get_path() / entry        # Use the file path as the iid.
+                                       values=(size, raw_size, mtime, raw_mtime),
+                                       iid=path  # Use the full path to the file as the iid.
                                        )
 
+        # Reset the sort order to first column ascending:
+        self._treeview_sort_column(self._file_treeview, None, reset=True)
+
         # Select and load the first file in the list, first clearing any existing selection:
-        if len(self._file_list_entries) > 0:
+        if not empty:
             iid = self._file_treeview.get_children()[0]
             # A side effect of the following is to load the file, as the selection event is generated:
             self._file_treeview.selection_set(iid)
 
-        return len(self._file_list_entries) > 0
+        return not empty
 
     def reset(self, folder_walker: Optional[FolderWalker]):
         # Reset the state of this frame and its contents based on the folder walker
@@ -195,7 +232,6 @@ class BrowserFrame(tk.Frame):
 
     def _on_treeview_select(self, event):
         # Update the UI:
-        # selection_tuple = self._file_treeview.curselection()
         selection_tuple = self._file_treeview.selection()
         self._selected_count_var.set("{} selected".format(len(selection_tuple)))
         button_state = tk.NORMAL if len(selection_tuple) > 0 else tk.DISABLED
@@ -214,28 +250,10 @@ class BrowserFrame(tk.Frame):
             # which it generally will, but might not if the CPU has other things on its mind.
             self.after(200, update_cb)
 
-        if False:
-            def print_hierarchy(w, depth=0):
-                print('  ' * depth + w.winfo_class() + ' w=' + str(w.winfo_width()) + ' h=' + str(
-                    w.winfo_height()) + ' x=' + str(w.winfo_x()) + ' y=' + str(w.winfo_y()))
-                for i in w.winfo_children():
-                    print_hierarchy(i, depth + 1)
-
-            print_hierarchy(self, 5)
-
-            c = self._file_treeview.configure()
-            print(c)
-
-            print("Requested: {} {}".format(self._file_treeview.winfo_reqwidth(), self._file_treeview.winfo_reqheight()))
-            print("Actual: {} {}".format(self._file_treeview.winfo_width(), self._file_treeview.winfo_height()))
-
-    def _load_activated_file(self, action: Callable, selection: str):
-        # _, selected_path = self._file_list_entries[selection]
+    @staticmethod
+    def _load_activated_file(action: Callable, selection: str):
         selected_path = selection
         action(selected_path)
-
-    def _on_sort_order_changed(self, _):
-        self.reset(None)
 
     def _on_moverename(self):
         ok_clicked: bool = False
@@ -314,3 +332,7 @@ class BrowserFrame(tk.Frame):
         print("Moving {} to {}".format(source_path, target_path))
 
         shutil.move(source_path, target_path)
+
+    def _reset_sort_start(self):
+        self._column_sort_state = (None, False)
+
