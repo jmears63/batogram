@@ -57,6 +57,9 @@ class BrowserFrame(tk.Frame):
     def __init__(self, parent: "RootWindow", pad: int):
         super().__init__(parent)
 
+        self._flagged_str: str = "FLAGGED"
+        self._unflagged_str: str = "UNFLAGGED"
+
         # The life cycle of the settings is the same as the browser frame, ie the
         # lifetime of the application:
         self._move_rename_settings: MoveRenameSettings = MoveRenameSettings()
@@ -92,6 +95,9 @@ class BrowserFrame(tk.Frame):
         tv.column('#1', width=60, minwidth=70, stretch=False)
         tv.column('#2', width=150, minwidth=100, stretch=False)
 
+        tv.tag_configure(self._flagged_str, image=self._image_flagged, background="#ffcc99")
+        tv.tag_configure(self._unflagged_str, image=self._image_unflagged)
+
         self._file_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
 
         vscrollbar = tk.Scrollbar(treeview_frame, orient=tk.VERTICAL)
@@ -110,20 +116,28 @@ class BrowserFrame(tk.Frame):
         treeview_frame.columnconfigure(0, weight=1)
         treeview_frame.grid(row=1, column=0, sticky="nsew", padx=pad, pady=pad)
 
-        self._selected_count_var = tk.StringVar(self, "")
-        selected_count_label = tk.Label(self, textvariable=self._selected_count_var)
-        selected_count_label.grid(row=2, column=0, sticky="ew", padx=pad)
+        self._flagged_count_var = tk.StringVar(self, "")
+        flagged_count_label = tk.Label(self, textvariable=self._flagged_count_var)
+        flagged_count_label.grid(row=2, column=0, sticky="ew", padx=pad)
 
-        self._moverename_button = tk.Button(self, text="Move/Rename", command=self._on_moverename)
-        self._moverename_button.grid(row=3, column=0, sticky="ew", padx=pad)
-        self._moverename_button.config(state=tk.DISABLED)
+        button_frame1 = tk.Frame(self)
+        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected", command=self._on_toggle_flags)
+        self._toggle_tagging_button.grid(row=0, column=0, sticky="ew", padx=pad)
+        self._toggle_tagging_button.config(state=tk.DISABLED)
+        self._clear_flags_button = tk.Button(button_frame1, text="Clear flags", command=self._on_clear_flags)
+        self._clear_flags_button.grid(row=0, column=1, sticky="ew", padx=pad)
+        self._clear_flags_button.config(state=tk.DISABLED)
+        self._actions_button = tk.Button(button_frame1, text="Actions...", command=self._on_do_action)
+        self._actions_button.grid(row=0, column=2, sticky="ew", padx=pad)
+        self._actions_button.config(state=tk.DISABLED)
+        button_frame1.grid(row=3, column=0, sticky="nsew")
 
-        button_frame = tk.Frame(self)
-        reset_button = tk.Button(button_frame, text="Reload", command=self._on_reset)
+        button_frame2 = tk.Frame(self)
+        reset_button = tk.Button(button_frame2, text="Reload", command=self._on_reset)
         reset_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
-        close_button = tk.Button(button_frame, text="Close", command=self._on_close)
+        close_button = tk.Button(button_frame2, text="Close", command=self._on_close)
         close_button.grid(row=0, column=1, sticky="nsew", padx=pad, pady=pad)
-        button_frame.grid(row=4, column=0, sticky="nsew")
+        button_frame2.grid(row=4, column=0, sticky="nsew")
 
         self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
@@ -196,13 +210,15 @@ class BrowserFrame(tk.Frame):
             empty = False
             self._file_treeview.insert("", tk.END,
                                        text=item,
-                                       image=self._image_flagged if False else self._image_unflagged,
                                        values=(size, raw_size, mtime, raw_mtime),
+                                       tags=[self._unflagged_str],
                                        iid=path  # Use the full path to the file as the iid.
                                        )
 
-        # Reset the sort order to first column ascending:
+        # Reset some things:
         self._treeview_sort_column(self._file_treeview, None, reset=True)
+        self._toggle_tagging_button.config(state=tk.DISABLED)
+        self._flagged_count_var.set("")
 
         # Select and load the first file in the list, first clearing any existing selection:
         if not empty:
@@ -233,15 +249,13 @@ class BrowserFrame(tk.Frame):
     def _on_treeview_select(self, event):
         # Update the UI:
         selection_tuple = self._file_treeview.selection()
-        self._selected_count_var.set("{} selected".format(len(selection_tuple)))
         button_state = tk.NORMAL if len(selection_tuple) > 0 else tk.DISABLED
-        self._moverename_button.config(state=button_state)
+        self._toggle_tagging_button.config(state=button_state)
 
         # Only load data when exactly one row is selected - to avoid flicker when
         # extending the selection.
         if len(selection_tuple) == 1:
             def update_cb():
-                # selected = self._file_treeview.index(tk.ACTIVE)
                 selected = selection_tuple[0]
                 self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), selected)
 
@@ -255,7 +269,7 @@ class BrowserFrame(tk.Frame):
         selected_path = selection
         action(selected_path)
 
-    def _on_moverename(self):
+    def _on_do_action(self):
         ok_clicked: bool = False
 
         def on_ok():
@@ -264,7 +278,7 @@ class BrowserFrame(tk.Frame):
 
         # Note the selection before displaying the modal, as it can be cleared if
         # they open the directory selection dialog. But not always. Me neither.
-        current_selection = self._file_treeview.curselection()
+        flagged_items = [self._file_treeview.item(iid) for iid in self._get_flagged_items()]
 
         # Prompt the user with move/rename parameters:
         default_folder = os.path.relpath(self._folder_walker.get_path(), Path.home())
@@ -274,10 +288,10 @@ class BrowserFrame(tk.Frame):
 
         # Take the action if they didn't cancel:
         if ok_clicked:
-            for sel_index in current_selection:
-                filename = self._file_treeview.get(sel_index)
+            for item in flagged_items:
+                filename = item['text']
                 try:
-                    self._do_move_rename(filename, self._move_rename_settings)
+                    self._do_action(filename, self._move_rename_settings)
                 except BaseException as e:
                     cont = tk.messagebox.askyesno(title="Error",
                                                   message="Unable to perform requested action:\n\n {}\n\nDo you want to continue?".format(
@@ -286,6 +300,48 @@ class BrowserFrame(tk.Frame):
                         break
 
             self.reset(None)
+
+    def _on_toggle_flags(self):
+        # One or more items in the treeview may be tagged:
+        selection_tuple = self._file_treeview.selection()
+        if len(selection_tuple) > 0:
+            # Get the tagged state of the first selected item:
+            tv = self._file_treeview
+            first_tags = tv.item(selection_tuple[0])['tags']
+            # We will tag if the first item wasn't tagged, otherwise untag:
+            new_tags = [self._unflagged_str] if first_tags.count(self._flagged_str) > 0 else [self._flagged_str]
+
+            # Apply to all selected:
+            for iid in selection_tuple:
+                item = tv.item(iid)
+                tv.item(iid, tags=new_tags)
+
+        flagged_count = len(self._get_flagged_items())
+        state = tk.NORMAL if flagged_count > 0 else tk.DISABLED
+        self._actions_button.config(state=state)
+        self._clear_flags_button.config(state=state)
+        self._flagged_count_var.set("{} file(s) flagged for action".format(flagged_count))
+
+    def _get_flagged_items(self):
+        tv = self._file_treeview
+        iids = []
+        for iid in tv.get_children(''):
+            item = tv.item(iid)
+            if item['tags'].count(self._flagged_str) > 0:
+                iids.append(iid)
+
+        return iids
+
+    def _on_clear_flags(self):
+        # Reset all items to unflagged.
+        tv = self._file_treeview
+        children = tv.get_children('')
+        for iid in children:
+            tv.item(iid, tags=[self._unflagged_str])
+
+        self._actions_button.config(state=tk.DISABLED)
+        self._clear_flags_button.config(state=tk.DISABLED)
+        self._flagged_count_var.set("")
 
     @staticmethod
     def _truncate_string(s: str, at_end: bool = True) -> str:
@@ -300,7 +356,7 @@ class BrowserFrame(tk.Frame):
 
         return s
 
-    def _do_move_rename(self, source_filename: str, settings: MoveRenameSettings):
+    def _do_action(self, source_filename: str, settings: MoveRenameSettings):
 
         # Note: paths provided by the user are relative to their home directory.
 
