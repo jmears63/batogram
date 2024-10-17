@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, List, Tuple, Callable
 
 from batogram import get_asset_path
-from batogram.moverenamemodal import MoveRenameModal, MoveRenameSettings, MoveType
+from batogram.browseractionsmodal import BrowserActionsModal, BrowserActionsSettings, BrowserAction
 
 
 class FolderWalker:
@@ -25,10 +25,14 @@ class FolderWalker:
 
     @staticmethod
     def _formatted_size(raw_size) -> str:
-        if raw_size >= 1000000:
-            return "{:.1f} MB".format(raw_size / 1000000)
+        if raw_size >= 30 * 1E6:
+            return "{:.0f} MB".format(raw_size / 1E6)
+        elif raw_size >= 1 * 1E6:
+            return "{:.1f} MB".format(raw_size / 1E6)
+        elif raw_size >= 30 * 1E3:
+            return "{:.0f} KB".format(raw_size / 1E3)
         else:
-            return "{:.1f} KB".format(raw_size / 1024)
+            return "{:.1f} KB".format(raw_size / 1E3)
 
     def get_list(self) -> List[Tuple[str, str]]:
         contents = os.listdir(self._folder_path)
@@ -62,7 +66,7 @@ class BrowserFrame(tk.Frame):
 
         # The life cycle of the settings is the same as the browser frame, ie the
         # lifetime of the application:
-        self._move_rename_settings: MoveRenameSettings = MoveRenameSettings()
+        self._action_settings: BrowserActionsSettings = BrowserActionsSettings()
         self._parent = parent
         self._file_list_entries: List[Tuple[str, str]] = []
 
@@ -95,7 +99,7 @@ class BrowserFrame(tk.Frame):
         tv.column('#1', width=60, minwidth=70, stretch=False)
         tv.column('#2', width=150, minwidth=100, stretch=False)
 
-        tv.tag_configure(self._flagged_str, image=self._image_flagged, background="#ffcc99")
+        tv.tag_configure(self._flagged_str, image=self._image_flagged, background="#ffffcc")
         tv.tag_configure(self._unflagged_str, image=self._image_unflagged)
 
         self._file_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
@@ -116,18 +120,19 @@ class BrowserFrame(tk.Frame):
         treeview_frame.columnconfigure(0, weight=1)
         treeview_frame.grid(row=1, column=0, sticky="nsew", padx=pad, pady=pad)
 
-        self._flagged_count_var = tk.StringVar(self, "")
+        self._default_flagging_text = "Select and flag items above to perform an action."
+        self._flagged_count_var = tk.StringVar(self)
         flagged_count_label = tk.Label(self, textvariable=self._flagged_count_var)
-        flagged_count_label.grid(row=2, column=0, sticky="ew", padx=pad)
+        flagged_count_label.grid(row=2, column=0, sticky="ew", padx=pad, pady=pad)
 
         button_frame1 = tk.Frame(self)
-        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected", command=self._on_toggle_flags)
+        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected items", command=self._on_toggle_flags)
         self._toggle_tagging_button.grid(row=0, column=0, sticky="ew", padx=pad)
         self._toggle_tagging_button.config(state=tk.DISABLED)
-        self._clear_flags_button = tk.Button(button_frame1, text="Clear flags", command=self._on_clear_flags)
+        self._clear_flags_button = tk.Button(button_frame1, text="Clear all flags", command=self._on_clear_flags)
         self._clear_flags_button.grid(row=0, column=1, sticky="ew", padx=pad)
         self._clear_flags_button.config(state=tk.DISABLED)
-        self._actions_button = tk.Button(button_frame1, text="Actions...", command=self._on_do_action)
+        self._actions_button = tk.Button(button_frame1, text="Action...", command=self._on_do_action)
         self._actions_button.grid(row=0, column=2, sticky="ew", padx=pad)
         self._actions_button.config(state=tk.DISABLED)
         button_frame1.grid(row=3, column=0, sticky="nsew")
@@ -145,6 +150,7 @@ class BrowserFrame(tk.Frame):
         self.rowconfigure(3, weight=0)
         self.rowconfigure(4, weight=0)
 
+        self._enable_buttons()
         self._file_treeview.focus_set()
 
     def _treeview_sort_column(self, tv1: ttk.Treeview, value_index: Optional[int], reset: bool = False):
@@ -196,7 +202,7 @@ class BrowserFrame(tk.Frame):
         for item in self._file_treeview.get_children():
             self._file_treeview.delete(item)
 
-    def _populate(self, folder_walker: Optional[FolderWalker]) -> bool:
+    def _populate(self, folder_walker: Optional[FolderWalker], do_initial_selection: bool = True) -> bool:
         if folder_walker is not None:
             self._folder_walker = folder_walker
         del folder_walker
@@ -217,21 +223,21 @@ class BrowserFrame(tk.Frame):
 
         # Reset some things:
         self._treeview_sort_column(self._file_treeview, None, reset=True)
-        self._toggle_tagging_button.config(state=tk.DISABLED)
-        self._flagged_count_var.set("")
 
         # Select and load the first file in the list, first clearing any existing selection:
-        if not empty:
+        if do_initial_selection and not empty:
             iid = self._file_treeview.get_children()[0]
             # A side effect of the following is to load the file, as the selection event is generated:
             self._file_treeview.selection_set(iid)
 
+        self._enable_buttons()
+
         return not empty
 
-    def reset(self, folder_walker: Optional[FolderWalker]):
+    def reset(self, folder_walker: Optional[FolderWalker], do_initial_selection: bool = True):
         # Reset the state of this frame and its contents based on the folder walker
         # supplied.
-        non_empty = self._populate(folder_walker)
+        non_empty = self._populate(folder_walker, do_initial_selection)
         if folder_walker and not non_empty:
             tk.messagebox.showwarning("Warning", message="The selected folder contains no audio files.")
 
@@ -249,8 +255,7 @@ class BrowserFrame(tk.Frame):
     def _on_treeview_select(self, event):
         # Update the UI:
         selection_tuple = self._file_treeview.selection()
-        button_state = tk.NORMAL if len(selection_tuple) > 0 else tk.DISABLED
-        self._toggle_tagging_button.config(state=button_state)
+        self._enable_buttons()
 
         # Only load data when exactly one row is selected - to avoid flicker when
         # extending the selection.
@@ -276,22 +281,30 @@ class BrowserFrame(tk.Frame):
             nonlocal ok_clicked
             ok_clicked = True
 
+        tv = self._file_treeview
         # Note the selection before displaying the modal, as it can be cleared if
         # they open the directory selection dialog. But not always. Me neither.
-        flagged_items = [self._file_treeview.item(iid) for iid in self._get_flagged_items()]
+        flagged_item_iids = self._get_flagged_items()
+        flagged_items = [tv.item(iid) for iid in flagged_item_iids]
 
-        # Prompt the user with move/rename parameters:
+        # Prompt the user for an action and supporting parameters:
         default_folder = os.path.relpath(self._folder_walker.get_path(), Path.home())
-        modal = MoveRenameModal(self, self._move_rename_settings, on_ok, initialdir=default_folder)
+        single_flagged_filename = None if len(flagged_items) != 1 else flagged_items[0]['text']
+        modal = BrowserActionsModal(self, self._action_settings, on_ok,
+                                    initialdir=default_folder, single_flagged_filename=single_flagged_filename)
         modal.grab_set()
         modal.wait_window()
 
         # Take the action if they didn't cancel:
-        if ok_clicked:
+        if ok_clicked:            # Note the first flagged item before any action is taken:
+            first_flagged_index: Optional[int] = None
+            if len(flagged_item_iids) > 0:
+                first_flagged_index = tv.index(flagged_item_iids[0])
+
             for item in flagged_items:
                 filename = item['text']
                 try:
-                    self._do_action(filename, self._move_rename_settings)
+                    self._do_item_action(filename, self._action_settings)
                 except BaseException as e:
                     cont = tk.messagebox.askyesno(title="Error",
                                                   message="Unable to perform requested action:\n\n {}\n\nDo you want to continue?".format(
@@ -299,7 +312,79 @@ class BrowserFrame(tk.Frame):
                     if not cont:
                         break
 
-            self.reset(None)
+            # Refresh the list:
+            self.reset(None, do_initial_selection=False)
+            # Restore the selection if we can, including flagging:
+            selected_count: int = 0
+            flagged_count: int = 0
+            for iid in flagged_item_iids:
+                try:
+                    if tv.item(iid) is not None:
+                        tv.selection_add(iid)
+                        tv.item(iid, tags=[self._flagged_str])
+                        selected_count += 1
+                        flagged_count += 1
+                except tk.TclError:
+                    pass        # If an item is deleted or moved, it no longer exists. That is expected.
+
+            # If none were selected, see if we can select the same first row number was as previously
+            # selected. That's helpful when we are working through a list deleting things.
+            new_children = tv.get_children("")
+            if selected_count == 0 and first_flagged_index is not None:
+                if first_flagged_index < len(new_children):
+                    iid = new_children[first_flagged_index]
+                    tv.selection_set(iid)
+                    selected_count = 1
+
+            # If all else fails, select the first item, if present:
+            if selected_count == 0 and len(new_children) > 0:
+                tv.selection_set(new_children[0])
+                selected_count = 1
+
+            self._enable_buttons()
+
+    def _do_item_action(self, source_filename: str, settings: BrowserActionsSettings):
+
+        # Note: paths provided by the user are relative to their home directory.
+
+        source_folder: str = str(self._folder_walker.get_path())
+        source_path = os.path.normpath(os.path.join(source_folder, source_filename))
+
+        if settings.action == BrowserAction.TRASH.value:
+            send2trash.send2trash(source_path)
+        elif settings.action in [BrowserAction.MOVE.value, BrowserAction.COPY.value]:
+            target_filename = source_filename
+            if settings.prefix_str is not None:
+                target_filename = settings.prefix_str + target_filename
+            elif settings.rename_str is not None:
+                target_filename = settings.rename_str
+
+            target_folder = os.path.join(Path.home(), settings.relative_folder_name)
+            target_path = os.path.normpath(os.path.join(target_folder, target_filename))
+
+            if settings.create_folder and not os.path.exists(target_folder):
+                os.makedirs(target_folder)  # Doesn't seem to mind if the dirs already exist.
+
+            # Do the move - which might just be a file rename:
+            if settings.action == BrowserAction.MOVE.value:
+                print("Moving {} to {}".format(source_path, target_path))
+                self._check_target(target_path)
+                shutil.move(source_path, target_path)
+            elif settings.action == BrowserAction.COPY.value:
+                print("Copying {} to {}".format(source_path, target_path))
+                self._check_target(target_path)
+                shutil.copy(source_path, target_path)
+        elif settings.action == BrowserAction.RENAME.value:
+            target_path = os.path.normpath(os.path.join(source_folder, settings.rename_str))
+            print("Rename {} to {}".format(source_path, target_path))
+            self._check_target(target_path)
+            shutil.move(source_path, target_path)
+
+    @staticmethod
+    def _check_target(target_path):
+        # Check if the target already exists and throw an exception if it does.
+        if os.path.exists(target_path):
+            raise FileExistsError("Target {} already exists".format(target_path))
 
     def _on_toggle_flags(self):
         # One or more items in the treeview may be tagged:
@@ -316,11 +401,7 @@ class BrowserFrame(tk.Frame):
                 item = tv.item(iid)
                 tv.item(iid, tags=new_tags)
 
-        flagged_count = len(self._get_flagged_items())
-        state = tk.NORMAL if flagged_count > 0 else tk.DISABLED
-        self._actions_button.config(state=state)
-        self._clear_flags_button.config(state=state)
-        self._flagged_count_var.set("{} file(s) flagged for action".format(flagged_count))
+        self._enable_buttons()
 
     def _get_flagged_items(self):
         tv = self._file_treeview
@@ -339,9 +420,7 @@ class BrowserFrame(tk.Frame):
         for iid in children:
             tv.item(iid, tags=[self._unflagged_str])
 
-        self._actions_button.config(state=tk.DISABLED)
-        self._clear_flags_button.config(state=tk.DISABLED)
-        self._flagged_count_var.set("")
+        self._enable_buttons()
 
     @staticmethod
     def _truncate_string(s: str, at_end: bool = True) -> str:
@@ -356,39 +435,21 @@ class BrowserFrame(tk.Frame):
 
         return s
 
-    def _do_action(self, source_filename: str, settings: MoveRenameSettings):
-
-        # Note: paths provided by the user are relative to their home directory.
-
-        source_folder: str = str(self._folder_walker.get_path())
-        source_path = os.path.normpath(os.path.join(source_folder, source_filename))
-
-        if settings.do_move and settings.move_type == MoveType.MOVE_TO_WASTEBASKET:
-            # Move to the waste basket:
-            send2trash.send2trash(source_path)
-            return
-
-        target_filename = source_filename
-        if settings.do_rename:
-            target_filename = settings.rename_prefix + source_filename
-
-        target_folder: str = source_folder
-        if settings.do_move and settings.move_type == MoveType.MOVE_TO_FOLDER:
-            target_folder = os.path.join(Path.home(), settings.relative_folder_name)
-
-        target_path = os.path.normpath(os.path.join(target_folder, target_filename))
-
-        # Creating the target path first if required.
-        # Note: it might exist but be a file, not a folder. That will fail
-        # downstream.
-        if settings.create_folder and not os.path.exists(target_folder):
-            os.makedirs(target_folder)  # Doesn't seem to mind if the dirs already exist.
-
-        # Do the move - which might just be a file rename:
-        print("Moving {} to {}".format(source_path, target_path))
-
-        shutil.move(source_path, target_path)
-
     def _reset_sort_start(self):
         self._column_sort_state = (None, False)
 
+    def _enable_buttons(self):
+        selected = len(self._file_treeview.selection())
+        flagged = len(self._get_flagged_items())
+
+        state = tk.NORMAL if selected > 0 else tk.DISABLED
+        self._toggle_tagging_button.config(state=state)
+
+        state = tk.NORMAL if flagged > 0 else tk.DISABLED
+        self._clear_flags_button.config(state=state)
+        self._actions_button.config(state=state)
+
+        if flagged > 0:
+            self._flagged_count_var.set("{} item(s) flagged for action.".format(flagged))
+        else:
+            self._flagged_count_var.set(self._default_flagging_text)
