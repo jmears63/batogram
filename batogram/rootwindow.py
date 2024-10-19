@@ -60,6 +60,7 @@ MENU_TEXT_SETTINGS = "Settings"
 MENU_TEXT_OPEN_MAIN = "Open file"
 MENU_TEXT_OPEN_RECENT_MAIN = "Open recent file"
 MENU_TEXT_OPEN_FOLDER = "Open folder"
+MENU_TEXT_CLOSE_FOLDER = "Close folder"
 MENU_TEXT_OPEN_REF = "Open reference file"
 MENU_TEXT_OPEN_RECENT_REF = "Open recent file as reference"
 MENU_TEXT_CLOSE_MAIN = "Close"
@@ -146,17 +147,17 @@ class PanelFrame(tk.Frame):
     def __init__(self, parent, root, pipelines: GraphPipelines, data_context, settings, settings_frame, pad,
                  playback_processor: PlaybackServiceImpl, is_reference):
         super().__init__(parent,
-                         takefocus=1, highlightthickness=1)       # This frame can get focus on tab sequence.
+                         takefocus=1, highlightthickness=1)  # This frame can get focus on tab sequence.
 
         self._pipelines = pipelines
         self._dc = data_context
         self._settings = settings
         self._settings_frame = settings_frame
         self._playback_processor = playback_processor
-        self._last_sample_rate: int = None          # We need to detect when the sample rate changes.
+        self._last_sample_rate: int = None  # We need to detect when the sample rate changes.
 
         col = 0
-        self._fileinfo_frame = FileInfoFrame(self, self._dc, self._settings)
+        self._fileinfo_frame = FileInfoFrame(self, self._dc, self._settings, is_reference)
         self._fileinfo_frame.grid(row=0, column=col, columnspan=3, pady=(pad, 0), sticky='ew', padx=pad)
 
         self._button_frame = ButtonFrame(self, self._dc.breadcrumb_service, self, self._dc, program_directory,
@@ -183,7 +184,8 @@ class PanelFrame(tk.Frame):
         self._readout_frame.grid(row=6, column=col, pady=pad, sticky='we')
 
         col = 1
-        self._profile_frame = ProfileGraphFrame(self, root, pipelines.profile, self._dc, self._settings, is_reference=is_reference)
+        self._profile_frame = ProfileGraphFrame(self, root, pipelines.profile, self._dc, self._settings,
+                                                is_reference=is_reference)
         self._profile_frame.grid(row=3, column=col, sticky='ns')
 
         col = 2
@@ -508,7 +510,7 @@ class RootWindow(tk.Tk):
     def __init__(self, *args, initialfile=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._paned_window: tk.PanedWindow
+        self._inner_paned_window: tk.PanedWindow
 
         self._main_pipelines = GraphPipelines(None, None, None)
         self._dc_main: DataContext = DataContext()
@@ -530,7 +532,7 @@ class RootWindow(tk.Tk):
         self._menu_file = None
         self._first_file_open = True  # Track whether this is the first time the user has opened a file.
 
-        self._folder_walker: Optional[FolderWalker] = None        # If this is not None, we are in browsing mode.
+        self._folder_walker: Optional[FolderWalker] = None  # If this is not None, we are in browsing mode.
 
         appsettings.instance.read()
         self._apply_settings()
@@ -561,8 +563,8 @@ class RootWindow(tk.Tk):
         # Allow tk to work out the size of things before we try to draw any graphs:
         self.update_idletasks()
 
-        self._main_pane.draw()
-        self._ref_pane.draw()
+        self._main_frame.draw()
+        self._ref_frame.draw()
 
         if initialfile is not None:
             self.after_idle(lambda: self.do_open_main_file(initialfile))
@@ -586,48 +588,64 @@ class RootWindow(tk.Tk):
 
     def _create_widgets(self):
         pad = 5
-        self._paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, showhandle=True, sashcursor="sb_h_double_arrow",
-                                            sashrelief=tk.GROOVE)
-
-        bottom = self._create_bottom_panel(self, pad)
-        bottom.grid(row=1, column=1)
-
-        # Create the settings frames first so they can be passed as parameters
-        # to other frames below:
-
-        self._ref_pane = PanelFrame(
-            self._paned_window, self, self._ref_pipelines, self._dc_ref, self._ref_settings,
-            self._ref_settings_frame, pad, self._playback_service, is_reference=True)
-        self._ref_pane.pack(side=tk.LEFT)
-
-        self._main_pane = PanelFrame(
-            self._paned_window, self, self._main_pipelines, self._dc_main, self._main_settings,
-            self._main_settings_frame, pad, self._playback_service, is_reference=False)
-        self._main_pane.pack(side=tk.RIGHT)
-
-        SettingsButtonsController(bottom,
-                                  self._main_pane.get_settings_button(), self._main_settings_frame,
-                                  self._ref_pane.get_settings_button(), self._ref_settings_frame)
-
-        # Assemble the panel window:
-        self._paned_window.add(self._ref_pane)
-        self._paned_window.add(self._main_pane)
-        self._paned_window.grid(row=0, column=1, sticky="nsew")
-
-        self._browser_frame = BrowserFrame(self, pad)
-        self._browser_frame.grid(row=0, column=0, sticky="nsew", rowspan=2)
-        self._browser_frame.grid_remove()       # Initially not visible.
-
+        self._outer_paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, showhandle=True,
+                                                  sashcursor="sb_h_double_arrow",
+                                                  sashrelief=tk.GROOVE)
+        self._outer_paned_window.grid(row=0, column=0, sticky="nsew")
         self.rowconfigure(0, weight=1)
-        self.rowconfigure(1, weight=0)
-        self.columnconfigure(0, weight=0)
-        self.columnconfigure(1, weight=1)       # We want the spectrograms to stretch, not the folder browser.
+        self.columnconfigure(0, weight=1)  # We want the spectrograms to stretch, not the folder browser.
 
+        self._browser_frame = BrowserFrame(self._outer_paned_window, self, pad)
+        self._browser_frame.pack(side=tk.LEFT)
+
+        self._inner_frame = tk.Frame(self._outer_paned_window)
+        self._browser_frame.pack(side=tk.RIGHT)
+
+        self._inner_paned_window = tk.PanedWindow(self._inner_frame, orient=tk.HORIZONTAL, showhandle=True,
+                                                  sashcursor="sb_h_double_arrow",
+                                                  sashrelief=tk.GROOVE)
+        self._inner_paned_window.grid(row=0, column=0, sticky="nsew")
+
+        # We have to do this before creating ref and main frames so the settings frames
+        # exist:
+        bottom_panel = self._create_bottom_panel(self._inner_frame, pad)
+        bottom_panel.grid(row=1, column=0, sticky="nsew")
+
+        self._inner_frame.rowconfigure(0, weight=1)
+        self._inner_frame.columnconfigure(0, weight=1)
+
+        self._ref_frame = PanelFrame(
+            self._inner_paned_window, self, self._ref_pipelines, self._dc_ref, self._ref_settings,
+            self._ref_settings_frame, pad, self._playback_service, is_reference=True)
+        self._ref_frame.pack(side=tk.LEFT)
+
+        self._main_frame = PanelFrame(
+            self._inner_paned_window, self, self._main_pipelines, self._dc_main, self._main_settings,
+            self._main_settings_frame, pad, self._playback_service, is_reference=False)
+        self._main_frame.pack(side=tk.RIGHT)
+
+        self._sbc = SettingsButtonsController(bottom_panel,
+                                              self._main_frame.get_settings_button(), self._main_settings_frame,
+                                              self._ref_frame.get_settings_button(), self._ref_settings_frame)
+
+        # Assemble the inner panes:
+        self._inner_paned_window.add(self._ref_frame)
+        self._inner_paned_window.add(self._main_frame)
+
+        # Assemble the outer panes:
+        self._outer_paned_window.add(self._browser_frame)
+        self._outer_paned_window.add(self._inner_frame)
+
+        # Start off with the curtains fully drawn so as not to confuse the user with
+        # stuff they aren't using.
+        #
         # This code annoyingly jumps on startup. I can't find simple way to avoid that right now.
         # Maybe we should make the frame invisible? I don't know if that would work.
+
         self.update()  # Need to do this before we can place the sash.
         sash_pixels = 0
-        self._paned_window.sash_place(0, sash_pixels, 0)
+        self._inner_paned_window.sash_place(0, sash_pixels, 0)
+        self._outer_paned_window.sash_place(0, sash_pixels, 0)
 
     def _create_bottom_panel(self, parent, pad):
 
@@ -650,13 +668,20 @@ class RootWindow(tk.Tk):
         self._menu_file.add_command(label=MENU_TEXT_OPEN_MAIN, command=self._open_main_file, underline=0)
         self._menu_file.entryconfigure(MENU_TEXT_OPEN_MAIN, accelerator='Ctrl+O')
         self.bind("<Control-o>", self._open_main_file_event)
-        self._menu_file.add_command(label=MENU_TEXT_OPEN_FOLDER, command=self._open_folder, underline=5)
-        self._menu_file.entryconfigure(MENU_TEXT_OPEN_FOLDER, accelerator='Ctrl+F')
-        self.bind("<Control-f>", self._open_folder_event)
+
         self._menu_recent_main = tk.Menu(self._menu_file)
         self._menu_file.add_cascade(menu=self._menu_recent_main, label=MENU_TEXT_OPEN_RECENT_MAIN)
         self._populate_file_history(self._menu_recent_main, self._main_historian, self.do_open_main_file)
         self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_event, underline=0)
+
+        self._menu_file.add_separator()
+
+        self._menu_file.add_command(label=MENU_TEXT_OPEN_FOLDER, command=self._open_folder, underline=5)
+        self._menu_file.entryconfigure(MENU_TEXT_OPEN_FOLDER, accelerator='Ctrl+F')
+        self.bind("<Control-f>", self._open_folder_event)
+
+        self._menu_file.add_command(label=MENU_TEXT_CLOSE_FOLDER, command=self.close_folder)
+
         self._menu_file.add_separator()
 
         self._menu_file.add_command(label=MENU_TEXT_OPEN_REF, command=self._open_ref_file, underline=5)
@@ -753,13 +778,18 @@ class RootWindow(tk.Tk):
 
             self._folder_walker = FolderWalker(Path(directory_selected))
             self._browser_frame.reset(self._folder_walker)
+
             # Show the browser:
-            self._browser_frame.grid()
+            x, y = self._outer_paned_window.sash_coord(0)
+            if x < 10:
+                self._outer_paned_window.sash_place(0, 300, y)
 
     def close_folder(self):
-        if self._folder_walker is not None:
-            self._folder_walker.close()
-        self._browser_frame.grid_remove()
+        self._browser_frame.do_close()
+
+    def on_close_folder(self):
+        _, y = self._outer_paned_window.sash_coord(0)
+        self._outer_paned_window.sash_place(0, 0, y)
 
     def _open_ref_file_event(self, _):
         self._open_ref_file()
@@ -778,7 +808,7 @@ class RootWindow(tk.Tk):
             self._dc_main.update_from_af(myaf, self._main_settings)
             self.event_generate(DATA_CHANGE_MAIN_EVENT)
             if setfocus:
-                self._main_pane.focus_set()
+                self._main_frame.focus_set()
 
     def do_open_ref_file(self, filepath, setfocus=True):
         myaf = self._do_open_file(filepath, self._menu_recent_ref, self.do_open_ref_file, self._ref_historian)
@@ -788,12 +818,12 @@ class RootWindow(tk.Tk):
             self._ref_settings.on_open_new_file(myaf)
             self._dc_ref.update_from_af(myaf, self._ref_settings)
             # Make sure the ref pane is visible:
-            x, y = self._paned_window.sash_coord(0)
+            x, y = self._inner_paned_window.sash_coord(0)
             if x < 10:
-                self._paned_window.sash_place(0, 300, y)
+                self._inner_paned_window.sash_place(0, 300, y)
             self.event_generate(DATA_CHANGE_REF_EVENT)
             if setfocus:
-                self._ref_pane.focus_set()
+                self._ref_frame.focus_set()
 
     def _do_open_file(self, filepath, recent_menu_item, method, historian) -> af.AudioFileService:
         self._push_cursor("watch")  # A large file might take time to load. Though, it seems not.
@@ -812,8 +842,7 @@ class RootWindow(tk.Tk):
             self._pop_cursor()
 
     def _close_main_event(self):
-        self.close_folder()             # In case there is a folder browser open.
-        self.close_main_file()          # In case there is a file open.
+        self.close_main_file()  # In case there is a file open.
 
     def close_main_file(self):
         self._dc_main.reset()
@@ -842,17 +871,17 @@ class RootWindow(tk.Tk):
 
     def _on_data_change_main(self, _):
         self._dc_main.on_data_change()
-        self._main_pane.draw()
+        self._main_frame.draw()
         # Tell the other pane we can accept sync requests (as we have some data):
-        sync_source = self._main_pane if self._dc_main.afs else None
-        self._ref_pane.set_sync_source(sync_source)
+        sync_source = self._main_frame if self._dc_main.afs else None
+        self._ref_frame.set_sync_source(sync_source)
 
     def _on_data_change_ref(self, _):
         self._dc_ref.on_data_change()
-        self._ref_pane.draw()
+        self._ref_frame.draw()
         # Tell the other pane we can accept sync requests (as we have some data):
-        sync_source = self._ref_pane if self._dc_ref.afs else None
-        self._main_pane.set_sync_source(sync_source)
+        sync_source = self._ref_frame if self._dc_ref.afs else None
+        self._main_frame.set_sync_source(sync_source)
 
     @staticmethod
     def _pipeline_error_handler(e):
@@ -866,7 +895,7 @@ class RootWindow(tk.Tk):
 
     def on_user_applied_main_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         # New settings values are available to be applied to the application.
-        self._main_pane.on_user_applied_settings(draw_scope)
+        self._main_frame.on_user_applied_settings(draw_scope)
 
     def _on_app_modified_ref_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         # This gets called from the graph pane when the user changes settings
@@ -875,7 +904,7 @@ class RootWindow(tk.Tk):
 
     def on_user_applied_ref_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         # New settings values are available to be applied to the application.
-        self._ref_pane.on_user_applied_settings(draw_scope)
+        self._ref_frame.on_user_applied_settings(draw_scope)
 
     def _show_about(self):
         window = AboutWindow(self)
@@ -894,8 +923,8 @@ class RootWindow(tk.Tk):
             # Force the new data directory to be used when next opening the a file:
             self._first_file_open = True
         self._apply_settings()
-        self._main_pane.draw()
-        self._ref_pane.draw()
+        self._main_frame.draw()
+        self._ref_frame.draw()
 
     @staticmethod
     def _apply_settings():

@@ -26,10 +26,11 @@ class FileInfoFrame(DrawableFrame):
     """A Frame that contains a short summary of info relating to the data file being
     displayed."""
 
-    def __init__(self, parent, data_context: "DataContext", settings: "GraphSettings"):
+    def __init__(self, parent, data_context: "DataContext", settings: "GraphSettings", is_reference: bool):
         super().__init__(parent)
         self._dc = data_context
         self._settings = settings
+        self._is_reference = is_reference
 
         self._label = tk.Label(self, text="", width=1, anchor=tk.CENTER)
         self._label.grid(row=0, column=0, sticky="nsew")
@@ -52,5 +53,7 @@ class FileInfoFrame(DrawableFrame):
 
             text = "{}: {:.1f} s at {:.1f} kHz, {}{}".format(
                 md.file_name, md.length_seconds,  self._settings.settings_sample_rate / 1000.0, c, f)
+        else:
+            text = "(reference view)" if self._is_reference else "(main view)"
 
         self._label.config(text=text)

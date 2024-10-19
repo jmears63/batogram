@@ -48,7 +48,9 @@ class FolderWalker:
                     raw_size = os.path.getsize(path)
                     paths.append((item, path,
                                   self._formatted_size(raw_size), raw_size,
-                                  time.ctime(raw_mtime), raw_mtime)
+                                  # time.ctime(raw_mtime),
+                                  time.strftime("%H:%M:%S %-d %b %Y", time.localtime(raw_mtime)),
+                                  raw_mtime)
                                  )
 
         return paths
@@ -58,8 +60,10 @@ MAX_STRING = 50
 
 
 class BrowserFrame(tk.Frame):
-    def __init__(self, parent: "RootWindow", pad: int):
+    def __init__(self, parent, root_parent: "RootWindow", pad: int):
         super().__init__(parent)
+
+        self._root_parent = root_parent
 
         self._flagged_str: str = "FLAGGED"
         self._unflagged_str: str = "UNFLAGGED"
@@ -67,7 +71,7 @@ class BrowserFrame(tk.Frame):
         # The life cycle of the settings is the same as the browser frame, ie the
         # lifetime of the application:
         self._action_settings: BrowserActionsSettings = BrowserActionsSettings()
-        self._parent = parent
+
         self._file_list_entries: List[Tuple[str, str]] = []
 
         self._image_unflagged = tk.PhotoImage(file=get_asset_path("transparent.png"))
@@ -76,10 +80,11 @@ class BrowserFrame(tk.Frame):
         self._path_var = tk.StringVar(value="")
         self._path_label = tk.Label(self, textvariable=self._path_var, anchor=tk.W)
         self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
+        self._display_as_ref_var = tk.BooleanVar(False)
 
         # State of column sorting: current sorted column, reversed flag:
         self._column_sort_state: Tuple[Optional[int], bool]
-        self._reset_sort_start()
+        self._reset_sort_state()
 
         treeview_frame = tk.Frame(self)
         self._file_list_var = tk.StringVar()
@@ -87,7 +92,8 @@ class BrowserFrame(tk.Frame):
                           selectmode=tk.EXTENDED,
                           show='tree headings',  # Don't show the columns headings.
                           columns=("size", "raw size", "modified", "raw modified"),
-                          displaycolumns=(0, 2)
+                          displaycolumns=(0, 2),
+                          takefocus=1
                           )
         self._file_treeview = tv
         # tv.column(0, width=10, anchor=tk.E)      # Seems to do nothing.
@@ -96,8 +102,8 @@ class BrowserFrame(tk.Frame):
         # "stretch" controls what happens if the widget is resized, not the column. The columns
         # can always be resized:
         tv.column('#0', width=200, minwidth=150, stretch=True)
-        tv.column('#1', width=60, minwidth=70, stretch=False)
-        tv.column('#2', width=150, minwidth=100, stretch=False)
+        tv.column('#1', width=60, minwidth=60, stretch=True)
+        tv.column('#2', width=150, minwidth=100, stretch=True)
 
         tv.tag_configure(self._flagged_str, image=self._image_flagged, background="#ffffcc")
         tv.tag_configure(self._unflagged_str, image=self._image_unflagged)
@@ -123,7 +129,7 @@ class BrowserFrame(tk.Frame):
         self._default_flagging_text = "Select and flag items above to perform an action."
         self._flagged_count_var = tk.StringVar(self)
         flagged_count_label = tk.Label(self, textvariable=self._flagged_count_var)
-        flagged_count_label.grid(row=2, column=0, sticky="ew", padx=pad, pady=pad)
+        flagged_count_label.grid(row=2, column=0, sticky="W", padx=pad, pady=pad)
 
         button_frame1 = tk.Frame(self)
         self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected items", command=self._on_toggle_flags)
@@ -142,16 +148,14 @@ class BrowserFrame(tk.Frame):
         reset_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
         close_button = tk.Button(button_frame2, text="Close", command=self._on_close)
         close_button.grid(row=0, column=1, sticky="nsew", padx=pad, pady=pad)
+        ref_checkbutton = tk.Checkbutton(button_frame2, text="Display as reference", variable=self._display_as_ref_var)
+        ref_checkbutton.grid(row=0, column=2, sticky="W", padx=pad, pady=pad)
         button_frame2.grid(row=4, column=0, sticky="nsew")
 
-        self.rowconfigure(0, weight=0)
         self.rowconfigure(1, weight=1)
-        self.rowconfigure(2, weight=0)
-        self.rowconfigure(3, weight=0)
-        self.rowconfigure(4, weight=0)
+        self.columnconfigure(0, weight=1)
 
-        self._enable_buttons()
-        self._file_treeview.focus_set()
+        self._update_ui_state()
 
     def _treeview_sort_column(self, tv1: ttk.Treeview, value_index: Optional[int], reset: bool = False):
         # Work what what is required based on current sort state:
@@ -182,6 +186,12 @@ class BrowserFrame(tk.Frame):
 
         # Modify the column headers to match the sorting:
         self._treeview_set_headings(tv1)
+
+        # Select the first row, if there is one, leaving
+        # any flagging unchanged:
+        if len(li) > 0:
+            first_iid = li[0][1]
+            tv1.selection_set([first_iid])
 
     def _treeview_set_headings(self, tv: ttk.Treeview):
         def set_heading(cid, text, sort_value_index: Optional[int]):
@@ -227,10 +237,12 @@ class BrowserFrame(tk.Frame):
         # Select and load the first file in the list, first clearing any existing selection:
         if do_initial_selection and not empty:
             iid = self._file_treeview.get_children()[0]
-            # A side effect of the following is to load the file, as the selection event is generated:
+            # Set the focus so that the selection event results in the item being loaded:
+            self._file_treeview.focus(iid)
             self._file_treeview.selection_set(iid)
 
-        self._enable_buttons()
+        self._update_ui_state()
+        self._file_treeview.focus_set()
 
         return not empty
 
@@ -242,8 +254,15 @@ class BrowserFrame(tk.Frame):
             tk.messagebox.showwarning("Warning", message="The selected folder contains no audio files.")
 
     def _on_close(self):
-        # Notify the parent that they are closing the browser:
-        self._parent.close_folder()
+        self.do_close()
+
+    def do_close(self):
+        if self._folder_walker is not None:
+            self._folder_walker.close()
+        self._clear_treeview()
+        self._update_ui_state()
+        # Notify the parent that the broswer is closing:
+        self._root_parent.on_close_folder()
 
     def _on_reset(self):
         self.reset(None)
@@ -254,20 +273,26 @@ class BrowserFrame(tk.Frame):
 
     def _on_treeview_select(self, event):
         # Update the UI:
-        selection_tuple = self._file_treeview.selection()
-        self._enable_buttons()
+        self._update_ui_state()
 
-        # Only load data when exactly one row is selected - to avoid flicker when
-        # extending the selection.
-        if len(selection_tuple) == 1:
-            def update_cb():
-                selected = selection_tuple[0]
-                self._load_activated_file(lambda x: self._parent.do_open_main_file(x, setfocus=False), selected)
+        # Load the focussed item:
+        def update_cb():
+            selected_iid = self._file_treeview.focus()
+            if selected_iid != '':
+                def open_file(f):
+                    if self._display_as_ref_var.get():
+                        self._root_parent.do_open_ref_file(f, setfocus=False)
+                    else:
+                        self._root_parent.do_open_main_file(f, setfocus=False)
 
-            # We can't do the update here and now because index(tk.ACTIVE) still refers the old value.
-            # That seems like a bug in tkinter or tk. So, this little hack is to allow tk to catch up with itself,
-            # which it generally will, but might not if the CPU has other things on its mind.
-            self.after(200, update_cb)
+                self._load_activated_file(open_file, selected_iid)
+
+        # We can't do the update here and now because index(tk.ACTIVE) still refers the old value.
+        # That seems like a bug in tkinter or tk. So, this little hack is to allow tk to catch up with itself,
+        # which it generally will, but might not if the CPU has other things on its mind.
+        self.after(200, update_cb)
+
+        return
 
     @staticmethod
     def _load_activated_file(action: Callable, selection: str):
@@ -341,7 +366,7 @@ class BrowserFrame(tk.Frame):
                 tv.selection_set(new_children[0])
                 selected_count = 1
 
-            self._enable_buttons()
+            self._update_ui_state()
 
     def _do_item_action(self, source_filename: str, settings: BrowserActionsSettings):
 
@@ -401,7 +426,7 @@ class BrowserFrame(tk.Frame):
                 item = tv.item(iid)
                 tv.item(iid, tags=new_tags)
 
-        self._enable_buttons()
+        self._update_ui_state()
 
     def _get_flagged_items(self):
         tv = self._file_treeview
@@ -420,7 +445,7 @@ class BrowserFrame(tk.Frame):
         for iid in children:
             tv.item(iid, tags=[self._unflagged_str])
 
-        self._enable_buttons()
+        self._update_ui_state()
 
     @staticmethod
     def _truncate_string(s: str, at_end: bool = True) -> str:
@@ -435,10 +460,10 @@ class BrowserFrame(tk.Frame):
 
         return s
 
-    def _reset_sort_start(self):
+    def _reset_sort_state(self):
         self._column_sort_state = (None, False)
 
-    def _enable_buttons(self):
+    def _update_ui_state(self):
         selected = len(self._file_treeview.selection())
         flagged = len(self._get_flagged_items())
 
