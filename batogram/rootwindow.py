@@ -154,7 +154,7 @@ class PanelFrame(tk.Frame):
         self._settings = settings
         self._settings_frame = settings_frame
         self._playback_processor = playback_processor
-        self._last_sample_rate: int = None  # We need to detect when the sample rate changes.
+        self._last_sample_rate: Optional[int] = None  # We need to detect when the sample rate changes.
 
         col = 0
         self._fileinfo_frame = FileInfoFrame(self, self._dc, self._settings, is_reference)
@@ -782,7 +782,7 @@ class RootWindow(tk.Tk):
             # Show the browser:
             x, y = self._outer_paned_window.sash_coord(0)
             if x < 10:
-                self._outer_paned_window.sash_place(0, 300, y)
+                self._outer_paned_window.sash_place(0, 400, y)
 
     def close_folder(self):
         self._browser_frame.do_close()

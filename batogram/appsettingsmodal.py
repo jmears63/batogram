@@ -53,8 +53,6 @@ class AppSettingsWindow(ModalWindow):
         self._main_mic_response_var: tk.StringVar = tk.StringVar()
         self._ref_mic_response_var: tk.StringVar = tk.StringVar()
 
-        self._settings_to_vars()
-
         pad = 5
         margin = 30
         width = 30
@@ -97,7 +95,7 @@ class AppSettingsWindow(ModalWindow):
         button.grid(row=settings_row, column=3, padx=pad, pady=pad)
 
         settings_frame.columnconfigure(1, weight=1)
-        settings_frame.grid(row=0, column=0, sticky=tk.EW)
+        settings_frame.grid(row=0, column=0, sticky=tk.EW, padx=margin)
 
         okcancel_frame = tk.Frame(self)
         btn = tk.Button(okcancel_frame, text="OK", underline=0,  width=button_width, command=self.on_ok)
@@ -110,13 +108,15 @@ class AppSettingsWindow(ModalWindow):
         self.bind('c', lambda event: self.on_cancel())
         btn.grid(row=0, column=3, padx=pad, pady=pad)
         okcancel_frame.columnconfigure(0, weight=1)
-        okcancel_frame.grid(row=1, column=0, sticky=tk.EW)
+        okcancel_frame.grid(row=1, column=0, sticky=tk.EW, padx=margin)
 
         self.rowconfigure(0, weight=1, pad=margin)
         self.rowconfigure(1, weight=0, pad=margin)
         self.columnconfigure(0, weight=1, pad=margin)
 
-        self.data_directory_var = tk.StringVar()
+        self._settings_to_vars()
+
+        # self.data_directory_var = tk.StringVar()
 
     def on_ok(self):
         self.on_apply()

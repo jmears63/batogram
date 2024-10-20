@@ -18,7 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os
 import tkinter as tk
 from enum import Enum, IntEnum
 from tkinter import filedialog, messagebox
