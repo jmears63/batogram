@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "batogram"
-version = "1.3.0"
+version = "1.4.0"
 authors = [
     {name = "John Mears", email = "john+batogram@themears.co.uk"},
 ]
@@ -31,7 +31,8 @@ dependencies = [
     "dataclasses-json",
     "platformdirs",
     "PyAudio",
-    "hsluv"
+    "hsluv",
+    "Send2Trash",
 ]
 
 [tool.setuptools]

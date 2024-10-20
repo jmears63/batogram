@@ -1,3 +1,7 @@
+### Release 1.4.0
+* Major improvements to the folder browser to support flagging of items.
+* Improvements to the actions modal which is now more logic and allows copying of items.
+
 ### Release 1.3.0
 * Added the ability to open a folder of audio files and conveniently cycle through them.
 * Added a setting to override the sample rate inferred from the wav file, which may not be correct in rare cases.

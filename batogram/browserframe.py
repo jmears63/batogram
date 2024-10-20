@@ -80,7 +80,7 @@ class BrowserFrame(tk.Frame):
         self._path_var = tk.StringVar(value="")
         self._path_label = tk.Label(self, textvariable=self._path_var, anchor=tk.W)
         self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
-        self._display_as_ref_var = tk.BooleanVar(False)
+        self._display_as_ref_var = tk.BooleanVar()
 
         # State of column sorting: current sorted column, reversed flag:
         self._column_sort_state: Tuple[Optional[int], bool]

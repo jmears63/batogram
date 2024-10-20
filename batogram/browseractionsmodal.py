@@ -59,10 +59,10 @@ class BrowserActionsModal(ModalWindow):
         self.title("Flagged Item Action")
 
         self._action_var = tk.IntVar()
-        self._folder_name_var: tk.StringVar = tk.StringVar("")
+        self._folder_name_var: tk.StringVar = tk.StringVar()
         self._create_folder_var = tk.BooleanVar()
-        self._prefix_var = tk.StringVar("")
-        self._rename_var = tk.StringVar("")
+        self._prefix_var = tk.StringVar()
+        self._rename_var = tk.StringVar()
 
         pad = 5
         margin = 30
