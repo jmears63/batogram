@@ -20,10 +20,10 @@
 
 import os
 import tkinter as tk
-from enum import Enum, IntEnum
+from enum import Enum
 from pathlib import Path
 from tkinter import filedialog
-from typing import List, Callable, Literal, Optional
+from typing import Callable, Literal, Optional
 
 from batogram.modalwindow import ModalWindow
 

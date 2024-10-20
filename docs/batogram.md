@@ -187,16 +187,24 @@ Browsing a folder of audio files
 Use the File | Open folder menu option to open a folder of audio files. This results in the audio
 files being listed in the browser panel.
 
-Click on a file in the list to view it.
+Click on a file in the list to view it. It will be loaded into the main or reference spectrogram view depending on 
+whether you have checked "Display as reference".
 
-Use cursor up/down arrows to move to the previous/next file, and click on reset to move to the top of the list.
+Click on Reload to reload the list of items, for example the if they have changed on disk.
 
-Various sorting options may be chosen:
-* The natural order in the file system.
-* Ordering based on the time of the file.
-* Alphetical ordering, which results in time order when file names start with a date and time.
+You can perform actions on items as follows:
+* Select one or more items in the list using mouse clicks combined with shift and ctrl as required.
+* Click the "Flag selected items" button to flag or unflag them.
+* Repeat the first two steps until all you have flagged all the items you want to take an action on.
+* Click the "Action..." button. 
 
 ![Folder browser](folderbrowser.png "Folder browser")
+
+Actions may be performed on flagged items as selected. This can be useful as part of the process
+of manually reviewing a set of recordings. Unwanted records can be deleted, other recordings can
+be flagged and moved to folders according to their content, and so forth.
+
+![Actions modal](actionsmodal.png "Actions")
 
 
 Side by Side Comparison
