@@ -27,7 +27,7 @@ from itertools import chain
 from pathlib import Path
 from timeit import default_timer as timer
 from tkinter import filedialog
-from typing import NamedTuple, Optional, Tuple
+from typing import NamedTuple, Optional, Tuple, Callable
 from . import audiofileservice as af, appsettings, colourmap
 from .amplitudegraphframe import AmplitudeGraphFrame
 from .appsettings import TD_MAPS
@@ -451,6 +451,17 @@ class PanelFrame(tk.Frame):
     def on_home_key(self, event):
         self.on_home_button()
 
+    def prepare_to_modify_file(self, source_path: str, close_callback: Callable):
+
+        # On Windows we can't delete or move a file that is currently open, so
+        # we need to close the main or ref view if it is currently open on
+        # the path we will delete.
+
+        if self._dc.afs is not None:
+            # Needs to be case sensitive:
+            if  self._dc.afs.get_metadata().file_path == source_path:
+                close_callback()
+
 
 class DataContext:
     """This class contains data used by a graph pane, including raw file data and axis ranges."""
@@ -672,7 +683,7 @@ class RootWindow(tk.Tk):
         self._menu_recent_main = tk.Menu(self._menu_file)
         self._menu_file.add_cascade(menu=self._menu_recent_main, label=MENU_TEXT_OPEN_RECENT_MAIN)
         self._populate_file_history(self._menu_recent_main, self._main_historian, self.do_open_main_file)
-        self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_event, underline=0)
+        self._menu_file.add_command(label=MENU_TEXT_CLOSE_MAIN, command=self._close_main_file, underline=0)
 
         self._menu_file.add_separator()
 
@@ -690,7 +701,7 @@ class RootWindow(tk.Tk):
         self._menu_recent_ref = tk.Menu(self._menu_file)
         self._menu_file.add_cascade(menu=self._menu_recent_ref, label=MENU_TEXT_OPEN_RECENT_REF)
         self._populate_file_history(self._menu_recent_ref, self._ref_historian, self.do_open_ref_file)
-        self._menu_file.add_command(label=MENU_TEXT_CLOSE_REF, command=self.close_ref_file_event)
+        self._menu_file.add_command(label=MENU_TEXT_CLOSE_REF, command=self._close_ref_file)
         self._menu_file.add_separator()
 
         # self._menu_file.add_command(label=MENU_TEXT_SAVE, command=self.save_files_as)
@@ -841,15 +852,18 @@ class RootWindow(tk.Tk):
         finally:
             self._pop_cursor()
 
-    def _close_main_event(self):
-        self.close_main_file()  # In case there is a file open.
+    def _close_main_file(self):
+        self.close_main_file()
 
     def close_main_file(self):
         self._dc_main.reset()
         self._main_settings_frame.set_guano_data(None)
         self.event_generate(DATA_CHANGE_MAIN_EVENT)
 
-    def close_ref_file_event(self):
+    def _close_ref_file(self):
+        self.close_ref_file()
+
+    def close_ref_file(self):
         self._dc_ref.reset()
         self._main_settings_frame.set_guano_data(None)
         self.event_generate(DATA_CHANGE_REF_EVENT)
@@ -931,3 +945,8 @@ class RootWindow(tk.Tk):
         # Refresh some things from the updated settings values:
         cmap_file = TD_MAPS[appsettings.instance.colour_map]
         colourmap.instance.reload_map(cmap_file)
+
+    def prepare_to_modify_file(self, source_path: str):
+        self._main_frame.prepare_to_modify_file(source_path, lambda: self.close_main_file())
+        self._ref_frame.prepare_to_modify_file(source_path, lambda: self.close_ref_file())
+

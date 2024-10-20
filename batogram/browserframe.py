@@ -49,7 +49,7 @@ class FolderWalker:
                     paths.append((item, path,
                                   self._formatted_size(raw_size), raw_size,
                                   # time.ctime(raw_mtime),
-                                  time.strftime("%H:%M:%S %-d %b %Y", time.localtime(raw_mtime)),
+                                  time.strftime("%H:%M:%S %d %b %Y", time.localtime(raw_mtime)),
                                   raw_mtime)
                                  )
 
@@ -359,11 +359,13 @@ class BrowserFrame(tk.Frame):
                 if first_flagged_index < len(new_children):
                     iid = new_children[first_flagged_index]
                     tv.selection_set(iid)
+                    tv.focus(iid)
                     selected_count = 1
 
             # If all else fails, select the first item, if present:
             if selected_count == 0 and len(new_children) > 0:
                 tv.selection_set(new_children[0])
+                tv.focus(new_children[0])
                 selected_count = 1
 
             self._update_ui_state()
@@ -376,6 +378,7 @@ class BrowserFrame(tk.Frame):
         source_path = os.path.normpath(os.path.join(source_folder, source_filename))
 
         if settings.action == BrowserAction.TRASH.value:
+            self._root_parent.prepare_to_modify_file(source_path)
             send2trash.send2trash(source_path)
         elif settings.action in [BrowserAction.MOVE.value, BrowserAction.COPY.value]:
             target_filename = source_filename
@@ -392,6 +395,7 @@ class BrowserFrame(tk.Frame):
 
             # Do the move - which might just be a file rename:
             if settings.action == BrowserAction.MOVE.value:
+                self._root_parent.prepare_to_modify_file(source_path)
                 print("Moving {} to {}".format(source_path, target_path))
                 self._check_target(target_path)
                 shutil.move(source_path, target_path)
@@ -400,6 +404,7 @@ class BrowserFrame(tk.Frame):
                 self._check_target(target_path)
                 shutil.copy(source_path, target_path)
         elif settings.action == BrowserAction.RENAME.value:
+            self._root_parent.prepare_to_modify_file(source_path)
             target_path = os.path.normpath(os.path.join(source_folder, settings.rename_str))
             print("Rename {} to {}".format(source_path, target_path))
             self._check_target(target_path)
