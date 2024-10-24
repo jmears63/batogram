@@ -15,9 +15,9 @@ Some capabilities and features:
 * Handling of multichannel data files, including stereo.
 * Ability to correct for microphone frequency response.
 * Basic side by side comparison of two spectrograms.
-* Support for reassignment spectrograms for increased resolution.
+* Folder view to conveniently review, flag and perform actions on items (move, copy, prefix, delete, etc).
 * Display of GUANO metadata, including the ability to click to open the location in Google Maps.
-* Runs on Windows, Linux operating systems, maybe macOS.
+* Runs on Windows, Linux operating systems, macOS (experimental).
 
 Installation
 ------------

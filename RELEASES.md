@@ -1,3 +1,6 @@
+### Release 1.4.1
+* Fix to make flagged folder item actions compatible with Windows file system semantics. 
+
 ### Release 1.4.0
 * Major improvements to the folder browser to support flagging of items.
 * Improvements to the actions modal which is now more logic and allows copying of items.
