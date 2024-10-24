@@ -784,9 +784,6 @@ class RootWindow(tk.Tk):
             if self._folder_walker is not None:
                 self._folder_walker.close()
 
-            # If we have any file currently loaded, unload it:
-            self.close_main_file()
-
             self._folder_walker = FolderWalker(Path(directory_selected))
             self._browser_frame.reset(self._folder_walker)
 
