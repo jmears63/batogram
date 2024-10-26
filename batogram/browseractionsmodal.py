@@ -29,14 +29,14 @@ from batogram.modalwindow import ModalWindow
 
 
 class BrowserAction(Enum):
-    TRASH = 1
-    MOVE = 2
-    COPY = 3
+    MOVE = 1
+    COPY = 2
+    TRASH = 3
     RENAME = 4
 
 
 class BrowserActionsSettings:
-    action: int = BrowserAction.TRASH.value
+    action: int = BrowserAction.COPY.value
     relative_folder_name: Optional[str] = None  # Path relative to the current user's home directory.
     create_folder: bool = False
     prefix_str: Optional[str] = None
@@ -70,16 +70,16 @@ class BrowserActionsModal(ModalWindow):
 
         action_frame = tk.Frame(self)
 
-        self._action_radiobutton = tk.Radiobutton(action_frame, text="Send item(s) to trash", variable=self._action_var,
-                                                  value=BrowserAction.TRASH.value)
-        self._action_radiobutton.grid(row=0, column=0, sticky="W")
-
         self._action_radiobutton = tk.Radiobutton(action_frame, text="Copy item(s) to folder", variable=self._action_var,
                                                   value=BrowserAction.COPY.value)
-        self._action_radiobutton.grid(row=1, column=0, sticky="W")
+        self._action_radiobutton.grid(row=0, column=0, sticky="W")
 
         self._action_radiobutton = tk.Radiobutton(action_frame, text="Move item(s) to folder", variable=self._action_var,
                                                   value=BrowserAction.MOVE.value)
+        self._action_radiobutton.grid(row=1, column=0, sticky="W")
+
+        self._action_radiobutton = tk.Radiobutton(action_frame, text="Send item(s) to trash", variable=self._action_var,
+                                                  value=BrowserAction.TRASH.value)
         self._action_radiobutton.grid(row=2, column=0, sticky="W")
 
         self._action_radiobutton = tk.Radiobutton(action_frame, text="Rename single item", variable=self._action_var,
