@@ -54,7 +54,7 @@ class BrowserActionsModal(ModalWindow):
 
         if self._settings.relative_folder_name is None:
             self._settings.relative_folder_name = initialdir
-        self._settings.rename_str = None    # Reset this every time.
+        self._settings.rename_str = single_flagged_filename
 
         self.title("Flagged Item Action")
 

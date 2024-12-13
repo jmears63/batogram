@@ -64,6 +64,7 @@ class BrowserFrame(tk.Frame):
         super().__init__(parent)
 
         self._root_parent = root_parent
+        self._folder_walker = None
 
         self._flagged_str: str = "FLAGGED"
         self._unflagged_str: str = "UNFLAGGED"
@@ -259,6 +260,7 @@ class BrowserFrame(tk.Frame):
     def do_close(self):
         if self._folder_walker is not None:
             self._folder_walker.close()
+            self._folder_walker = None
         self._clear_treeview()
         self._update_ui_state()
         # Notify the parent that the broswer is closing:

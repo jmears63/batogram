@@ -65,6 +65,7 @@ MENU_TEXT_OPEN_REF = "Open reference file"
 MENU_TEXT_OPEN_RECENT_REF = "Open recent file as reference"
 MENU_TEXT_CLOSE_MAIN = "Close"
 MENU_TEXT_CLOSE_REF = "Close reference"
+MENU_TEXT_CLOSE_ALL = "Close all"
 # MENU_TEXT_SAVE = "Save"
 MENU_TEXT_EXIT = "Exit"
 
@@ -704,6 +705,12 @@ class RootWindow(tk.Tk):
         self._menu_file.add_command(label=MENU_TEXT_CLOSE_REF, command=self._close_ref_file)
         self._menu_file.add_separator()
 
+        self._menu_file.add_command(label=MENU_TEXT_CLOSE_ALL, command=self._close_all, underline=8)
+        self._menu_file.entryconfigure(MENU_TEXT_CLOSE_ALL, accelerator='Ctrl+L')
+        self.bind("<Control-l>", self._close_all_event)
+
+        self._menu_file.add_separator()
+
         # self._menu_file.add_command(label=MENU_TEXT_SAVE, command=self.save_files_as)
         # self._menu_file.add_separator()
         self._menu_file.add_command(label=MENU_TEXT_EXIT, command=self.exit, underline=1)
@@ -864,6 +871,17 @@ class RootWindow(tk.Tk):
         self._dc_ref.reset()
         self._main_settings_frame.set_guano_data(None)
         self.event_generate(DATA_CHANGE_REF_EVENT)
+        # Move the sash to hide the reference view:
+        x, y = self._inner_paned_window.sash_coord(0)
+        self._inner_paned_window.sash_place(0, 0, y)
+
+    def _close_all(self):
+        self._close_main_file()
+        self._close_ref_file()
+        self.close_folder()
+
+    def _close_all_event(self, _):
+        self._close_all()
 
     def exit_event(self, _):
         self.exit()
