@@ -42,7 +42,9 @@ Hold down shift in either mode to lock the type of zoom or pan.
 Dragging with middle mouse button can also be used to pan.
 
 If you have a mouse wheel, this can be used to zoom and out, centred on the current position
-of the mouse pointer.
+of the mouse pointer. Holding down the shift key at the same time freezes the frequency range while 
+zooming the time range; likewise holding down the ctrl key (possibly the also the Apple key) freezes the
+time range while zooming the frequency range.
 
 ### Keyboard Navigation
 
