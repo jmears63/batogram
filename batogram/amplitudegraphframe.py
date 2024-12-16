@@ -66,7 +66,8 @@ class AmplitudeGraphFrame(GraphFrame):
         width, height = self._canvas.winfo_width(), self._canvas.winfo_height()
         layout = layouts.AmplitudeLayout(AXIS_FONT_HEIGHT, width, height, is_reference=self._is_reference)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
-        graph_completer, data_area = layout.draw(self._canvas, time_range, amplitude_range, self._settings.show_grid)
+        graph_completer, data_area = layout.draw(self._canvas, time_range, amplitude_range,
+                                                 self._settings.show_grid, self._settings.zero_based_time)
 
         if afs and self._pipeline:
             # Kick off the pipeline which will create a spectrogram in another thread,

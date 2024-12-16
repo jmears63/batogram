@@ -58,11 +58,18 @@ class Layout:
         canvas.create_rectangle(x0, y0, x1, y1, fill=colour, outline=colour)
 
     @staticmethod
-    def calculate_ticks(axis_range: AxisRange, multiplier, pixel_range, target_spacing_pixels=100):
+    def calculate_ticks(axis_range: AxisRange, multiplier, pixel_range,
+                        zero_based_axis: bool =False, target_spacing_pixels=100):
         # Come up with sane values and positions for ticks, based loosely on have a tick
         # per set number of pixels.
 
-        min_value, max_value = axis_range.min / multiplier, axis_range.max / multiplier
+        if zero_based_axis:
+            # Offset the time ticks so that they always start at zero:
+            offset_axis_range = AxisRange(0, axis_range.max - axis_range.min)
+        else:
+            offset_axis_range = axis_range
+
+        min_value, max_value = offset_axis_range.min / multiplier, offset_axis_range.max / multiplier
 
         # Sanity checks:
         if min_value >= max_value:
@@ -295,17 +302,11 @@ class AxisLayout(Layout):
 
         self._axis_range = axis_range
 
-        if zero_based_axis:
-            # Offset the time ticks so that they always start at zero:
-            offset_axis_range = AxisRange(0, self._axis_range.max - self._axis_range.min)
-        else:
-            offset_axis_range = self._axis_range
-
         # Decide what units to use based on the axis range:
-        u = self._get_units(offset_axis_range)
+        u = self._get_units(self._axis_range)
 
-        (ticks, decimal_places) = self.calculate_ticks(offset_axis_range, u.scaler, extent,
-                                                       target_spacing_pixels=target_spacing_pixels)
+        (ticks, decimal_places) = self.calculate_ticks(axis_range, u.scaler, extent,
+                                                       zero_based_axis, target_spacing_pixels=target_spacing_pixels)
 
         # Negative font height is in pixels:
         axis_font = (self._font_name, -self._font_height)
@@ -543,7 +544,7 @@ class SpectrogramLayout(GraphLayout):
 
 
 class AmplitudeLayout(GraphLayout):
-    """This Layout knows how to lay out and raw an amplitude graph."""
+    """This Layout knows how to lay out and draw an amplitude graph."""
 
     _x_axis_unit = [AxisUnit()]
     _y_axis_unit = [AxisUnit()]
@@ -565,7 +566,7 @@ class AmplitudeLayout(GraphLayout):
         self._data_area = (
             self._y_axis_width, 0, self._canvas_width - self._margin - 1, self._canvas_height)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool = False):
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
         super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
@@ -587,7 +588,7 @@ class AmplitudeLayout(GraphLayout):
         Layout._create_rectangle(canvas, *self._get_left_margin(self._y_axis_width), AXIS_BG_COLOUR)
 
         xaxis_x, xaxis_extent = self._y_axis_width - 1, width - self._y_axis_width - self._margin
-        x_ticks, _ = self._x_axis.calculate_ticks(x_range, 1, xaxis_extent)
+        x_ticks, _ = self._x_axis.calculate_ticks(x_range, 1, xaxis_extent, zero_based_x_axis)
 
         # Create a capture that can be used to finish drawing the graph later on, when the image
         # is available:
@@ -603,6 +604,10 @@ class AmplitudeLayout(GraphLayout):
                 line_colour = "#00FFFF"
                 if line_segments is not None:
                     self._draw_graph_line_segments(canvas, self._data_area, line_segments, line_colour)
+
+                if show_grid:
+                    # self._draw_y_grid(canvas, y_ticks, self._data_area)
+                    self._draw_x_grid(canvas, x_ticks, self._data_area)
 
         return draw_followup, self._data_area
 
