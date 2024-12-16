@@ -2,6 +2,7 @@ import os
 import shutil
 import time
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import ttk
 import send2trash
 from pathlib import Path
@@ -9,6 +10,74 @@ from typing import Optional, List, Tuple, Callable
 
 from batogram import get_asset_path
 from batogram.browseractionsmodal import BrowserActionsModal, BrowserActionsSettings, BrowserAction
+from .external.tooltip import ToolTip
+from .imagebutton import ImageButton
+from .modalwindow import ModalWindow
+
+
+@dataclass()
+class BrowserSettings:
+    show_size: bool = False
+    show_time: bool = False
+
+
+class BrowserSettingsModal(ModalWindow):
+    def __init__(self, parent, browser_settings: BrowserSettings, on_ok_action: Callable):
+        super().__init__(parent)
+        self._browser_settings = browser_settings
+        self._on_ok_action = on_ok_action
+
+        self.title("Folder Browser Settings")
+
+        self._show_size_var: tk.BooleanVar = tk.BooleanVar()
+        self._show_time_var: tk.BooleanVar = tk.BooleanVar()
+
+        pad = 5
+        margin = 30
+        width = 30
+        button_width = 7
+
+        settings_frame = tk.Frame(self)
+
+        settings_row = 0
+        size_checkbox = tk.Checkbutton(settings_frame, text='Show file size', variable=self._show_size_var)
+        size_checkbox.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.EW)
+
+        settings_row += 1
+        size_checkbox = tk.Checkbutton(settings_frame, text='Show file time', variable=self._show_time_var)
+        size_checkbox.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.EW)
+
+        settings_frame.columnconfigure(1, weight=1)
+        settings_frame.grid(row=0, column=0, sticky=tk.EW, padx=margin)
+
+        okcancel_frame = tk.Frame(self)
+        btn = tk.Button(okcancel_frame, text="OK", underline=0, width=button_width, command=self.on_ok)
+        self.bind('o', lambda event: self.on_ok())
+        btn.grid(row=0, column=1, padx=pad, pady=pad)
+        btn = tk.Button(okcancel_frame, text="Cancel", underline=0, width=button_width, command=self.on_cancel)
+        self.bind('c', lambda event: self.on_cancel())
+        btn.grid(row=0, column=2, padx=pad, pady=pad)
+        okcancel_frame.columnconfigure(0, weight=1)
+        okcancel_frame.grid(row=1, column=0, sticky=tk.EW, padx=margin)
+
+        self.rowconfigure(0, weight=1, pad=margin)
+        self.rowconfigure(1, weight=0, pad=margin)
+        self.columnconfigure(0, weight=1, pad=margin)
+
+        self._settings_to_vars()
+
+    def on_ok(self):
+        self._vars_to_settings()
+        super().on_ok()
+        self._on_ok_action()
+
+    def _settings_to_vars(self):
+        self._show_size_var.set(self._browser_settings.show_size)
+        self._show_time_var.set(self._browser_settings.show_time)
+
+    def _vars_to_settings(self):
+        self._browser_settings.show_size = self._show_size_var.get()
+        self._browser_settings.show_time = self._show_time_var.get()
 
 
 class FolderWalker:
@@ -56,7 +125,7 @@ class FolderWalker:
         return paths
 
 
-MAX_STRING = 50
+MAX_STRING = 40
 
 
 class BrowserFrame(tk.Frame):
@@ -65,6 +134,7 @@ class BrowserFrame(tk.Frame):
 
         self._root_parent = root_parent
         self._folder_walker = None
+        self._browser_settings = BrowserSettings()
 
         self._flagged_str: str = "FLAGGED"
         self._unflagged_str: str = "UNFLAGGED"
@@ -79,19 +149,30 @@ class BrowserFrame(tk.Frame):
         self._image_flagged = tk.PhotoImage(file=get_asset_path("flag-fill.png"))
 
         self._path_var = tk.StringVar(value="")
-        self._path_label = tk.Label(self, textvariable=self._path_var, anchor=tk.W)
-        self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
         self._display_as_ref_var = tk.BooleanVar()
+        self._file_list_var = tk.StringVar()
+        self._flagged_count_var = tk.StringVar(self)
+
+        top_frame = tk.Frame(self)
+        self._path_label = tk.Label(top_frame, textvariable=self._path_var, anchor=tk.W)
+        self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
+        self._refresh_button = ImageButton(top_frame, "refresh-line.png", command=self._on_reset)
+        self._refresh_button.grid(row=0, column=1, sticky="ew", padx=0, pady=pad)
+        ToolTip(self._refresh_button, msg="Refresh the file list")
+        self._settings_button = ImageButton(top_frame, "settings-5-line.png", command=self._on_settings_command)
+        self._settings_button.grid(row=0, column=2, sticky="ew", padx=0, pady=pad)
+        ToolTip(self._settings_button, msg="Edit list settings")
+        top_frame.grid(row=0, column=0, sticky="nsew")
+        top_frame.columnconfigure(0, weight=1)
 
         # State of column sorting: current sorted column, reversed flag:
         self._column_sort_state: Tuple[Optional[int], bool]
         self._reset_sort_state()
 
         treeview_frame = tk.Frame(self)
-        self._file_list_var = tk.StringVar()
         tv = ttk.Treeview(treeview_frame,
                           selectmode=tk.EXTENDED,
-                          show='tree headings',  # Don't show the columns headings.
+                          show='tree headings',
                           columns=("size", "raw size", "modified", "raw modified"),
                           displaycolumns=(0, 2),
                           takefocus=1
@@ -102,9 +183,7 @@ class BrowserFrame(tk.Frame):
         self._treeview_set_headings(tv)
         # "stretch" controls what happens if the widget is resized, not the column. The columns
         # can always be resized:
-        tv.column('#0', width=200, minwidth=150, stretch=True)
-        tv.column('#1', width=60, minwidth=60, stretch=True)
-        tv.column('#2', width=150, minwidth=100, stretch=True)
+        self._set_column_attributes()
 
         tv.tag_configure(self._flagged_str, image=self._image_flagged, background="#ffffcc")
         tv.tag_configure(self._unflagged_str, image=self._image_unflagged)
@@ -128,12 +207,12 @@ class BrowserFrame(tk.Frame):
         treeview_frame.grid(row=1, column=0, sticky="nsew", padx=pad, pady=pad)
 
         self._default_flagging_text = "Select and flag items above to perform an action."
-        self._flagged_count_var = tk.StringVar(self)
         flagged_count_label = tk.Label(self, textvariable=self._flagged_count_var)
         flagged_count_label.grid(row=2, column=0, sticky="W", padx=pad, pady=pad)
 
         button_frame1 = tk.Frame(self)
-        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected items", command=self._on_toggle_flags)
+        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected items",
+                                                command=self._on_toggle_flags)
         self._toggle_tagging_button.grid(row=0, column=0, sticky="ew", padx=pad)
         self._toggle_tagging_button.config(state=tk.DISABLED)
         self._clear_flags_button = tk.Button(button_frame1, text="Clear all flags", command=self._on_clear_flags)
@@ -145,12 +224,10 @@ class BrowserFrame(tk.Frame):
         button_frame1.grid(row=3, column=0, sticky="nsew")
 
         button_frame2 = tk.Frame(self)
-        reset_button = tk.Button(button_frame2, text="Reload", command=self._on_reset)
-        reset_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
         close_button = tk.Button(button_frame2, text="Close", command=self._on_close)
-        close_button.grid(row=0, column=1, sticky="nsew", padx=pad, pady=pad)
+        close_button.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
         ref_checkbutton = tk.Checkbutton(button_frame2, text="Display as reference", variable=self._display_as_ref_var)
-        ref_checkbutton.grid(row=0, column=2, sticky="W", padx=pad, pady=pad)
+        ref_checkbutton.grid(row=0, column=1, sticky="W", padx=pad, pady=pad)
         button_frame2.grid(row=4, column=0, sticky="nsew")
 
         self.rowconfigure(1, weight=1)
@@ -205,9 +282,9 @@ class BrowserFrame(tk.Frame):
             tv.heading(cid, text=text + suffix, anchor=tk.W,
                        command=lambda: self._treeview_sort_column(tv, sort_value_index))
 
-        set_heading('#0', "File",  None)
-        set_heading('#1', "Size",  1)
-        set_heading('#2', "Modified",  3)
+        set_heading('#0', "File", None)
+        set_heading('#1', "Size", 1)
+        set_heading('#2', "Modified", 3)
 
     def _clear_treeview(self):
         for item in self._file_treeview.get_children():
@@ -323,7 +400,7 @@ class BrowserFrame(tk.Frame):
         modal.wait_window()
 
         # Take the action if they didn't cancel:
-        if ok_clicked:            # Note the first flagged item before any action is taken:
+        if ok_clicked:  # Note the first flagged item before any action is taken:
             first_flagged_index: Optional[int] = None
             if len(flagged_item_iids) > 0:
                 first_flagged_index = tv.index(flagged_item_iids[0])
@@ -352,7 +429,7 @@ class BrowserFrame(tk.Frame):
                         selected_count += 1
                         flagged_count += 1
                 except tk.TclError:
-                    pass        # If an item is deleted or moved, it no longer exists. That is expected.
+                    pass  # If an item is deleted or moved, it no longer exists. That is expected.
 
             # If none were selected, see if we can select the same first row number was as previously
             # selected. That's helpful when we are working through a list deleting things.
@@ -454,6 +531,21 @@ class BrowserFrame(tk.Frame):
 
         self._update_ui_state()
 
+    def _on_settings_command(self):
+        ok_clicked: bool = False
+
+        def on_ok():
+            nonlocal ok_clicked
+            ok_clicked = True
+
+        modal = BrowserSettingsModal(self, self._browser_settings, on_ok)
+        modal.grab_set()
+        modal.wait_window()
+
+        # Take the action if they didn't cancel:
+        if ok_clicked:
+            self._set_column_attributes()
+
     @staticmethod
     def _truncate_string(s: str, at_end: bool = True) -> str:
         my_ellipsis = "..."
@@ -485,3 +577,16 @@ class BrowserFrame(tk.Frame):
             self._flagged_count_var.set("{} item(s) flagged for action.".format(flagged))
         else:
             self._flagged_count_var.set(self._default_flagging_text)
+
+    def _set_column_attributes(self):
+        tv = self._file_treeview
+        tv.column('#0', width=200, minwidth=150, stretch=True)
+        if self._browser_settings.show_size:
+            tv.column('#1', width=60, minwidth=60, stretch=True)
+        else:
+            tv.column('#1', width=0, stretch=False)
+        if self._browser_settings.show_time:
+            tv.column('#2', width=150, minwidth=100, stretch=True)
+        else:
+            tv.column('#2', width=0, stretch=False)
+

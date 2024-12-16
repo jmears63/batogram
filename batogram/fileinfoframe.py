@@ -54,6 +54,6 @@ class FileInfoFrame(DrawableFrame):
             text = "{}: {:.1f} s at {:.1f} kHz, {}{}".format(
                 md.file_name, md.length_seconds,  self._settings.settings_sample_rate / 1000.0, c, f)
         else:
-            text = "(reference view)" if self._is_reference else "(main view)"
+            text = "(reference view)" if self._is_reference else ""
 
         self._label.config(text=text)

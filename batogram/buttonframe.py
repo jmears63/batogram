@@ -26,7 +26,6 @@ from pathlib import Path
 from queue import SimpleQueue
 from typing import Type, Optional, Tuple
 
-from . import get_asset_path
 from .audiofileservice import AudioFileService
 from .constants import PLAYBACK_EVENT, PROGRAM_NAME
 
@@ -36,15 +35,7 @@ from .playbackservice import PlaybackServiceImpl, PlaybackRequest, PlaybackEvent
     EventClosureType, PlaybackSignal, PlaybackCursorEventHandler
 from .spectrogrammouseservice import CursorMode
 from .external.tooltip import ToolTip
-
-
-class MyButton(tk.Button):
-    _width = 24
-    _padding = 5
-
-    def __init__(self, parent, image, command=None):
-        super().__init__(parent, image=image, width=self._width, padx=self._padding, pady=self._padding,
-                         relief=tk.RAISED, command=command)
+from .imagebutton import ImageButton
 
 
 class PlaybackState(Enum):
@@ -87,8 +78,7 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         self.bind(PLAYBACK_EVENT, self._do_playback_event)
 
         if not is_reference:
-            self._sync_image = self._load_image("arrow-right-circle-line.png")
-            self._sync_button = MyButton(self, self._sync_image, command=self.sync_command)
+            self._sync_button = ImageButton(self, "arrow-right-circle-line.png", command=self.sync_command)
             self._sync_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
             ToolTip(self._sync_button, msg="Synchronize main graph axes from reference graph axes")
             col += 1
@@ -102,59 +92,51 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
             self._breadcrumb_service.reset()  # Clicking "home" clears the breadcrumb history
             self._action_target.on_home_button()
 
-        self._home_image = self._load_image("fullscreen-line.png")
-        self._home_button = MyButton(self, self._home_image, command=home_command)
+        self._home_button = ImageButton(self, "fullscreen-line.png", command=home_command)
         self._home_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
         ToolTip(self._home_button, msg="Reset axis ranges to match input data")
         col += 1
 
-        self._previous_image = self._load_image("arrow-left-line.png")
-        self._previous_button = MyButton(self, self._previous_image,
-                                         command=lambda: self._action_target.on_navigation_button(
-                                             self._breadcrumb_service.previous_entry()))
+        self._previous_button = ImageButton(self, "arrow-left-line.png",
+                                            command=lambda: self._action_target.on_navigation_button(
+                                              self._breadcrumb_service.previous_entry()))
         self._previous_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
         ToolTip(self._previous_button, msg="Revert to the previous zoom")
         col += 1
 
-        self._next_image = self._load_image("arrow-right-line.png")
-        self._next_button = MyButton(self, self._next_image,
-                                     command=lambda: self._action_target.on_navigation_button(
-                                         self._breadcrumb_service.next_entry()))
+        self._next_button = ImageButton(self, "arrow-right-line.png",
+                                        command=lambda: self._action_target.on_navigation_button(
+                                          self._breadcrumb_service.next_entry()))
         self._next_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
         ToolTip(self._next_button, msg="Reinstate the subsequent zoom")
         col += 1
 
-        self._zoom_image = self._load_image("zoom-in-line.png")
-        self._zoom_button = MyButton(self, self._zoom_image,
-                                     command=lambda: self._handle_cursor_mode(CursorMode.CURSOR_ZOOM))
+        self._zoom_button = ImageButton(self, "zoom-in-line.png",
+                                        command=lambda: self._handle_cursor_mode(CursorMode.CURSOR_ZOOM))
         self._zoom_button.grid(row=0, column=col, padx=(small_gap, 0), ipadx=0, sticky="NSEW")
         ToolTip(self._zoom_button, msg="Select zoom cursor: left mouse drag to zoom.\nHold shift to lock mode.")
         col += 1
 
-        self._pan_image = self._load_image("drag-move-2-line.png")
-        self._pan_button = MyButton(self, self._pan_image,
-                                    command=lambda: self._handle_cursor_mode(CursorMode.CURSOR_PAN))
+        self._pan_button = ImageButton(self, "drag-move-2-line.png",
+                                       command=lambda: self._handle_cursor_mode(CursorMode.CURSOR_PAN))
         self._pan_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
         ToolTip(self._pan_button, msg="Select pan cursor: left mouse drag to pan/scroll.\nHold shift to lock mode.")
         col += 1
 
-        self._play_image = self._load_image("play-line.png")
-        self._play_button = MyButton(self, self._play_image,
-                                     command=lambda: self._handle_play())
+        self._play_button = ImageButton(self, "play-line.png",
+                                        command=lambda: self._handle_play())
         self._play_button.grid(row=0, column=col, padx=(small_gap * 3, 0), ipadx=0, sticky="NSEW")
-        ToolTip(self._play_button, msg="Play the recording.")
+        ToolTip(self._play_button, msg="Play the recording")
         col += 1
 
-        self._pause_image = self._load_image("pause-line.png")
-        self._pause_button = MyButton(self, self._pause_image,
-                                      command=lambda: self._handle_pause())
+        self._pause_button = ImageButton(self, "pause-line.png",
+                                         command=lambda: self._handle_pause())
         self._pause_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
-        ToolTip(self._pause_button, msg="Pause playback.")
+        ToolTip(self._pause_button, msg="Pause playback")
         col += 1
 
-        self._stop_image = self._load_image("stop-line.png")
-        self._stop_button = MyButton(self, self._stop_image,
-                                     command=lambda: self._handle_stop())
+        self._stop_button = ImageButton(self, "stop-line.png",
+                                        command=lambda: self._handle_stop())
         self._stop_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
         ToolTip(self._stop_button, msg="Stop playback")
         col += 1
@@ -165,8 +147,7 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         col += 1
 
         if is_reference:
-            self._sync_image = self._load_image("arrow-left-circle-line.png")
-            self._sync_button = MyButton(self, self._sync_image, command=self.sync_command)
+            self._sync_button = ImageButton(self, "arrow-left-circle-line.png", command=self.sync_command)
             self._sync_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
             ToolTip(self._sync_button, msg="Synchronize reference axes from main graph axes")
             col += 1
@@ -183,10 +164,6 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
 
     def set_playback_cursor_controller(self, playback_cursor_controller: PlaybackCursorEventHandler):
         self._playback_cursor_controller = playback_cursor_controller
-
-    @staticmethod
-    def _load_image(file_name):
-        return tk.PhotoImage(file=get_asset_path(file_name))
 
     _ui_states = {
         PlaybackState.PLAYBACK_STOP_PENDING:
