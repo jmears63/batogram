@@ -12,6 +12,7 @@ class ImageButton(tk.Button):
         self._image = self._load_image(image_file_name)
         super().__init__(parent, image=self._image, width=self._width, padx=self._padding, pady=self._padding,
                          relief=tk.RAISED, command=command)
+
     @staticmethod
     def _load_image(file_name):
         return tk.PhotoImage(file=get_asset_path(file_name))

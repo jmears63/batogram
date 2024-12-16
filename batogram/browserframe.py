@@ -34,7 +34,7 @@ class BrowserSettingsModal(ModalWindow):
 
         pad = 5
         margin = 30
-        width = 30
+        # width = 30
         button_width = 7
 
         settings_frame = tk.Frame(self)
@@ -157,11 +157,11 @@ class BrowserFrame(tk.Frame):
         self._path_label = tk.Label(top_frame, textvariable=self._path_var, anchor=tk.W)
         self._path_label.grid(row=0, column=0, sticky="ew", padx=pad, pady=pad)
         self._refresh_button = ImageButton(top_frame, "refresh-line.png", command=self._on_reset)
-        self._refresh_button.grid(row=0, column=1, sticky="ew", padx=0, pady=pad)
         ToolTip(self._refresh_button, msg="Refresh the file list")
+        self._refresh_button.grid(row=0, column=1, sticky="ew", padx=0, pady=pad)
         self._settings_button = ImageButton(top_frame, "settings-5-line.png", command=self._on_settings_command)
-        self._settings_button.grid(row=0, column=2, sticky="ew", padx=0, pady=pad)
         ToolTip(self._settings_button, msg="Edit list settings")
+        self._settings_button.grid(row=0, column=2, sticky="ew", padx=0, pady=pad)
         top_frame.grid(row=0, column=0, sticky="nsew")
         top_frame.columnconfigure(0, weight=1)
 

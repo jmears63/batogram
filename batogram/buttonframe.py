@@ -146,6 +146,11 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         spacer2_index = col
         col += 1
 
+        self._refresh_button = ImageButton(self, "refresh-line.png", command=self._action_target.on_refresh)
+        self._refresh_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
+        ToolTip(self._refresh_button, msg="Redraw the spectrogram")
+        col += 1
+
         if is_reference:
             self._sync_button = ImageButton(self, "arrow-left-circle-line.png", command=self.sync_command)
             self._sync_button.grid(row=0, column=col, padx=0, ipadx=0, sticky="NSEW")
@@ -216,6 +221,9 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
 
         # Enable the sync button if there is a source, and if this panel has data:
         self._sync_button['state'] = tk.NORMAL if self._sync_source and self._dc.afs else tk.DISABLED
+
+        # Enable the refresh button if this panel has data:
+        self._refresh_button['state'] = tk.NORMAL if self._dc.afs else tk.DISABLED
 
         relief = tk.SUNKEN if self._cursor_mode == CursorMode.CURSOR_ZOOM else tk.RAISED
         self._zoom_button['state'] = tk.NORMAL

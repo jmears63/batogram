@@ -382,6 +382,9 @@ class PanelFrame(tk.Frame):
     def on_cursor_mode(self, mode):
         self._spectrogram_frame.set_cursor_mode(mode)
 
+    def on_refresh(self):
+        self.draw()
+
     def set_sync_source(self, sync_source):
         """Notify this panel that there is a sync source it can use, or None if
         there isn't"""
