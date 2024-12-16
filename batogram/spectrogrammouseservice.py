@@ -219,6 +219,13 @@ class SpectrogramMouseService:
         else:
             self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, frequency_clamped=True)
 
+    def _on_control_wheel(self, event):
+        # print("control wheel {}".format(event))
+        if event.delta > 0:
+            self._wheel_action(event, self._ZOOM_FACTOR, time_clamped=True)
+        else:
+            self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, time_clamped=True)
+
     def _on_wheel_up(self, event):
         # print("up {}".format(event))
         self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=False)
@@ -226,6 +233,11 @@ class SpectrogramMouseService:
     def _on_shift_wheel_up(self, event):
         # print("shift up")
         self._wheel_action(event, self._ZOOM_FACTOR, frequency_clamped=True)
+
+    def _on_control_wheel_up(self, event):
+        # print("control up")
+        self._wheel_action(event, self._ZOOM_FACTOR, time_clamped=True)
+        pass
 
     def _on_wheel_down(self, event):
         # print("down {}".format(event))
@@ -235,14 +247,18 @@ class SpectrogramMouseService:
         # print("shift down")
         self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, frequency_clamped=True)
 
-    def _wheel_action(self, event, factor, frequency_clamped: bool):
+    def _on_control_wheel_down(self, event):
+        # print("control down")
+        self._wheel_action(event, 1.0 / self._ZOOM_FACTOR, time_clamped=True)
+
+    def _wheel_action(self, event, factor, frequency_clamped: bool = False, time_clamped: bool = False):
         self._unbind_wheel()  # An attempt to reduce event pile-up.
 
         position = None
         t = timer()
         if t - self._last_wheel_time > self._WHEEL_TIMEOUT:
             position = (event.x, event.y)
-        if not self._graph_frame.on_zoom_about_centre(position, factor, frequency_clamped):
+        if not self._graph_frame.on_zoom_about_centre(position, factor, frequency_clamped, time_clamped):
             self._bind_wheel()  # Rebind, as zoom was not applied.
         self._last_wheel_time = timer()
 
@@ -254,11 +270,14 @@ class SpectrogramMouseService:
         # For linux:
         self._canvas.bind('<Button-4>', self._on_wheel_up)
         self._canvas.bind('<Shift-Button-4>', self._on_shift_wheel_up)
+        self._canvas.bind('<Control-Button-4>', self._on_control_wheel_up)
         self._canvas.bind('<Button-5>', self._on_wheel_down)
         self._canvas.bind('<Shift-Button-5>', self._on_shift_wheel_down)
+        self._canvas.bind('<Control-Button-5>', self._on_control_wheel_down)
         # For Windows:
         self._canvas.bind("<MouseWheel>", self._on_wheel)
         self._canvas.bind("<Shift-MouseWheel>", self._on_shift_wheel)
+        self._canvas.bind("<Control-MouseWheel>", self._on_control_wheel)
 
     def _on_select_drag_complete(self, start: Tuple[int, int], end: Tuple[int, int],
                                  mode: DragMode, is_button1: bool):

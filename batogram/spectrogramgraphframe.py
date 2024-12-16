@@ -385,7 +385,7 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
 
         self._parent.on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
 
-    def on_zoom_about_centre(self, position, factor, frequency_clamped: bool) -> bool:
+    def on_zoom_about_centre(self, position, factor, frequency_clamped: bool, time_clamped: bool) -> bool:
         """
         Optionally pan so that pixel position is centered, then apply the zoom factor.
         Return True if the new range was sane and we applied it, otherwise false.
@@ -423,9 +423,13 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
         # Reverse the offset we applied:
         l, t, r, b = l + centre_t_v, t + centre_f_v, r + centre_t_v, b + centre_f_v
 
+        # Frequency or time may be clamped, not both:
         if frequency_clamped:
             _, frequency_range = self._layout.get_data_ranges()
             self._parent.on_rescale_handler(AxisRange(l, r), frequency_range)
+        elif time_clamped:
+            time_range, _ = self._layout.get_data_ranges()
+            self._parent.on_rescale_handler(time_range, AxisRange(b, t))
         else:
             self._parent.on_rescale_handler(AxisRange(l, r), AxisRange(b, t))
 
