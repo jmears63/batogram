@@ -1,12 +1,16 @@
 ### Release 1.4.2
 Various usability improvements:
-* The mouse wheel can be used together with shift or ctrl to zoom a single axis, leaving the other axis range unchanged.
-* A new file menu item "close all" closes the folder browser and any spectrograms currently open. 
-* A settings button in the folder browser allows the visibility of additional columns to be controlled.
+* The mouse wheel can now be used together with shift or ctrl to zoom just the time or frequency 
+range, leaving the other axis range unchanged.
+* A new file menu item "close all" closes the folder browser and any spectrograms currently open.
+This is useful if data files are being read from mountable media such as an SD card. 
+* Added a settings button in the folder browser allows the visibility of additional columns to be controlled.
 * The "send item to trash" option in the flagged item modal is no longer initially selected, to avoid accidents.
 * Added grid lines to the amplitude graph so that timings can be more easily read from it.
-* Added a refresh button to the spectrogram panels to reload/reload data from file.
-* 
+* Added a refresh button to the spectrogram panels to reload/reload data from file - useful 
+if the file is updated.
+* Updated dependency modules to recent versions, and made requirements.txt a little more forgiving about using 
+compatible versions.
 
 ### Release 1.4.1
 * Fix to make flagged folder item actions compatible with Windows file system semantics. 
