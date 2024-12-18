@@ -1,4 +1,4 @@
-### Release 1.4.2
+### Release 1.5.0
 Various usability improvements:
 * The mouse wheel can now be used together with shift or ctrl to zoom just the time or frequency 
 range, leaving the other axis range unchanged.
