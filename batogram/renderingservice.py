@@ -491,7 +491,7 @@ class SpectrogramCalcData:
         rounded_window_samples = 2 ** int(math.log2(fft_samples) + 0.5)
         rounded_window_samples *= 2  # Subjectively, this looks better.
 
-        # These limits need to make the range of samples that can be selected manually:
+        # These limits need to match the range of samples that can be selected manually:
         rounded_window_samples = max(64, rounded_window_samples)
         rounded_window_samples = min(4096, rounded_window_samples)
 

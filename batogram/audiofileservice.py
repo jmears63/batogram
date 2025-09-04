@@ -173,7 +173,7 @@ class AudioFileService(RawDataReader):
         self.frame_length = chunks.data.frame_length
         self.frame_data_values = chunks.data.frame_data_num_values
 
-        # Force the amplitude range to be symmetrical. The inner max is avoid the impossible negation of -32678.
+        # Force the amplitude range to be symmetrical. The inner max is to avoid the impossible negation of -32678.
         # There is no such positive number.
         abs_a_max = max(-(max(data.data_range[0], -32767)), data.data_range[1])
         self._amplitude_range = AxisRange(-abs_a_max, abs_a_max)

@@ -249,7 +249,7 @@ class GraphLayout(Layout):
 class AxisUnit:
     limit: float = sys.float_info.max  # Upper limit for this unit, or sys.float_info.max if it is the default.
     units: str = ""  # The unit.
-    scaler: float = 1.0  # Multiples the tick vakues.
+    scaler: float = 1.0  # Multiplies the tick values.
 
 
 class AxisLayout(Layout):

@@ -124,6 +124,7 @@ class WavFileParser:
             if subchunk_id == b'data':
                 if data is not None:
                     print("Ignoring subsequent data chunks")
+                    self._skip_chunk()
                 else:
                     if self._fmt_header is not None:
                         data = self._skim_data(self._fmt_header)
@@ -132,11 +133,13 @@ class WavFileParser:
             elif subchunk_id == b'fmt ':  # Note: trailing space.
                 if self._fmt_header is not None:
                     print("Ignoring subsequent fmt chunks")
+                    self._skip_chunk()
                 else:
                     self._fmt_header = self._read_fmt()
             elif subchunk_id == b'guan':
                 if guano is not None:
                     print("Ignoring subsequent guano chunks")
+                    self._skip_chunk()
                 else:
                     guano = self._read_guan()
             else:
@@ -159,7 +162,7 @@ class WavFileParser:
             block_align = self._read_int16("BlockAlign")
             bits_per_sample = self._read_int16("BitsPerSample")
         elif format_tag == 65534:  # WAVE_FORMAT_EXTENSIBLE
-            # This limited supprt is reverse engineered from sample files,
+            # This limited support is reverse engineered from sample files,
             # and from https://www.jensign.com/riffparse/
 
             required_chunk_size = 36  # More data may be supplied, we will ignore it.
