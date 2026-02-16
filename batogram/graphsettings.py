@@ -26,13 +26,15 @@ from .frames import DrawableFrame
 
 borderwidth = 10
 
-SUPPORTED_FFT_SAMPLES = [64, 128, 256, 512, 1024, 2048, 4096, 8192]
+# SUPPORTED_FFT_SAMPLES = [64, 128, 256, 512, 1024, 2048, 4096, 8192]
 DEFAULT_FFT_SAMPLES_INDEX = 3
 
 ADAPTIVE_FFT_SAMPLES = -1  # Note that the range of auto values is defined elsewhere.
 FFT_SAMPLES_OPTIONS = {ADAPTIVE_FFT_SAMPLES: "Auto",
                        64: "64", 128: "128", 256: "256",
-                       512: "512", 1024: "1024", 2048: "2048", 4096: "4096"}
+                       512: "512", 1024: "1024", 2048: "2048", 4096: "4096",
+                       8192: "8192", 16384: "16384"
+                       }
 DEFAULT_FFT_SAMPLES = ADAPTIVE_FFT_SAMPLES
 MAX_FFT_SAMPLES = 4096      # Must correspond to the maximum in the dictionary above.
 
