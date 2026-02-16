@@ -52,6 +52,8 @@ class ProfileGraphFrame(GraphFrame):
 
         if not draw_scope & DrawableFrame.DRAW_PROFILE:
             return
+        if not self._settings.profile_width:
+            return
 
         time_range, frequency_range, _ = self._dc.get_ranges()
         profile_range = AxisRange(0, 1)  # Arbitrary, will be overwritten when we know what it is.

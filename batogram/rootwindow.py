@@ -330,7 +330,7 @@ class PanelFrame(tk.Frame):
         self._settings.on_app_modified_settings()
 
         # Show or hide the profile graph as required:
-        if self._settings.show_profile:
+        if self._settings.profile_width:
             self._profile_frame.grid()
         else:
             self._profile_frame.grid_remove()
@@ -531,13 +531,14 @@ class RootWindow(tk.Tk):
         self._dc_main: DataContext = DataContext()
         self._main_historian = HistorianService()
         self._main_settings = GraphSettings(self._on_app_modified_main_settings, self.on_user_applied_main_settings)
-        self._main_settings.show_profile = True
+        self._main_settings.profile_width = 100
 
         self._ref_pipelines = GraphPipelines(None, None, None)
         self._dc_ref: DataContext = DataContext()
         self._ref_historian = HistorianService()
         self._ref_settings = GraphSettings(self._on_app_modified_ref_settings, self.on_user_applied_ref_settings)
-        self._ref_settings.show_profile = False
+        self._ref_settings.profile_width = 0
+
 
         self._menu_recent_main = None
         self._menu_recent_ref = None

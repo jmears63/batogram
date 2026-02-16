@@ -26,7 +26,9 @@ from .frames import DrawableFrame
 
 borderwidth = 10
 
-DEFAULT_PROFILE_WIDTH = 90
+# Profile width: 0 = no profile; 100, 200, 300, 400 = pixel width.
+PROFILE_WIDTH_OPTIONS = {0: "None", 100: "100", 200: "200", 300: "300", 400: "400"}
+DEFAULT_PROFILE_WIDTH = 100
 
 DEFAULT_FFT_SAMPLES_INDEX = 3
 
@@ -85,7 +87,6 @@ class GraphSettings:
     zero_based_time: bool
     frequency_range: Optional[AxisRange]
     show_grid: bool
-    show_profile: bool
     window_samples: int
     window_overlap: int
     window_type: str
@@ -117,7 +118,8 @@ class GraphSettings:
         self._on_app_modified_settings: Callable[[int], NoReturn] = on_app_modified_settings  # Call this to signal that the UI needs to refresh.
         self._on_user_applied_settings: Callable[[int], NoReturn] = on_user_applied_settings  # Call this to signal that the application needs to refresh.
         self.show_grid = True
-        self.show_profile = show_profile
+        # show_profile is ignored; use profile_width (0 = none) for backward compatibility of the constructor arg
+        self.profile_width = DEFAULT_PROFILE_WIDTH if show_profile else 0
         self.window_samples = DEFAULT_FFT_SAMPLES
         self.window_overlap = DEFAULT_FFT_OVERLAP_PERCENT
         self.window_type = DEFAULT_WINDOW_TYPE
@@ -134,7 +136,6 @@ class GraphSettings:
         self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
         self.use_frame_data = True
         self.settings_sample_rate = 384000           # Dummy value to be replaced when a file is loaded.
-        self.profile_width = DEFAULT_PROFILE_WIDTH
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""

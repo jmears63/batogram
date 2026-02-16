@@ -20,8 +20,8 @@
 
 import tkinter as tk
 
-from .graphsettings import GraphSettings, borderwidth
-from .validatingwidgets import ValidatingFrameHelper, DoubleValidatingEntry, ValidatingCheckbutton
+from .graphsettings import GraphSettings, borderwidth, PROFILE_WIDTH_OPTIONS
+from .validatingwidgets import ValidatingFrameHelper, DoubleValidatingEntry, ValidatingCheckbutton, ValidatingMapOptionMenu
 
 
 class ScaleFrame(tk.Frame, ValidatingFrameHelper):
@@ -90,8 +90,9 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
         self._show_grid_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, "Show grid")
         self._show_grid_checkbutton.grid(row=3, column=1, padx=pad, sticky="W")
 
-        self._show_profile_checkbutton = ValidatingCheckbutton(self, controlling_frame, self, text="Show profile")
-        self._show_profile_checkbutton.grid(row=3, column=2, padx=pad, sticky="W")
+        tk.Label(self, text="Profile width:", anchor="e").grid(row=3, column=4, padx=pad, sticky="E")
+        self._profile_width_menu = ValidatingMapOptionMenu(self, controlling_frame, self, PROFILE_WIDTH_OPTIONS)
+        self._profile_width_menu.grid(row=3, column=5, padx=pad, sticky="W")
 
         self.copy_settings_to_widgets()
 
@@ -103,7 +104,7 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
         self._f_min.set_value(self._settings.frequency_range.min)
         self._show_grid_checkbutton.set_value(self._settings.show_grid)
         self._zero_based_time_checkbutton.set_value(self._settings.zero_based_time)
-        self._show_profile_checkbutton.set_value(self._settings.show_profile)
+        self._profile_width_menu.set_value(self._settings.profile_width)
         self._show_time_markers_checkbutton.set_value(self._settings.show_time_markers)
         self._show_frequency_markers_checkbutton.set_value(self._settings.show_frequency_markers)
 
@@ -115,6 +116,6 @@ class ScaleFrame(tk.Frame, ValidatingFrameHelper):
         self._settings.frequency_range.min = self._f_min.get_value()
         self._settings.show_grid = self._show_grid_checkbutton.get_value()
         self._settings.zero_based_time = self._zero_based_time_checkbutton.get_value()
-        self._settings.show_profile = self._show_profile_checkbutton.get_value()
+        self._settings.profile_width = self._profile_width_menu.get_value()
         self._settings.show_time_markers = self._show_time_markers_checkbutton.get_value()
         self._settings.show_frequency_markers = self._show_frequency_markers_checkbutton.get_value()
