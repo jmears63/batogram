@@ -28,8 +28,6 @@ from .common import AxisRange
 from .frames import GraphFrame, DrawableFrame
 from .renderingservice import ProfilePipelineRequest
 
-PROFILE_WIDTH = 90
-
 
 class ProfileGraphFrame(GraphFrame):
     """A Frame containing a profile graph for a spectrogram."""
@@ -37,7 +35,7 @@ class ProfileGraphFrame(GraphFrame):
     def __init__(self, parent, root, pipeline, data_context, settings, is_reference):
         super().__init__(parent, root, pipeline, data_context, settings)
 
-        self._canvas = tk.Canvas(self, bg="black", height=1, width=PROFILE_WIDTH)
+        self._canvas = tk.Canvas(self, bg="black", height=1, width=self._settings.profile_width)
         self._canvas.grid(row=0, column=0, sticky='nesw')
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -59,6 +57,9 @@ class ProfileGraphFrame(GraphFrame):
         profile_range = AxisRange(0, 1)  # Arbitrary, will be overwritten when we know what it is.
         af_data = self._dc.get_afs_data()
 
+        # Apply profile width from settings in case it changed at runtime:
+        if self._canvas.winfo_width() != self._settings.profile_width:
+            self._canvas.config(width=self._settings.profile_width)
         # Allow the canvas to catch up with any pending resizes so that we get the right
         # size below:
         self.update_idletasks()

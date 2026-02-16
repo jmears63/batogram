@@ -26,7 +26,8 @@ from .frames import DrawableFrame
 
 borderwidth = 10
 
-# SUPPORTED_FFT_SAMPLES = [64, 128, 256, 512, 1024, 2048, 4096, 8192]
+DEFAULT_PROFILE_WIDTH = 90
+
 DEFAULT_FFT_SAMPLES_INDEX = 3
 
 ADAPTIVE_FFT_SAMPLES = -1  # Note that the range of auto values is defined elsewhere.
@@ -36,7 +37,7 @@ FFT_SAMPLES_OPTIONS = {ADAPTIVE_FFT_SAMPLES: "Auto",
                        8192: "8192", 16384: "16384"
                        }
 DEFAULT_FFT_SAMPLES = ADAPTIVE_FFT_SAMPLES
-MAX_FFT_SAMPLES = 4096      # Must correspond to the maximum in the dictionary above.
+MAX_FFT_SAMPLES = 16384      # Must correspond to the maximum in the dictionary above.
 
 # Note: quadratic interpolation seems a less CPU intensive way to get smoothness
 # than a high overlap. So default overlap is not too high, and interpolation defaults to quadratic.
@@ -104,6 +105,7 @@ class GraphSettings:
     spectrogram_type: int
     use_frame_data: bool
     settings_sample_rate: int
+    profile_width: int
 
     def __init__(self,
                  on_app_modified_settings: Callable[[int], NoReturn],
@@ -132,6 +134,7 @@ class GraphSettings:
         self.spectrogram_type = SPECTROGRAM_TYPE_STANDARD
         self.use_frame_data = True
         self.settings_sample_rate = 384000           # Dummy value to be replaced when a file is loaded.
+        self.profile_width = DEFAULT_PROFILE_WIDTH
 
     def on_app_modified_settings(self, draw_scope: int = DrawableFrame.DRAW_ALL) -> NoReturn:
         """Signal to the settings UI that the underlying settings values have changed."""

@@ -493,7 +493,7 @@ class SpectrogramCalcData:
 
         # These limits need to match the range of samples that can be selected manually:
         rounded_window_samples = max(64, rounded_window_samples)
-        rounded_window_samples = min(4096, rounded_window_samples)
+        rounded_window_samples = min(16384, rounded_window_samples)
 
         return rounded_window_samples
 
