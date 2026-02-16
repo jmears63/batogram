@@ -21,6 +21,8 @@
 import tkinter as tk
 from typing import Tuple, Callable
 
+import numpy as np
+
 from .constants import AMPLITUDE_COMPLETER_EVENT, AXIS_FONT_HEIGHT
 from . import layouts
 from .audiofileservice import AudioFileService, RawDataReader
@@ -57,6 +59,14 @@ class AmplitudeGraphFrame(GraphFrame):
             return
 
         time_range, frequency_range, amplitude_range = self._dc.get_ranges()
+
+        # Ignore the range of the data, instead always use full scale relative to 16 bit integers, so that it is obvious
+        # if a signal is approaching clipping.
+
+        info = np.iinfo(np.int16)
+        amplitude_range = AxisRange(info.min, info.max)
+
+        # print("amplitude_range = {}".format(amplitude_range))
         afs: AudioFileService = self._dc.get_afs()
 
         # Allow the canvas to catch up with any pending resizes so that get the right
