@@ -1,3 +1,11 @@
+### Release 1.6.0
+Various usability improvements:
+* Usability improvements in the folder pane.
+* Duplicate wav file chunks are now skipped.
+* Amplitude scale now matches the range of a 16 bit integer, so it can be used to judge if the signal is approaching clipping.
+* FFT windows of 8192 and 16384 are now supported.
+* The profile width is now configurable.
+
 ### Release 1.5.0
 Various usability improvements:
 * The mouse wheel can now be used together with shift or ctrl to zoom just the time or frequency 

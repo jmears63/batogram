@@ -192,6 +192,9 @@ class BrowserFrame(tk.Frame):
         tv.tag_configure(self._unflagged_str, image=self._image_unflagged)
 
         self._file_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
+        self._file_treeview.bind('<f>', lambda e: self._on_toggle_flags())
+        self._file_treeview.bind('<c>', lambda e: self._on_clear_flags())
+        self._file_treeview.bind('<a>', lambda e: self._on_do_action())
 
         vscrollbar = tk.Scrollbar(treeview_frame, orient=tk.VERTICAL)
         self._file_treeview.config(yscrollcommand=vscrollbar.set)
@@ -214,14 +217,14 @@ class BrowserFrame(tk.Frame):
         flagged_count_label.grid(row=2, column=0, sticky="W", padx=pad, pady=pad)
 
         button_frame1 = tk.Frame(self)
-        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected items",
+        self._toggle_tagging_button = tk.Button(button_frame1, text="Flag selected items", underline=0,
                                                 command=self._on_toggle_flags)
         self._toggle_tagging_button.grid(row=0, column=0, sticky="ew", padx=pad)
         self._toggle_tagging_button.config(state=tk.DISABLED)
-        self._clear_flags_button = tk.Button(button_frame1, text="Clear all flags", command=self._on_clear_flags)
+        self._clear_flags_button = tk.Button(button_frame1, text="Clear all flags", underline=0, command=self._on_clear_flags)
         self._clear_flags_button.grid(row=0, column=1, sticky="ew", padx=pad)
         self._clear_flags_button.config(state=tk.DISABLED)
-        self._actions_button = tk.Button(button_frame1, text="Action...", command=self._on_do_action)
+        self._actions_button = tk.Button(button_frame1, text="Action...", underline=0, command=self._on_do_action)
         self._actions_button.grid(row=0, column=2, sticky="ew", padx=pad)
         self._actions_button.config(state=tk.DISABLED)
         button_frame1.grid(row=3, column=0, sticky="nsew")
@@ -412,15 +415,22 @@ class BrowserFrame(tk.Frame):
                 filename = item['text']
                 try:
                     self._do_item_action(filename, self._action_settings)
-                except BaseException as e:
-                    cont = tk.messagebox.askyesno(title="Error",
-                                                  message="Unable to perform requested action:\n\n {}\n\nDo you want to continue?".format(
-                                                      str(e)))
+                except Exception as e:
+                    cont = tk.messagebox.askyesno(
+                        title="Error",
+                        message="Unable to perform requested action:\n\n{}\n\nDo you want to continue?".format(str(e)),
+                    )
                     if not cont:
                         break
 
             # Refresh the list:
             self.reset(None, do_initial_selection=False)
+            if self._action_settings.action == BrowserAction.COPY.value:
+                # Clear the selection after a copy action.
+                tv.selection_set(())
+                self._update_ui_state()
+                return
+
             # Restore the selection if we can, including flagging:
             selected_count: int = 0
             flagged_count: int = 0
