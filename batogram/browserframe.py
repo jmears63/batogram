@@ -107,6 +107,9 @@ class FolderWalker:
         contents = os.listdir(self._folder_path)
         paths: List[(str, str)] = []
         for item in contents:
+            # Skip hidden files:
+            if item.startswith('.'):
+                continue  # Skip hidden files.
             path = os.path.join(self._folder_path, item)
             if os.path.isdir(path):
                 pass  # Don't want folders, only files.
