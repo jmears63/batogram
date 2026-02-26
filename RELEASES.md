@@ -1,3 +1,8 @@
+### Release 1.6.1
+Bug fixes:
+* Selecting an item in the browser folder now reliably loads the right file.
+* Fixed a potential hang when cancelling playback in repeat mode.
+
 ### Release 1.6.0
 Various usability improvements:
 * Usability improvements in the folder pane.
