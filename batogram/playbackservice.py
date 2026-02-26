@@ -342,21 +342,22 @@ class PlaybackServiceImpl(PlaybackService):
         self._stopping: bool = False
 
     def signal(self, signal: PlaybackSignal):
+        # Only set flags here; do not call engine.stop_stream() from the UI thread.
+        # PyAudio's stop_stream() can block, and we hold _rlock in the playback thread
+        # most of the time, so the UI would block waiting for the lock then block again
+        # in stop_stream(), causing deadlock or severe unresponsiveness (especially in
+        # repeat mode). The playback thread checks these flags and calls stop_stream()
+        # itself.
         with self._rlock:
-            engine = self._engine  # Avoid races.
-            if engine is not None:
-                if signal == PlaybackSignal.SIGNAL_STOP:
-                    if not self._pausing:
-                        engine.stop_stream()
-                    self._pausing = False
-                    self._stopping = True
-                elif signal == PlaybackSignal.SIGNAL_PAUSE:
-                    self._pausing = True
-                    self._stopping = False
-                    engine.stop_stream()
-                elif signal == PlaybackSignal.SIGNAL_NONE:
-                    self._pausing = False
-                    self._stopping = False
+            if signal == PlaybackSignal.SIGNAL_STOP:
+                self._pausing = False
+                self._stopping = True
+            elif signal == PlaybackSignal.SIGNAL_PAUSE:
+                self._pausing = True
+                self._stopping = False
+            elif signal == PlaybackSignal.SIGNAL_NONE:
+                self._pausing = False
+                self._stopping = False
 
     def do_processing(self, request: PlaybackRequest, event_processor: EventProcessorType) -> None:
         with self._rlock:
@@ -395,6 +396,11 @@ class PlaybackServiceImpl(PlaybackService):
                     # Wait while it plays, including pauses:
                     while True:
                         while self._engine.is_active():
+                            # Check stop/pause so we exit without the UI having to call
+                            # stop_stream() (which can block and cause deadlock).
+                            if self._stopping or self._pausing:
+                                self._engine.stop_stream()
+                                break
                             # We update the playback curser here rather than from data callback in the engine.
                             # Doing that resulted in the program freezing; either a deadlock resulting from pyaudio
                             # locking something that tkinter needs, or just a simple pile up of events.
@@ -425,7 +431,7 @@ class PlaybackServiceImpl(PlaybackService):
                     if self._stopping:
                         # They clicked stop.
                         # print("Stopping")
-                        event_processor(lambda handler: handler.on_play_cancelled)
+                        event_processor(lambda handler: handler.on_play_cancelled())
                         self._stopping = False
                         terminating = True
                     else:
