@@ -360,10 +360,12 @@ class BrowserFrame(tk.Frame):
         # Update the UI:
         self._update_ui_state()
 
-        # Load the focussed item:
+        # Load the selected item (use selection(), not focus(), so we load the row the user
+        # actually selected; focus() can lag or differ when clicking the same row again).
         def update_cb():
-            selected_iid = self._file_treeview.focus()
-            if selected_iid != '':
+            sel = self._file_treeview.selection()
+            if len(sel) == 1:
+                selected_iid = sel[0]
                 def open_file(f):
                     if self._display_as_ref_var.get():
                         self._root_parent.do_open_ref_file(f, setfocus=False)
@@ -372,10 +374,8 @@ class BrowserFrame(tk.Frame):
 
                 self._load_activated_file(open_file, selected_iid)
 
-        # We can't do the update here and now because index(tk.ACTIVE) still refers the old value.
-        # That seems like a bug in tkinter or tk. So, this little hack is to allow tk to catch up with itself,
-        # which it generally will, but might not if the CPU has other things on its mind.
-        self.after(200, update_cb)
+        # Defer so tk has updated selection/focus; otherwise we can read stale values.
+        self.after(50, update_cb)
 
         return
 
