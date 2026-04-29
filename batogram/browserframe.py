@@ -192,9 +192,9 @@ class BrowserFrame(tk.Frame):
         tv.tag_configure(self._unflagged_str, image=self._image_unflagged)
 
         self._file_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
-        self._file_treeview.bind('<f>', lambda e: self._on_toggle_flags())
-        self._file_treeview.bind('<c>', lambda e: self._on_clear_flags())
-        self._file_treeview.bind('<a>', lambda e: self._on_do_action())
+        self._file_treeview.bind('<f>', self._on_treeview_key_flag)
+        self._file_treeview.bind('<c>', self._on_treeview_key_clear)
+        self._file_treeview.bind('<a>', self._on_treeview_key_action)
 
         vscrollbar = tk.Scrollbar(treeview_frame, orient=tk.VERTICAL)
         self._file_treeview.config(yscrollcommand=vscrollbar.set)
@@ -507,6 +507,26 @@ class BrowserFrame(tk.Frame):
         # Check if the target already exists and throw an exception if it does.
         if os.path.exists(target_path):
             raise FileExistsError("Target {} already exists".format(target_path))
+
+    @staticmethod
+    def _control_modifier_pressed(event: tk.Event) -> bool:
+        """True if Control is held — skip plain-letter shortcuts so menu accelerators work."""
+        return bool(event.state & 0x4)
+
+    def _on_treeview_key_flag(self, event):
+        if self._control_modifier_pressed(event):
+            return
+        self._on_toggle_flags()
+
+    def _on_treeview_key_clear(self, event):
+        if self._control_modifier_pressed(event):
+            return
+        self._on_clear_flags()
+
+    def _on_treeview_key_action(self, event):
+        if self._control_modifier_pressed(event):
+            return
+        self._on_do_action()
 
     def _on_toggle_flags(self):
         # One or more items in the treeview may be tagged:
