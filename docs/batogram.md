@@ -180,6 +180,7 @@ settings that apply to the entire application.
 with an asterisk. Selection is a matter of taste and eyesight.
 * _Initial data directory_ determines the directory that File Open dialogs start from. Typically you
 should point this where you store your data files.
+* _Initial frequency scale_ allows you to select the initial range of the frequency axis on opening a new file. The range can be left blank to be calculated automatically from the sample rate of the data.
 * Mic response (main and ref) allows you to correct for microphone frequency response, by specifying a
 response for the main and reference spectrograms. More on the file format is provided [here](mic-response.md).
 

@@ -1,3 +1,8 @@
+### Release 1.7.0
+Minor usability improvements:
+* Added the ability to define a default frequency scale to use on first loading files.
+* The initial directory on opening a folder is now friendlier.
+
 ### Release 1.6.1
 Bug fixes:
 * Selecting an item in the browser folder now reliably loads the right file.
