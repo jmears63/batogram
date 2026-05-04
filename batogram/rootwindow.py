@@ -547,6 +547,7 @@ class RootWindow(tk.Tk):
         self._menu_edit = None
         self._menu_file = None
         self._first_file_open = True  # Track whether this is the first time the user has opened a file.
+        self._first_folder_open = True  # Same pattern for Open folder vs directory picker memory.
 
         self._folder_walker: Optional[FolderWalker] = None  # If this is not None, we are in browsing mode.
 
@@ -786,8 +787,13 @@ class RootWindow(tk.Tk):
 
     def _open_folder(self):
 
-        initial = appsettings.instance.data_directory if appsettings.instance.data_directory != "" else Path.home()
-        directory_selected = filedialog.askdirectory(parent=self, mustexist=True, initialdir=initial,
+        initialdir = None
+        if self._first_folder_open:
+            self._first_folder_open = False
+            # Only seed from settings the first time per session; thereafter the dialog remembers navigation.
+            initialdir = appsettings.instance.data_directory
+
+        directory_selected = filedialog.askdirectory(parent=self, mustexist=True, initialdir=initialdir,
                                                      title="Open an audio file folder")
         # print(directory_selected)
         if directory_selected:
@@ -953,8 +959,9 @@ class RootWindow(tk.Tk):
     def _on_settings_ok(self, previous_data_directory: str):
         # Refresh some things from the updated settings values:
         if previous_data_directory != appsettings.instance.data_directory:
-            # Force the new data directory to be used when next opening the a file:
+            # Force the new data directory to be used when next opening a file or folder:
             self._first_file_open = True
+            self._first_folder_open = True
         self._apply_settings()
         self._main_frame.draw()
         self._ref_frame.draw()
