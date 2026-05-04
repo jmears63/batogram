@@ -510,6 +510,13 @@ class DataContext:
         self.time_range = settings.calc_time_range(af_data)
         self.frequency_range = settings.calc_frequency_range()
 
+        # Clip the frequency range to app-wide initial frequency bounds if present:
+        app = appsettings.instance
+        if app.initial_frequency_min_khz is not None and self.frequency_range.min < app.initial_frequency_min_khz * 1000:
+            self.frequency_range.min = app.initial_frequency_min_khz * 1000
+        if app.initial_frequency_max_khz is not None and self.frequency_range.max > app.initial_frequency_max_khz * 1000:
+            self.frequency_range.max = app.initial_frequency_max_khz * 1000
+
     def push_breadcrumb(self):
         self.breadcrumb_service.push_entry(
             Breadcrumb(time_range=self.time_range, frequency_range=self.frequency_range, timestamp=timer()))

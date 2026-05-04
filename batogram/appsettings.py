@@ -57,6 +57,8 @@ TD_MAPS = {
 class AppSettings:
     colour_map: str = DEFAULT_COLOUR_MAP
     data_directory: str = str(Path.home())
+    initial_frequency_min_khz: Optional[float] = None
+    initial_frequency_max_khz: Optional[float] = None
     main_mic_response_path: str = ""
     ref_mic_response_path: str = ""
     serial_number: int = 0
@@ -65,6 +67,8 @@ class AppSettings:
         # Could we use deep_copy for this?
         self.colour_map = other.colour_map
         self.data_directory = other.data_directory
+        self.initial_frequency_min_khz = other.initial_frequency_min_khz
+        self.initial_frequency_max_khz = other.initial_frequency_max_khz
         self.main_mic_response_path = other.main_mic_response_path
         self.ref_mic_response_path = other.ref_mic_response_path
         self.serial_number += 1

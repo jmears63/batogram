@@ -21,12 +21,14 @@
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from typing import List, Callable
+from typing import List, Callable, Optional
 
 from pathlib import Path
 
 from batogram.appsettings import TD_MAPS, DEFAULT_COLOUR_MAP, AppSettingsWrapper
 from batogram.modalwindow import ModalWindow
+
+_INITIAL_FREQUENCY_SPAN_MIN_KHZ = 10.0
 
 
 class ColourMapOptionMenu(tk.OptionMenu):
@@ -50,6 +52,8 @@ class AppSettingsWindow(ModalWindow):
 
         self._data_directory_var: tk.StringVar = tk.StringVar()
         self._colour_scale_var: tk.StringVar = tk.StringVar()
+        self._initial_frequency_min_var: tk.StringVar = tk.StringVar()
+        self._initial_frequency_max_var: tk.StringVar = tk.StringVar()
         self._main_mic_response_var: tk.StringVar = tk.StringVar()
         self._ref_mic_response_var: tk.StringVar = tk.StringVar()
 
@@ -73,6 +77,27 @@ class AppSettingsWindow(ModalWindow):
         label.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
         button = tk.Button(settings_frame, text="Select", width=button_width, command=self._select_data_directory)
         button.grid(row=settings_row, column=2, padx=pad, pady=pad)
+
+        settings_row += 1
+        label = tk.Label(settings_frame, text="Initial frequency scale:", anchor=tk.E)
+        label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
+
+        self._initial_frequency_range_frame = tk.Frame(settings_frame)
+        self._initial_frequency_range_frame.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
+        ifr = self._initial_frequency_range_frame
+        entry_width = 10
+        tk.Label(ifr, text="min:").grid(row=0, column=0, padx=(0, pad), pady=0, sticky=tk.W)
+        tk.Entry(ifr, textvariable=self._initial_frequency_min_var, width=entry_width).grid(
+            row=0, column=1, padx=(0, pad), pady=0, sticky=tk.EW)
+        tk.Label(ifr, text="max:").grid(row=0, column=2, padx=(0, pad), pady=0, sticky=tk.W)
+        tk.Entry(ifr, textvariable=self._initial_frequency_max_var, width=entry_width).grid(
+            row=0, column=3, pady=0, sticky=tk.EW)
+        ifr.columnconfigure(1, weight=1)
+        ifr.columnconfigure(3, weight=1)
+
+        label_khz = tk.Label(settings_frame, text="kHz", anchor=tk.W)
+        label_khz.grid(row=settings_row, column=2, padx=pad, pady=pad, sticky=tk.W)
+
 
         settings_row += 1
         label = tk.Label(settings_frame, text="Mic response (main):", anchor=tk.E)
@@ -119,27 +144,81 @@ class AppSettingsWindow(ModalWindow):
         # self.data_directory_var = tk.StringVar()
 
     def on_ok(self):
-        self.on_apply()
-        super().on_ok()
+        if self.on_apply():
+            super().on_ok()
 
-    def on_apply(self):
-        self._vars_to_settings()
+    def on_apply(self) -> bool:
+        if not self._vars_to_settings():
+            return False
+            
         # Write the new values to file:
         self._app_settings.write()
         # Apply the settings:
         self._apply_updates()
+        return True
 
     def _settings_to_vars(self):
         self._data_directory_var.set(self._shortened_path(self._app_settings.data_directory))
         self._colour_scale_var.set(self._app_settings.colour_map)
+        self._initial_frequency_min_var.set(
+            "" if self._app_settings.initial_frequency_min_khz is None
+            else str(self._app_settings.initial_frequency_min_khz))
+        self._initial_frequency_max_var.set(
+            "" if self._app_settings.initial_frequency_max_khz is None
+            else str(self._app_settings.initial_frequency_max_khz))
         self._main_mic_response_var.set(self._shortened_path(self._app_settings.main_mic_response_path))
         self._ref_mic_response_var.set(self._shortened_path(self._app_settings.ref_mic_response_path))
 
-    def _vars_to_settings(self):
+    @staticmethod
+    def _parse_optional_khz_field(raw: str) -> Optional[float]:
+        """Empty / whitespace means unset (None); otherwise parse kHz as float."""
+        t = raw.strip()
+        if t == "":
+            return None
+        return float(t)
+
+    def _vars_to_settings(self) -> bool:
+        try:
+            mn = self._parse_optional_khz_field(self._initial_frequency_min_var.get())
+            mx = self._parse_optional_khz_field(self._initial_frequency_max_var.get())
+        except ValueError:
+            messagebox.showerror(
+                "Settings",
+                "Initial frequency min and max must be blank (unset) or valid numbers (kHz).",
+                parent=self)
+            return False
+        if mn is not None and mn < 0:
+            messagebox.showerror(
+                "Settings",
+                "Initial frequency min must be zero or more when present.",
+                parent=self)
+            return False
+        if mx is not None and mx < 0:
+            messagebox.showerror(
+                "Settings",
+                "Frequency max must be zero or more when present.",
+                parent=self)
+            return False
+        if mn is None and mx is not None and mx < _INITIAL_FREQUENCY_SPAN_MIN_KHZ:
+            messagebox.showerror(
+                "Settings",
+                "When only max frequency is set, it must be at least {:.0f} kHz.".format(_INITIAL_FREQUENCY_SPAN_MIN_KHZ),
+                parent=self)
+            return False
+        if mn is not None and mx is not None and (mx - mn) < _INITIAL_FREQUENCY_SPAN_MIN_KHZ:
+            messagebox.showerror(
+                "Settings",
+                "When both are set, frequency max must exceed min by at least {:.0f} kHz.".format(
+                    _INITIAL_FREQUENCY_SPAN_MIN_KHZ),
+                parent=self)
+            return False
+        self._app_settings.initial_frequency_min_khz = mn
+        self._app_settings.initial_frequency_max_khz = mx
         self._app_settings.serial_number += 1       # So we know when to redraw.
         self._app_settings.colour_map = self._colour_scale_var.get()
         # Intentionally don't assign paths to the settings, that has already been done, and anyway
         # the var only contains the shortened name.
+        return True
 
     def _select_data_directory(self):
         initial = self._app_settings.data_directory if self._app_settings.data_directory != "" else Path.home()
