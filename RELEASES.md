@@ -1,3 +1,7 @@
+### Release 1.8.0
+Minor usability improvement:
+* The time span of the time axis marker is no longer hidden when the time span is very narrow.
+
 ### Release 1.7.0
 Minor usability improvements:
 * Added the ability to define a default frequency scale to use on first loading files.
