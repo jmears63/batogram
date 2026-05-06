@@ -162,11 +162,9 @@ class TimeHelper(AbstractHelper):
         text_id = None
         if len(text) > 0 and not is_clipped[0] and not is_clipped[1]:
             text_id = None
-            min_space_for_text = 60
-            if r - l > min_space_for_text:
-                # Annotation. +2 to get the text inside the band. Me neither.
-                text_id = canvas.create_text(int((l + r) / 2), int((b + t) / 2 + 2), text=text[0],
-                                             fill=MARKER_TEXT_COLOUR, font=AXIS_FONT, anchor=tk.CENTER)
+            # Annotation. +3 to get the text inside the band. Me neither.
+            text_id = canvas.create_text(int((l + r) / 2), int(t + 3), text=text[0],
+                                            fill=MARKER_TEXT_COLOUR, font=AXIS_FONT, anchor=tk.S)
 
         return [text_id]
 
