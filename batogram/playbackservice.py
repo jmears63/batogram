@@ -376,6 +376,7 @@ class PlaybackServiceImpl(PlaybackService):
                 self._broadcast(event_processor, lambda handler: handler.on_broadcast_busy())
 
                 # Select the method based on the user's selection:
+                i_scaler = 1  # Identity scaling when auto volume control is off.
                 if request.settings.autoscale:
                     scaler: float = self._get_autoscale_factor(afs, request.sample_range)
                     i_scaler = max(int(1), int(scaler + 0.5))
