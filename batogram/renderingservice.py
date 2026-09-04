@@ -1809,12 +1809,22 @@ class ProfilePipeline(RenderingPipeline, PipelineHelper):
     def get_completion_data(self):
         return self._completion_data
 
+    def data_area_to_value(self, p_data_area):
+        """Get the profile dB value for the data area coords provided."""
+        profile_values = self._profile_line_segment_step.get_profile_values()
+        if profile_values is not None:
+            _, f = p_data_area
+            if 0 <= f < len(profile_values):
+                return float(profile_values[f])
+        return None
+
 
 class ProfileLineSegmentStep(PipelineStep):
     """This step generates all the line segments needed to draw a profile."""
 
     def __init__(self, settings: GraphSettings):
         super().__init__(settings)
+        self._profile_values = None
 
     def _implementation(self, input_data, params):
         previous_serial, height, width = params
@@ -1827,6 +1837,7 @@ class ProfileLineSegmentStep(PipelineStep):
             profile_data = np.mean(input_data, axis=1)  # If there is no data in the percentile.
 
         rows, = profile_data.shape
+        self._profile_values = profile_data
 
         # Create a series of x,y points for the profile:
         profile_points = np.zeros((rows, 2), dtype=np.int16)
@@ -1842,3 +1853,9 @@ class ProfileLineSegmentStep(PipelineStep):
                 profile_points[y] = np.rint(scaled_x).astype(int), scaled_y
 
         return profile_points, vmin, vmax
+
+    def get_profile_values(self):
+        """Return the 1-D profile dB values keyed by data-area frequency row, or None."""
+        if self.get_cached_data() is None:
+            return None
+        return self._profile_values

@@ -259,11 +259,11 @@ class PanelFrame(tk.Frame):
 
         self._last_sample_rate = self._settings.settings_sample_rate
 
-    def update_readout_coords(self, p_axis, p_data_area):
+    def update_readout_coords(self, p_axis, p_data_area=None, power=None):
         # Use the data area coordinates to get a data value (power) from the pipeline's
-        # zoomed data, which maps to data area pixels:
-        power = None
-        if p_data_area:
+        # zoomed data, which maps to data area pixels. Callers may also supply power directly
+        # (e.g. the profile graph).
+        if power is None and p_data_area:
             power = self._pipelines.spectrogram.data_area_to_value(p_data_area)
         self._readout_frame.update_readout_coords(p_axis, power)
 

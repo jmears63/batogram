@@ -182,6 +182,17 @@ class GraphLayout(Layout):
         else:
             return None
 
+    def canvas_to_data_area(self, p_canvas):
+        """Find the data-area coords corresponding to the canvas point provided."""
+
+        t_canvas, f_canvas = p_canvas
+        if self._x_axis and self._y_axis:
+            t_data_area = t_canvas - self._y_axis.get_size()
+            f_data_area = self._canvas_height - f_canvas - self._x_axis.get_size()
+            return t_data_area, f_data_area
+        else:
+            return None
+
     @staticmethod
     def _draw_graph_image(canvas, data_area, image):
         (il, it, ir, ib) = data_area
@@ -356,6 +367,12 @@ class AxisLayout(Layout):
                 self._axis_range.max - self._axis_range.min) + self._axis_range.min
         return v
 
+    def set_range(self, axis_range: AxisRange, min_pixel: int, max_pixel: int):
+        """Configure value mapping without drawing (e.g. for cursor readout)."""
+        self._axis_range = axis_range
+        self._min_pixel = min_pixel
+        self._max_pixel = max_pixel
+
     def axis_to_canvas(self, v):
         p = (v - self._axis_range.min) / (self._axis_range.max - self._axis_range.min) * (
                 self._max_pixel - self._min_pixel) + self._min_pixel
@@ -525,19 +542,6 @@ class SpectrogramLayout(GraphLayout):
 
         return draw_completer, self._data_area
 
-    def canvas_to_data_area(self, p_canvas):
-        """Finded the zoomed data value corresponding to the canvas point provided."""
-
-        t_canvas, f_canvas = p_canvas
-        if self._x_axis and self._y_axis:
-            # Calculate the data area coordinates:
-            t_data_area = t_canvas - self._y_axis.get_size()
-            f_data_area = self._canvas_height - f_canvas - self._x_axis.get_size()
-
-            return t_data_area, f_data_area
-        else:
-            return None
-
     def time_to_canvas(self, t: float) -> int:
         """Finded the canvas x coordinate for the time provided."""
         return int(self._x_axis.axis_to_canvas(t) + 0.5)
@@ -589,6 +593,8 @@ class AmplitudeLayout(GraphLayout):
 
         xaxis_x, xaxis_extent = self._y_axis_width - 1, width - self._y_axis_width - self._margin
         x_ticks, _ = self._x_axis.calculate_ticks(x_range, 1, xaxis_extent, zero_based_x_axis)
+        # Time axis is not drawn here, but configure it for cursor readout:
+        self._x_axis.set_range(x_range, xaxis_x, xaxis_x + xaxis_extent)
 
         # Create a capture that can be used to finish drawing the graph later on, when the image
         # is available:
@@ -610,6 +616,13 @@ class AmplitudeLayout(GraphLayout):
                     self._draw_x_grid(canvas, x_ticks, self._data_area)
 
         return draw_followup, self._data_area
+
+    def canvas_to_time(self, p_canvas) -> Optional[float]:
+        """Map a canvas point to the time axis value."""
+        if self._x_axis is None:
+            return None
+        t_canvas, _ = p_canvas
+        return self._x_axis.canvas_to_axis(t_canvas)
 
 
 class ProfileLayout(GraphLayout):

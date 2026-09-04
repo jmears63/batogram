@@ -19,6 +19,7 @@
 # SOFTWARE.
 
 import tkinter as tk
+from tkinter import font
 
 from .frames import DrawableFrame
 from .renderingservice import GraphParams
@@ -62,8 +63,14 @@ class ReadoutFrame(DrawableFrame):
         self._parameters_label = tk.Label(self, textvariable=self._parameters_variable, width=40, anchor=tk.W)
         self._parameters_label.grid(row=0, column=1, sticky="nsew")
 
+        # Larger font so cursor time/frequency stands out from graph params.
+        coords_font = font.nametofont("TkDefaultFont").copy()
+        size = coords_font.actual("size")
+        coords_font.configure(size=max(abs(size) + 4, 14))
+
         self._coords_variable = tk.StringVar(value="")
-        self._coords_label = tk.Label(self, textvariable=self._coords_variable, width=20, anchor=tk.E)
+        self._coords_label = tk.Label(self, textvariable=self._coords_variable, width=24, anchor=tk.E,
+                                      font=coords_font)
         self._coords_label.grid(row=0, column=2, sticky="nsew")
 
         self.columnconfigure(0, weight=0)
@@ -71,13 +78,16 @@ class ReadoutFrame(DrawableFrame):
         self.columnconfigure(2, weight=1)
 
     def update_readout_coords(self, position, power):
-        text = ""
+        parts = []
         if position is not None:
             t, f = position
-            text = "{:.4} s, {:.1f} kHz".format(t, f / 1000.0, power)
+            if t is not None:
+                parts.append("{:.4} s".format(t))
+            if f is not None:
+                parts.append("{:.1f} kHz".format(f / 1000.0))
         if power is not None:
-            text += ", {:.1f} dB".format(power)
-        self._coords_variable.set(text)
+            parts.append("{:.1f} dB".format(power))
+        self._coords_variable.set(", ".join(parts))
 
     def update_graph_parameters(self, params: GraphParams):
         if params.specific_channel is None:

@@ -20,6 +20,7 @@
 
 import tkinter as tk
 import tkinter.messagebox
+from typing import Optional, Tuple
 
 from .constants import PROGRAM_NAME
 
@@ -48,6 +49,7 @@ class GraphFrame(DrawableFrame):
 
     def __init__(self, parent, root, pipeline, data_context, settings: "GraphSettings"):
         super().__init__(parent)
+        self._parent = parent
         self._completer = None
         self._my_root = root
         self._pipeline = pipeline
@@ -55,6 +57,27 @@ class GraphFrame(DrawableFrame):
         self._settings: "GraphSettings" = settings
         self._layout = None
         self._after_id = None
+
+    def _bind_readout_mouse(self, canvas: tk.Canvas):
+        """Bind motion/leave so the cursor readout updates for this graph."""
+        canvas.bind('<Motion>', self._on_readout_move)
+        canvas.bind('<Leave>', self._on_readout_leave)
+
+    def _on_readout_move(self, event):
+        self.on_mouse_move((event.x, event.y))
+
+    def _on_readout_leave(self, _: tk.Event):
+        self.on_mouse_move(None)
+
+    def on_mouse_move(self, p_canvas: Optional[Tuple[int, int]]):
+        if p_canvas is None or self._layout is None:
+            self._parent.update_readout_coords(None, None)
+            return
+        self._update_readout_from_canvas(p_canvas)
+
+    def _update_readout_from_canvas(self, p_canvas: Tuple[int, int]):
+        """Subclasses override to push graph-specific readout values."""
+        pass
 
     def _on_canvas_change(self, _):
         # Don't directly draw here, it results in very laggy window resizing on Windows. Perhaps

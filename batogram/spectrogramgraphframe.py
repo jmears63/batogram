@@ -120,8 +120,6 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
         self._scroller_t = None
         self._scroller_f = None
 
-        self._parent = parent
-
         self._playback_line_id: Optional[int] = None
 
         # Optional time marker pair, depends whether the user has enabled time markers or not:
@@ -435,16 +433,10 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
 
         return True
 
-    def on_mouse_move(self, p_canvas):
-        # print("on mouse move")
-
-        if p_canvas is None or self._layout is None:
-            self._parent.update_readout_coords(None, None)
-        else:
-            # Convert to axis coords for t and f:
-            p_axis = self._layout.canvas_to_axis(p_canvas)
-            p_data_area = self._layout.canvas_to_data_area(p_canvas)
-            self._parent.update_readout_coords(p_axis, p_data_area)
+    def _update_readout_from_canvas(self, p_canvas: Tuple[int, int]):
+        p_axis = self._layout.canvas_to_axis(p_canvas)
+        p_data_area = self._layout.canvas_to_data_area(p_canvas)
+        self._parent.update_readout_coords(p_axis, p_data_area)
 
     def _scroll_move_time(self, _):
         # Scroll time to position f which is in the range 0 to 1.0.

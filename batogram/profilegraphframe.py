@@ -39,13 +39,11 @@ class ProfileGraphFrame(GraphFrame):
         self._canvas.grid(row=0, column=0, sticky='nesw')
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
-        self._parent = parent
         self._is_reference = is_reference
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(PROFILE_COMPLETER_EVENT, self._do_completer)
-
-        # self._pipeline = None   # Temporary, remove this.
+        self._bind_readout_mouse(self._canvas)
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         super().draw(draw_scope)
@@ -67,10 +65,10 @@ class ProfileGraphFrame(GraphFrame):
         self.update_idletasks()
 
         width, height = self._canvas.winfo_width(), self._canvas.winfo_height()
-        layout = layouts.ProfileLayout(AXIS_FONT_HEIGHT, width, height)
+        self._layout = layouts.ProfileLayout(AXIS_FONT_HEIGHT, width, height)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
-        graph_completer, data_area = layout.draw(self._canvas, profile_range, frequency_range,
-                                                 self._settings.show_grid, self._settings.zero_based_time)
+        graph_completer, data_area = self._layout.draw(self._canvas, profile_range, frequency_range,
+                                                       self._settings.show_grid, self._settings.zero_based_time)
         if af_data and self._pipeline:
             # Kick off the pipeline which will create a graph in another thread,
             # and complete by generating an event that will finish drawing the grph:
@@ -96,3 +94,13 @@ class ProfileGraphFrame(GraphFrame):
         if completer:
             memory_limit_hit, request, points, v_range = self._pipeline.get_completion_data()
             completer(memory_limit_hit, points, v_range)
+
+    def _update_readout_from_canvas(self, p_canvas: Tuple[int, int]):
+        # Profile has no time axis: show frequency from the y axis,
+        # and dB from the profile curve at that frequency.
+        _, frequency = self._layout.canvas_to_axis(p_canvas)
+        p_data_area = self._layout.canvas_to_data_area(p_canvas)
+        power = None
+        if p_data_area is not None and self._pipeline is not None:
+            power = self._pipeline.data_area_to_value(p_data_area)
+        self._parent.update_readout_coords((None, frequency), power=power)

@@ -41,7 +41,6 @@ class AmplitudeGraphFrame(GraphFrame):
         super().__init__(parent, root, pipeline, data_context, settings)
 
         self._is_reference = is_reference
-        self._parent = parent
         self._on_t_range_set = on_t_range_set
 
         self._canvas = tk.Canvas(self, bg="black", height=AMPLITUDE_HEIGHT, width=1)
@@ -51,6 +50,7 @@ class AmplitudeGraphFrame(GraphFrame):
 
         self.bind("<Configure>", self._on_canvas_change)
         self.bind(AMPLITUDE_COMPLETER_EVENT, self._do_completer)
+        self._bind_readout_mouse(self._canvas)
 
     def draw(self, draw_scope: int = DrawableFrame.DRAW_ALL):
         super().draw(draw_scope)
@@ -74,10 +74,10 @@ class AmplitudeGraphFrame(GraphFrame):
         self.update_idletasks()
 
         width, height = self._canvas.winfo_width(), self._canvas.winfo_height()
-        layout = layouts.AmplitudeLayout(AXIS_FONT_HEIGHT, width, height, is_reference=self._is_reference)
+        self._layout = layouts.AmplitudeLayout(AXIS_FONT_HEIGHT, width, height, is_reference=self._is_reference)
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
-        graph_completer, data_area = layout.draw(self._canvas, time_range, amplitude_range,
-                                                 self._settings.show_grid, self._settings.zero_based_time)
+        graph_completer, data_area = self._layout.draw(self._canvas, time_range, amplitude_range,
+                                                       self._settings.show_grid, self._settings.zero_based_time)
 
         if afs and self._pipeline:
             # Kick off the pipeline which will create a spectrogram in another thread,
@@ -113,3 +113,8 @@ class AmplitudeGraphFrame(GraphFrame):
             self._on_t_range_set(t_range)
             # print("t_range = {}".format(t_range))
             completer(is_memory_limit_hit, completion_data)
+
+    def _update_readout_from_canvas(self, p_canvas: Tuple[int, int]):
+        # Amplitude graph has no frequency axis in the readout: show time only.
+        time = self._layout.canvas_to_time(p_canvas)
+        self._parent.update_readout_coords((time, None))
