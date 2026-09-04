@@ -867,8 +867,9 @@ class RootWindow(tk.Tk):
             tk.messagebox.showerror(PROGRAM_NAME, "Error reading audio file: {}".format(e))
             return None
         else:
-            self._main_historian.add_file(filepath)
+            historian.add_file(filepath)
             self._populate_file_history(recent_menu_item, historian, method)
+            self.enable_menu_items()
             return af_this
         finally:
             self._pop_cursor()

@@ -45,8 +45,8 @@ class HistorianService:
             self._history = self._history[ln - self._MAX_ENTRIES:ln]
 
     def get_history(self):
-        """Get a list of the history with MRU first, in tuples of full path, filename"""
+        """Get a list of the history with MRU first, in tuples of filename, full path."""
         return [(os.path.basename(p), p) for p in reversed(self._history)]
 
     def is_empty(self):
-        return len(self._history) > 0
+        return len(self._history) == 0
