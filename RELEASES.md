@@ -1,3 +1,9 @@
+### Release 1.9.0
+Minor usability improvement and fixes:
+The cursor readout (time, frequency, power) now works on amplitude and profile graphs as well as the spectrogram, and the font is larger.
+FIX: Recent files and recent references on the main menu now works as intended.
+FIX: Eliminated an exception on audio playback when auto volume control is disabled.
+
 ### Release 1.8.0
 Minor usability improvement:
 * The time span of the time axis marker is no longer hidden when the time span is very narrow.
