@@ -470,8 +470,10 @@ class PlaybackServiceImpl(PlaybackService):
             # A large division would result in a sample rate < 48 kHz: we interpolate/upsample.
             # A smaller division would result in a sample rate > 48 kHz: we need to decimate.
             # The raw data must be a multiple of 48 kHz: if it isn't, we pretend that it is by rounding.
+            # Sample rates below ~24 kHz round to 0; clamp like the other playback paths.
 
             total_factor: int = int(settings.settings_sample_rate / native_sample_rate + 0.5)
+            total_factor = max(total_factor, 1)
             td_factor: int = settings.td_factor
             modifiers.append(TDModifier(td_factor))
             if td_factor < total_factor:
