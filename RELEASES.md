@@ -1,3 +1,8 @@
+### Release 1.9.1
+More usability improvement:
+Added a "high contract grid lines" option, enabled by default, for improved visibility.
+Added a "don't show this again" check box to the playback dialog, to reduce clicking through.
+
 ### Release 1.9.0
 Minor usability improvement and fixes:
 The cursor readout (time, frequency, power) now works on amplitude and profile graphs as well as the spectrogram, and the font is larger.
