@@ -56,6 +56,7 @@ TD_MAPS = {
 @dataclass()
 class AppSettings:
     colour_map: str = DEFAULT_COLOUR_MAP
+    high_contrast_grid_lines: bool = True
     data_directory: str = str(Path.home())
     initial_frequency_min_khz: Optional[float] = None
     initial_frequency_max_khz: Optional[float] = None
@@ -66,6 +67,7 @@ class AppSettings:
     def _copy_other(self, other: "AppSettings"):
         # Could we use deep_copy for this?
         self.colour_map = other.colour_map
+        self.high_contrast_grid_lines = other.high_contrast_grid_lines
         self.data_directory = other.data_directory
         self.initial_frequency_min_khz = other.initial_frequency_min_khz
         self.initial_frequency_max_khz = other.initial_frequency_max_khz

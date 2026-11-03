@@ -52,6 +52,7 @@ class AppSettingsWindow(ModalWindow):
 
         self._data_directory_var: tk.StringVar = tk.StringVar()
         self._colour_scale_var: tk.StringVar = tk.StringVar()
+        self._high_contrast_grid_lines_var: tk.BooleanVar = tk.BooleanVar()
         self._initial_frequency_min_var: tk.StringVar = tk.StringVar()
         self._initial_frequency_max_var: tk.StringVar = tk.StringVar()
         self._main_mic_response_var: tk.StringVar = tk.StringVar()
@@ -69,6 +70,11 @@ class AppSettingsWindow(ModalWindow):
         label.grid(row=settings_row, column=0, padx=pad, pady=pad, sticky=tk.E)
         menu = ColourMapOptionMenu(settings_frame, self._colour_scale_var)
         menu.grid(row=settings_row, column=1, padx=pad, pady=pad, sticky=tk.EW)
+
+        settings_row += 1
+        check = tk.Checkbutton(settings_frame, text="High contrast grid lines",
+                               variable=self._high_contrast_grid_lines_var, anchor=tk.W)
+        check.grid(row=settings_row, column=1, columnspan=2, padx=pad, pady=pad, sticky=tk.W)
 
         settings_row += 1
         label = tk.Label(settings_frame, text="Initial data directory:", anchor=tk.E)
@@ -160,6 +166,7 @@ class AppSettingsWindow(ModalWindow):
     def _settings_to_vars(self):
         self._data_directory_var.set(self._shortened_path(self._app_settings.data_directory))
         self._colour_scale_var.set(self._app_settings.colour_map)
+        self._high_contrast_grid_lines_var.set(self._app_settings.high_contrast_grid_lines)
         self._initial_frequency_min_var.set(
             "" if self._app_settings.initial_frequency_min_khz is None
             else str(self._app_settings.initial_frequency_min_khz))
@@ -216,6 +223,7 @@ class AppSettingsWindow(ModalWindow):
         self._app_settings.initial_frequency_max_khz = mx
         self._app_settings.serial_number += 1       # So we know when to redraw.
         self._app_settings.colour_map = self._colour_scale_var.get()
+        self._app_settings.high_contrast_grid_lines = self._high_contrast_grid_lines_var.get()
         # Intentionally don't assign paths to the settings, that has already been done, and anyway
         # the var only contains the shortened name.
         return True

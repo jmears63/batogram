@@ -37,6 +37,7 @@ class ColourMap:
         self._cmap = None
         self._num_steps: Optional[int] = None
         self._polyfilla_colour: Optional[str] = None
+        self._grid_colour: Optional[str] = None
 
         self.reload_map(map_file)
 
@@ -56,9 +57,11 @@ class ColourMap:
         self._cmap = raw_cmap
         self._num_steps = len(self._cmap)
 
-        # Calculate the "lowest" colour as a string:
+        # Calculate the "lowest" colour as a string, and its complement for the grid:
         entry = self._cmap[0]
-        self._polyfilla_colour = "#{:02X}{:02X}{:02X}".format(*entry)
+        self._polyfilla_colour = self._format_rgb(entry)
+        complement = 255 - entry.astype(int)
+        self._grid_colour = self._format_rgb(complement)
 
     def map(self, inputdata: np.ndarray) -> np.ndarray:
         """Replace each value in the input with an (RGB) tuple.
@@ -77,9 +80,39 @@ class ColourMap:
 
         return outputdata
 
+    @staticmethod
+    def _format_rgb(entry) -> str:
+        return "#{:02X}{:02X}{:02X}".format(int(entry[0]), int(entry[1]), int(entry[2]))
+
     def get_polyfilla_colour(self) -> str:
         """Get the 'lowest' colour of the spectrum to be used for filling awkward gaps."""
         return self._polyfilla_colour
+
+    def get_grid_colour(self) -> str:
+        """Get the complement of the lowest colour, used for the dashed grid line."""
+        return self._grid_colour
+
+    def get_fraction_colour(self, fraction: float) -> str:
+        """Colour at a fraction of the way through the map, using the same index as map()."""
+        index = int(fraction * self._num_steps)
+        if index >= self._num_steps:
+            index = self._num_steps - 1
+        elif index < 0:
+            index = 0
+        return self._format_rgb(self._cmap[index])
+
+    def get_graph_line_colour(self) -> str:
+        """A bright trace colour: 75% for dark-to-light maps, 25% for light-to-dark maps."""
+        fraction = 0.75 if self._starts_dark() else 0.25
+        return self.get_fraction_colour(fraction)
+
+    def _starts_dark(self) -> bool:
+        return self._luminance(self._cmap[0]) <= self._luminance(self._cmap[-1])
+
+    @staticmethod
+    def _luminance(entry) -> float:
+        r, g, b = int(entry[0]), int(entry[1]), int(entry[2])
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
 # The single global instance of the colour map:

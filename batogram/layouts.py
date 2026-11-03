@@ -28,6 +28,7 @@ import numpy as np
 from typing import Optional, Tuple, List
 from PIL import ImageTk, Image, ImageOps
 
+from . import appsettings
 from . import colourmap
 from .common import AxisRange
 from .constants import AXIS_FONT_NAME
@@ -147,7 +148,8 @@ class GraphLayout(Layout):
     def _get_bottom_margin(self, axis_size):
         return 0, self._canvas_height - 1, self._canvas_width - 1, self._canvas_height - axis_size - 1
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool,
+             has_data: bool = True):
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc., which are fast to draw, are drawn immediately by this method
         (2) The image and things overlaying it (such as the grid) are drawn later when the image
@@ -240,20 +242,37 @@ class GraphLayout(Layout):
         # Layout._create_rectangle(canvas, l, t, r, b, "#800000")
 
     @staticmethod
-    def _draw_x_grid(canvas, x_ticks, data_area):
+    def _grid_line_colour(has_data: bool) -> str:
+        if has_data and appsettings.instance.high_contrast_grid_lines:
+            return colourmap.instance.get_grid_colour()
+        return GRID_COLOUR
+
+    @staticmethod
+    def _graph_line_colour() -> str:
+        # Dark-to-light maps use the 75% colour; light-to-dark maps use the 25% colour.
+        return colourmap.instance.get_graph_line_colour()
+
+    @staticmethod
+    def _draw_grid_line(canvas, x1, y1, x2, y2, has_data: bool):
+        # Dash gaps are left unpainted, so the spectrogram shows through them.
+        colour = GraphLayout._grid_line_colour(has_data)
+        canvas.create_line(x1, y1, x2, y2, fill=colour, width=1, dash=(2, 2))
+
+    @staticmethod
+    def _draw_x_grid(canvas, x_ticks, data_area, has_data: bool):
         l, t, r, b = data_area
         for _, p in x_ticks:
             if p > 0:  # Don't overwrite the axis.
                 x_pixels = l + p - 1  # The first x-axis tick is actually over the y-axis
-                canvas.create_line(x_pixels, b, x_pixels, t, fill=GRID_COLOUR, width=1, dash=(1, 1))
+                GraphLayout._draw_grid_line(canvas, x_pixels, b, x_pixels, t, has_data)
 
     @staticmethod
-    def _draw_y_grid(canvas, y_ticks, data_area):
+    def _draw_y_grid(canvas, y_ticks, data_area, has_data: bool):
         l, t, r, b = data_area
         for v, p in y_ticks:
             if p > 0:  # Don't overwrite the axes.
                 y_pixels = b - p + 1  # The first y-axis tick is actually over the xaxis
-                canvas.create_line(l, y_pixels, r, y_pixels, fill=GRID_COLOUR, width=1, dash=(1, 1))
+                GraphLayout._draw_grid_line(canvas, l, y_pixels, r, y_pixels, has_data)
 
 
 @dataclass
@@ -477,8 +496,9 @@ class SpectrogramLayout(GraphLayout):
         self._dead_space = (
             0, self._canvas_height - self._x_axis_height, self._y_axis_width - 1, self._canvas_height - 1)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid, zero_based_x_axis: bool):
-        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid, zero_based_x_axis: bool,
+             has_data: bool = True):
+        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis, has_data)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc, which are fast to draw, are drawn immediately by this method
@@ -523,8 +543,8 @@ class SpectrogramLayout(GraphLayout):
                 self._draw_graph_image(canvas, self._data_area, image)
 
             if show_grid:
-                self._draw_x_grid(canvas, x_ticks, self._data_area)
-                self._draw_y_grid(canvas, y_ticks, self._data_area)
+                self._draw_x_grid(canvas, x_ticks, self._data_area, has_data)
+                self._draw_y_grid(canvas, y_ticks, self._data_area, has_data)
 
             if self._time_marker_pair is not None:
                 al, at, ar, ab = self._get_top_margin()
@@ -570,8 +590,9 @@ class AmplitudeLayout(GraphLayout):
         self._data_area = (
             self._y_axis_width, 0, self._canvas_width - self._margin - 1, self._canvas_height)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
-        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool,
+             has_data: bool = True):
+        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis, has_data)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc, which are fast to draw, are drawn immediately by this method
@@ -607,13 +628,13 @@ class AmplitudeLayout(GraphLayout):
             if not is_memory_limit_hit:
 
                 # Draw the actual data:
-                line_colour = "#00FFFF"
                 if line_segments is not None:
-                    self._draw_graph_line_segments(canvas, self._data_area, line_segments, line_colour)
+                    self._draw_graph_line_segments(canvas, self._data_area, line_segments,
+                                                   GraphLayout._graph_line_colour())
 
                 if show_grid:
                     # self._draw_y_grid(canvas, y_ticks, self._data_area)
-                    self._draw_x_grid(canvas, x_ticks, self._data_area)
+                    self._draw_x_grid(canvas, x_ticks, self._data_area, False)
 
         return draw_followup, self._data_area
 
@@ -650,8 +671,9 @@ class ProfileLayout(GraphLayout):
         self._dead_space = (
             0, self._canvas_height - self._x_axis_height, self._y_axis_width - 1, self._canvas_height - 1)
 
-    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool):
-        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis)
+    def draw(self, canvas, x_range: AxisRange, y_range: AxisRange, show_grid: bool, zero_based_x_axis: bool,
+             has_data: bool = True):
+        super().draw(canvas, x_range, y_range, show_grid, zero_based_x_axis, has_data)
 
         """Draw a graph including axes, image and grid. We do this in two phases:
         (1) The axes etc, which are fast to draw, are drawn immediately by this method
@@ -699,10 +721,10 @@ class ProfileLayout(GraphLayout):
 
                 # Draw the actual data:
                 if points is not None:
-                    self._draw_graph_points(canvas, self._data_area, points, '#00FFFF')
+                    self._draw_graph_points(canvas, self._data_area, points, GraphLayout._graph_line_colour())
 
                 if show_grid:
-                    self._draw_y_grid(canvas, y_ticks, self._data_area)
-                    self._draw_x_grid(canvas, new_x_ticks, self._data_area)
+                    self._draw_y_grid(canvas, y_ticks, self._data_area, False)
+                    self._draw_x_grid(canvas, new_x_ticks, self._data_area, False)
 
         return draw_followup, self._data_area

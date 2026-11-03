@@ -200,7 +200,8 @@ class SpectrogramGraphFrame(GraphFrame, PlaybackCursorEventHandler):
         # Draw the graph axes here in the UI thread, as that is fast and provides responsiveness to the user:
         graph_completer, data_area = self._layout.draw(self._canvas, time_range, frequency_range,
                                                        self._settings.show_grid,
-                                                       self._settings.zero_based_time)
+                                                       self._settings.zero_based_time,
+                                                       bool(afs_data))
         self._data_area = data_area
 
         if afs_data:
