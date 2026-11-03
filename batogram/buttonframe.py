@@ -68,6 +68,7 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         self._first_file_open = True
         self._t_range: Optional[Tuple[int, int]] = None
         self._settings = settings
+        self._force_playback_dialog = False
 
         self._playback_processor.add_watcher(self, self._event_processor)  # Don't know why type hinting complains.
 
@@ -125,8 +126,10 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
 
         self._play_button = ImageButton(self, "play-line.png",
                                         command=lambda: self._handle_play())
+        # Shift is recorded on press; the button command runs on release and reads it.
+        self._play_button.bind("<ButtonPress-1>", self._note_play_shift)
         self._play_button.grid(row=0, column=col, padx=(small_gap * 3, 0), ipadx=0, sticky="NSEW")
-        ToolTip(self._play_button, msg="Play the recording")
+        ToolTip(self._play_button, msg="Play the recording.\nHold Shift to choose playback settings.")
         col += 1
 
         self._pause_button = ImageButton(self, "pause-line.png",
@@ -261,8 +264,15 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
         if self._sync_source:
             self._action_target.apply_sync_data(self._sync_source.get_sync_data())
 
+    def _note_play_shift(self, event):
+        """Remember a Shift-click so playback settings can be reopened this session."""
+        # Tk reports the X11 Shift modifier in the low bit of event.state.
+        self._force_playback_dialog = bool(event.state & 0x0001)
+
     def _handle_play(self):
         if self._playback_state == PlaybackState.PLAYBACK_STOPPED:
+            force_dialog = self._force_playback_dialog
+            self._force_playback_dialog = False
             ok_clicked: bool = False
 
             def on_ok():
@@ -273,9 +283,13 @@ class ButtonFrame(DrawableFrame, PlaybackEventHandler):
             # file sample rate):
             self._playback_settings.settings_sample_rate = int(self._settings.settings_sample_rate)
 
-            modal = PlaybackModal(self, self._playback_settings, on_ok)
-            modal.grab_set()
-            modal.wait_window()
+            # skip_dialog is stored only on the shared session settings, and only after Play.
+            if force_dialog or not self._playback_settings.skip_dialog:
+                modal = PlaybackModal(self, self._playback_settings, on_ok)
+                modal.grab_set()
+                modal.wait_window()
+            else:
+                ok_clicked = True
 
             # _t_range might not have been set yet if the rendering pipeline has not completed,
             # but that is very unlikely. So we just silently skip if that seems to have happened.

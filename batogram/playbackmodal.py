@@ -47,6 +47,8 @@ class PlaybackSettings:
     autoscale: bool = True
     write_to_file: bool = False
     file_name: Optional[str] = None
+    # Session-only. When set, Play starts immediately and Shift-click reopens this dialog.
+    skip_dialog: bool = False
     settings_sample_rate: int       # A hidden setting that we use to pass a value through from the main settings.
 
 
@@ -71,6 +73,7 @@ class PlaybackModal(ModalWindow):
         self._td_factor_var: tk.StringVar = tk.StringVar()
         self._autoscale_var: tk.IntVar = tk.IntVar()
         self._file_var: tk.IntVar = tk.IntVar()
+        self._skip_dialog_var: tk.IntVar = tk.IntVar()
 
         registered_reference_validator = self.register(self._is_valid_reference)
 
@@ -118,12 +121,19 @@ class PlaybackModal(ModalWindow):
         self._file_cb = tk.Checkbutton(settings_frame, text="Write to file", variable=self._file_var)
         self._file_cb.grid(row=4, column=0, sticky="W")
 
+        self._skip_dialog_cb = tk.Checkbutton(settings_frame,
+                                              text="Don't show this again this session unless I shift-click the play button",
+                                              variable=self._skip_dialog_var)
+        self._skip_dialog_cb.grid(row=5, column=0, columnspan=4, sticky="W", pady=(margin, 0))
+
         settings_frame.rowconfigure(0, weight=0, pad=pad)
         settings_frame.rowconfigure(1, weight=0, pad=pad)
         settings_frame.rowconfigure(2, weight=0, pad=pad)
         settings_frame.rowconfigure(3, weight=0, pad=pad * 5)
+        settings_frame.rowconfigure(4, weight=0, pad=pad)
+        settings_frame.rowconfigure(5, weight=0, pad=0)
         settings_frame.columnconfigure(0, pad=margin)
-        settings_frame.grid(row=0, column=0)
+        settings_frame.grid(row=0, column=0, pady=(margin, 0))
 
         okcancel_frame = tk.Frame(self)
         btn = tk.Button(okcancel_frame, text="Play", underline=0, width=button_width, command=self.on_ok)
@@ -135,10 +145,10 @@ class PlaybackModal(ModalWindow):
         btn.grid(row=0, column=3, padx=pad, pady=pad)
 
         okcancel_frame.columnconfigure(0, weight=1)
-        okcancel_frame.grid(row=1, column=0, sticky=tk.EW)
+        okcancel_frame.grid(row=1, column=0, sticky=tk.EW, pady=(0, margin))
 
-        self.rowconfigure(0, weight=1, pad=margin)
-        self.rowconfigure(1, weight=0, pad=margin)
+        self.rowconfigure(0, weight=1, pad=0)
+        self.rowconfigure(1, weight=0, pad=0)
         self.columnconfigure(0, weight=1, pad=margin)
 
         self.data_directory_var = tk.StringVar()
@@ -200,6 +210,7 @@ class PlaybackModal(ModalWindow):
         self._td_factor_var.set(TD_INVERSE_MAP[self._playback_settings.td_factor])
         self._autoscale_var.set(1 if self._playback_settings.autoscale else 0)
         self._file_var.set(1 if self._playback_settings.write_to_file else 0)
+        self._skip_dialog_var.set(1 if self._playback_settings.skip_dialog else 0)
 
     def _vars_to_settings(self):
         self._playback_settings.method = self._method_var.get()
@@ -208,3 +219,4 @@ class PlaybackModal(ModalWindow):
         self._playback_settings.td_factor = TD_MAP[self._td_factor_var.get()]
         self._playback_settings.autoscale = False if self._autoscale_var.get() == 0 else True
         self._playback_settings.write_to_file = False if self._file_var.get() == 0 else True
+        self._playback_settings.skip_dialog = False if self._skip_dialog_var.get() == 0 else True

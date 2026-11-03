@@ -152,6 +152,10 @@ the playback time range and zoom out to increase it. The play, pause and stop bu
 Playback settings are displayed when the play button is clicked:
 ![img.png](playbacksettings.png)
 
+Check "Don't show this again..." to start later playback immediately with these
+settings. Subsequently, hold Shift and click play to open the dialog again, and uncheck the box there to
+show it on every play for the rest of the session. The choice lasts until Batogram is closed.
+
 * Heterodyne playback simulates the sound that would be heard from a classic heterodyne bat
 detector. Choose a reference frequency close to and a little below the frequency of the calls
 you are interested in.
